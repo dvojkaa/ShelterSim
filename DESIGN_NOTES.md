@@ -98,3 +98,4 @@ Given the "longer session per milestone" working style, each milestone should be
 
 - 2026-11-06: Initial design notes created. No code written yet. No git repo initialized in this folder yet.
 - 2026-11-06: All initial planning questions resolved — engine/pipeline/input/platform/enemies/save-load/working-style/references/milestone order all confirmed. Ready to start M1 once git repo is initialized.
+- 2026-11-06: M1 code written (player controller + input, interaction system, editor scene builder). No Unity Editor or dotnet SDK available in the dev sandbox that wrote this — code has NOT been compiled or run. See `SETUP.md` for the exact steps to open this in Unity and verify M1 actually works before trusting it. Next action is verification in a real Unity Editor, not writing M2 yet.
