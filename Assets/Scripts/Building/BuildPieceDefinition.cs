@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using SheltreSim.Crafting;
 using UnityEngine;
 
 namespace SheltreSim.Building
@@ -26,10 +28,9 @@ namespace SheltreSim.Building
         public Vector3 footprintSize = new Vector3(2f, 3f, 0.2f);
 
         /// <summary>
-        /// Stubbed to 0 for M2 — resources are free for now. Real costs arrive once a
-        /// resource/inventory system exists (per the milestone plan: M4 resource
-        /// gathering, M5 crafting).
+        /// Resources required to place this piece (M5 — replaces the old M2 stub cost).
+        /// Checked/spent via <see cref="SheltreSim.Crafting.CraftingSystem"/>.
         /// </summary>
-        public int resourceCost = 0;
+        public List<CraftingCost> craftingCost = new List<CraftingCost>();
     }
 }

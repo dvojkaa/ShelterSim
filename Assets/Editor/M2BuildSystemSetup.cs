@@ -120,7 +120,7 @@ namespace SheltreSim.EditorTools
             definition.displayName = displayName;
             definition.prefab = prefab;
             definition.footprintSize = footprintSize;
-            definition.resourceCost = 0;
+            // craftingCost defaults to an empty list (free) until M5's setup tool assigns a real recipe.
 
             AssetDatabase.CreateAsset(definition, path);
 

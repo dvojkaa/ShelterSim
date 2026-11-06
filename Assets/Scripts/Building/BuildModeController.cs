@@ -17,6 +17,9 @@ namespace SheltreSim.Building
         public LayerMask obstructionMask = ~0;
         public List<BuildPieceDefinition> availablePieces = new List<BuildPieceDefinition>();
 
+        /// <summary>M5 — wired by the M5 editor setup tool to the Player's Inventory.</summary>
+        public SheltreSim.Items.Inventory inventory;
+
         private BuildInputActions input;
 
         private bool isBuildModeActive;
@@ -105,11 +108,13 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (!ResourceStub.TryAfford(piece.resourceCost))
+            if (!SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost))
             {
-                Debug.Log($"Cannot afford '{piece.displayName}' (cost {piece.resourceCost}).");
+                Debug.Log($"Cannot afford '{piece.displayName}'.");
                 return;
             }
+
+            SheltreSim.Crafting.CraftingSystem.Spend(inventory, piece.craftingCost);
 
             Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
             Debug.Log($"Placed '{piece.displayName}' at {currentGhost.transform.position}.");

@@ -16,4 +16,6 @@ MonoBehaviour:
   id: floor_tile
   prefab: {fileID: 2125413603440174063, guid: 36a98c87cc5944b23ae465a3c1b28013, type: 3}
   footprintSize: {x: 2, y: 0.2, z: 2}
-  resourceCost: 0
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 1

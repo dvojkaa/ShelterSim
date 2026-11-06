@@ -16,4 +16,6 @@ MonoBehaviour:
   id: wall_segment
   prefab: {fileID: 2337021195127785790, guid: 98e9fba3b4089b53dbc6046ebdbc370e, type: 3}
   footprintSize: {x: 2, y: 3, z: 0.2}
-  resourceCost: 0
+  craftingCost:
+  - resource: {fileID: 11400000, guid: a4bad508bf8180c8083a0a2a23a87ad7, type: 2}
+    amount: 2

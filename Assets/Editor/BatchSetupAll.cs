@@ -25,6 +25,9 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M4 outdoor area...");
             M4OutdoorAreaSetup.SetupOutdoorArea();
 
+            Debug.Log("[BatchSetupAll] Setting up M5 crafting...");
+            M5CraftingSetup.SetupCrafting();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }
