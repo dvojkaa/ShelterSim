@@ -14,6 +14,7 @@ namespace SheltreSim.Saving
         public float health;
 
         public List<PlacedPieceData> placedPieces = new List<PlacedPieceData>();
+        public List<InventoryEntry> inventory = new List<InventoryEntry>();
 
         [System.Serializable]
         public class PlacedPieceData
@@ -21,6 +22,13 @@ namespace SheltreSim.Saving
             public string pieceId;
             public Vector3 position;
             public Quaternion rotation;
+        }
+
+        [System.Serializable]
+        public class InventoryEntry
+        {
+            public string resourceId;
+            public int count;
         }
     }
 }

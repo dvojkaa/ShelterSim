@@ -11,6 +11,12 @@ namespace SheltreSim.Saving
         public SheltreSim.Survival.SurvivalStats stats;
         public SheltreSim.Building.BuildModeController buildController;
 
+        /// <summary>
+        /// Optional — M4's outdoor-area setup tool wires this in if it has run; save/load
+        /// still works for player/stats/pieces without it, inventory is just skipped.
+        /// </summary>
+        public SheltreSim.Items.Inventory inventory;
+
         private const string SaveFileName = "savegame.json";
 
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
@@ -64,6 +70,18 @@ namespace SheltreSim.Saving
                 });
             }
 
+            if (inventory != null)
+            {
+                foreach (KeyValuePair<string, int> entry in inventory.GetAllCounts())
+                {
+                    data.inventory.Add(new SaveData.InventoryEntry
+                    {
+                        resourceId = entry.Key,
+                        count = entry.Value,
+                    });
+                }
+            }
+
             string json = JsonUtility.ToJson(data, true);
             File.WriteAllText(SavePath, json);
 
@@ -111,6 +129,15 @@ namespace SheltreSim.Saving
                 }
 
                 Instantiate(definition.prefab, entry.position, entry.rotation);
+            }
+
+            if (inventory != null)
+            {
+                inventory.Clear();
+                foreach (SaveData.InventoryEntry entry in data.inventory)
+                {
+                    inventory.SetCount(entry.resourceId, entry.count);
+                }
             }
 
             Debug.Log($"Loaded game from {SavePath} ({data.placedPieces.Count} pieces restored).");

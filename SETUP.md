@@ -65,3 +65,18 @@ Press Play and confirm:
 - Place a few build pieces (build mode from step 7), then press **F5** — Console logs the save path.
 - Move around, let stats drain further, then press **F9** — player teleports back to the saved position, stats bars jump back to the saved values, and any pieces placed after the save disappear while the saved pieces are restored.
 - Save file lives at Unity's `Application.persistentDataPath` (on Linux: `~/.config/unity3d/<CompanyName>/<ProductName>/savegame.json` — exact path is logged by F5, easiest to just read it from the Console).
+
+## 10. Build the M4 outdoor area
+
+- With M1 (and ideally M3, for inventory save/load) already set up, run `Tools > SheltreSim > Setup M4 Outdoor Area`.
+- This extends the *same* scene — no new `.unity` file, no scene-transition loading. The outdoor area sits directly beyond the bunker's south doorway.
+
+## 11. Test M4
+
+Press Play and confirm:
+
+- Walking through the bunker's doorway leads into an outdoor area (ground + 3 boundary walls so you can't walk off the edge).
+- Two cylinder-shaped "Wood" nodes and two sphere-shaped "Scrap Metal" nodes are scattered around.
+- Looking at a node shows a gather prompt in the Console (with remaining charges); pressing **E** gathers it and logs the new inventory total.
+- After 3 gathers from the same node, it logs "Depleted" instead and the next interact does nothing; the node then disappears.
+- If M3 was set up first, F5/F9 also save/restore inventory counts (not just stats and pieces).
