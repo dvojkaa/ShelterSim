@@ -28,6 +28,9 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M5 crafting...");
             M5CraftingSetup.SetupCrafting();
 
+            Debug.Log("[BatchSetupAll] Setting up M6 enemies...");
+            M6EnemySetup.SetupEnemies();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }
