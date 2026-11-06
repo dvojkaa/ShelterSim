@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SheltreSim.Saving;
 using UnityEngine;
 
 namespace SheltreSim.Building
@@ -219,6 +220,16 @@ namespace SheltreSim.Building
             foreach (Collider col in currentGhost.GetComponentsInChildren<Collider>())
             {
                 col.enabled = false;
+            }
+
+            // Piece prefabs carry a PlacedPiece component that self-registers with
+            // PlacedPieceRegistry on enable (for save/load). A ghost is a preview, not a
+            // placed piece, so disable it immediately — otherwise a save triggered while a
+            // ghost is visible would incorrectly include it in the save file.
+            PlacedPiece ghostPlacedPiece = currentGhost.GetComponent<PlacedPiece>();
+            if (ghostPlacedPiece != null)
+            {
+                ghostPlacedPiece.enabled = false;
             }
 
             currentGhostPiece = piece;

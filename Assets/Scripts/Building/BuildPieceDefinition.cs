@@ -8,6 +8,12 @@ namespace SheltreSim.Building
         public string displayName = "Piece";
 
         /// <summary>
+        /// Stable identifier used to look this definition back up by string (e.g. when
+        /// restoring placed pieces from a save file). Not shown to the player.
+        /// </summary>
+        public string id = "";
+
+        /// <summary>
         /// Visual + collider prefab for this piece. Assigned later by an editor tool —
         /// may be null until then.
         /// </summary>

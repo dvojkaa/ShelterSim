@@ -1,0 +1,119 @@
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace SheltreSim.Saving
+{
+    public class SaveManager : MonoBehaviour
+    {
+        public SheltreSim.Player.FirstPersonController player;
+        public SheltreSim.Survival.SurvivalStats stats;
+        public SheltreSim.Building.BuildModeController buildController;
+
+        private const string SaveFileName = "savegame.json";
+
+        private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+
+        private SaveInputActions input;
+
+        private void Awake()
+        {
+            input = new SaveInputActions();
+        }
+
+        private void OnEnable()
+        {
+            input.Enable();
+            input.SaveGame.performed += OnSaveRequested;
+            input.LoadGame.performed += OnLoadRequested;
+        }
+
+        private void OnDisable()
+        {
+            input.SaveGame.performed -= OnSaveRequested;
+            input.LoadGame.performed -= OnLoadRequested;
+            input.Disable();
+            input.Dispose();
+        }
+
+        private void OnSaveRequested(InputAction.CallbackContext context)
+        {
+            if (player == null || stats == null)
+            {
+                Debug.LogError($"{nameof(SaveManager)}: player and stats must both be assigned.");
+                return;
+            }
+
+            SaveData data = new SaveData
+            {
+                playerPosition = player.transform.position,
+                playerYaw = player.transform.eulerAngles.y,
+                hunger = stats.hunger,
+                thirst = stats.thirst,
+                health = stats.health,
+            };
+
+            foreach (PlacedPiece p in PlacedPieceRegistry.All)
+            {
+                data.placedPieces.Add(new SaveData.PlacedPieceData
+                {
+                    pieceId = p.pieceId,
+                    position = p.transform.position,
+                    rotation = p.transform.rotation,
+                });
+            }
+
+            string json = JsonUtility.ToJson(data, true);
+            File.WriteAllText(SavePath, json);
+
+            Debug.Log($"Saved game to {SavePath}");
+        }
+
+        private void OnLoadRequested(InputAction.CallbackContext context)
+        {
+            if (player == null || stats == null || buildController == null)
+            {
+                Debug.LogError($"{nameof(SaveManager)}: player, stats, and buildController must all be assigned.");
+                return;
+            }
+
+            if (!File.Exists(SavePath))
+            {
+                Debug.LogWarning($"No save file at {SavePath}.");
+                return;
+            }
+
+            SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
+
+            player.transform.position = data.playerPosition;
+            player.transform.rotation = Quaternion.Euler(0f, data.playerYaw, 0f);
+
+            stats.hunger = data.hunger;
+            stats.thirst = data.thirst;
+            stats.health = data.health;
+
+            // Snapshot first — destroying a piece triggers OnDisable -> Unregister,
+            // which would mutate PlacedPieceRegistry.All while we're iterating it.
+            List<PlacedPiece> existing = new List<PlacedPiece>(PlacedPieceRegistry.All);
+            foreach (PlacedPiece p in existing)
+            {
+                Destroy(p.gameObject);
+            }
+
+            foreach (SaveData.PlacedPieceData entry in data.placedPieces)
+            {
+                var definition = buildController.availablePieces.Find(d => d.id == entry.pieceId);
+                if (definition == null)
+                {
+                    Debug.LogWarning($"No BuildPieceDefinition with id '{entry.pieceId}' — skipping saved piece.");
+                    continue;
+                }
+
+                Instantiate(definition.prefab, entry.position, entry.rotation);
+            }
+
+            Debug.Log($"Loaded game from {SavePath} ({data.placedPieces.Count} pieces restored).");
+        }
+    }
+}

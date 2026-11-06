@@ -1,5 +1,6 @@
 using SheltreSim.Building;
 using SheltreSim.Player;
+using SheltreSim.Saving;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -46,21 +47,25 @@ namespace SheltreSim.EditorTools
 
             GameObject wallPrefab = CreatePrimitivePrefab(
                 "WallSegmentPiece",
+                "wall_segment",
                 new Vector3(2f, 3f, 0.2f),
                 "Assets/Prefabs/Building/WallSegmentPiece.prefab");
 
             GameObject floorPrefab = CreatePrimitivePrefab(
                 "FloorTilePiece",
+                "floor_tile",
                 new Vector3(2f, 0.2f, 2f),
                 "Assets/Prefabs/Building/FloorTilePiece.prefab");
 
             BuildPieceDefinition wallPiece = CreatePieceDefinition(
+                "wall_segment",
                 "Wall Segment",
                 wallPrefab,
                 new Vector3(2f, 3f, 0.2f),
                 "Assets/Data/BuildPieces/WallSegment.asset");
 
             BuildPieceDefinition floorPiece = CreatePieceDefinition(
+                "floor_tile",
                 "Floor Tile",
                 floorPrefab,
                 new Vector3(2f, 0.2f, 2f),
@@ -89,11 +94,18 @@ namespace SheltreSim.EditorTools
             }
         }
 
-        private static GameObject CreatePrimitivePrefab(string name, Vector3 scale, string path)
+        private static GameObject CreatePrimitivePrefab(string name, string pieceId, Vector3 scale, string path)
         {
             GameObject temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
             temp.name = name;
             temp.transform.localScale = scale;
+
+            // Baked onto the prefab so every real instantiated copy carries a stable id for
+            // save/load (see SheltreSim.Saving.PlacedPiece/PlacedPieceRegistry). Ghost previews
+            // are built from this same prefab, so BuildModeController explicitly disables this
+            // component on ghost instances — otherwise a ghost would self-register as a "placed"
+            // piece while just being previewed.
+            temp.AddComponent<PlacedPiece>().pieceId = pieceId;
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(temp, path);
             Object.DestroyImmediate(temp);
@@ -101,9 +113,10 @@ namespace SheltreSim.EditorTools
             return prefab;
         }
 
-        private static BuildPieceDefinition CreatePieceDefinition(string displayName, GameObject prefab, Vector3 footprintSize, string path)
+        private static BuildPieceDefinition CreatePieceDefinition(string id, string displayName, GameObject prefab, Vector3 footprintSize, string path)
         {
             BuildPieceDefinition definition = ScriptableObject.CreateInstance<BuildPieceDefinition>();
+            definition.id = id;
             definition.displayName = displayName;
             definition.prefab = prefab;
             definition.footprintSize = footprintSize;

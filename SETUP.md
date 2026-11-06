@@ -50,3 +50,18 @@ Press Play and confirm:
 - **Escape** exits build mode and clears the ghost.
 
 Known rough edge (not a bug, just unpolished): a placed Floor Tile's pivot is at its center, so it slightly intersects the M1 room's floor rather than sitting flush on top — cosmetic only, fine for M2's goal of proving the build loop works.
+
+## 8. Build the M3 survival & save system
+
+- With the M1+M2 scene set up (steps 4 and 6 above), run `Tools > SheltreSim > Setup M3 Survival & Save`.
+- This adds `SurvivalStats` to the Player, and creates standalone `HUD` and `SaveManager` objects in the scene.
+
+## 9. Test M3
+
+Press Play and confirm:
+
+- Three colored bars appear top-left: health (red), hunger (brown), thirst (blue), all slowly draining.
+- If hunger or thirst hits empty, health starts draining too; at 0 health, Console logs "Player has died." and stats stop changing.
+- Place a few build pieces (build mode from step 7), then press **F5** — Console logs the save path.
+- Move around, let stats drain further, then press **F9** — player teleports back to the saved position, stats bars jump back to the saved values, and any pieces placed after the save disappear while the saved pieces are restored.
+- Save file lives at Unity's `Application.persistentDataPath` (on Linux: `~/.config/unity3d/<CompanyName>/<ProductName>/savegame.json` — exact path is logged by F5, easiest to just read it from the Console).
