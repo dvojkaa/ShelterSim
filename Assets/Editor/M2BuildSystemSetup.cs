@@ -49,13 +49,15 @@ namespace SheltreSim.EditorTools
                 "WallSegmentPiece",
                 "wall_segment",
                 new Vector3(2f, 3f, 0.2f),
-                "Assets/Prefabs/Building/WallSegmentPiece.prefab");
+                "Assets/Prefabs/Building/WallSegmentPiece.prefab",
+                new Color(0.3f, 0.5f, 0.7f));
 
             GameObject floorPrefab = CreatePrimitivePrefab(
                 "FloorTilePiece",
                 "floor_tile",
                 new Vector3(2f, 0.2f, 2f),
-                "Assets/Prefabs/Building/FloorTilePiece.prefab");
+                "Assets/Prefabs/Building/FloorTilePiece.prefab",
+                new Color(0.4f, 0.6f, 0.75f));
 
             BuildPieceDefinition wallPiece = CreatePieceDefinition(
                 "wall_segment",
@@ -79,10 +81,50 @@ namespace SheltreSim.EditorTools
             controller.availablePieces.Add(wallPiece);
             controller.availablePieces.Add(floorPiece);
 
+            CreateExtraPieces(controller);
+
             AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
-            Debug.Log("M2 build system ready. Press B to toggle build mode, scroll to cycle piece (Wall/Floor), R to rotate 90°, left-click to place, Escape to cancel.");
+            Debug.Log("M2 build system ready. 7 buildable pieces available (Wall, Floor, Workbench, Bed, Storage Crate, Water Collector, Generator). Press B to toggle build mode, scroll to cycle, R to rotate 90°, left-click to place, Escape to cancel.");
+        }
+
+        /// <summary>
+        /// Playtest feedback: "add more things to the build menu, not just walls." These are
+        /// placeable decoration for now — no unique gameplay function (no sleep mechanic, no
+        /// crafting-at-station requirement, no actual power generation). Adding that would be
+        /// new mechanics beyond what was asked; this is purely build-menu variety. Resource
+        /// costs for these are assigned separately by M5CraftingSetup.
+        /// </summary>
+        private static void CreateExtraPieces(BuildModeController controller)
+        {
+            AddPiece(controller, "Workbench", "workbench", PrimitiveType.Cube,
+                new Vector3(1.5f, 1.0f, 0.8f), new Color(0.5f, 0.35f, 0.2f),
+                "Assets/Prefabs/Building/WorkbenchPiece.prefab", "Assets/Data/BuildPieces/Workbench.asset");
+
+            AddPiece(controller, "Bed", "bed", PrimitiveType.Cube,
+                new Vector3(1.0f, 0.5f, 2.0f), new Color(0.3f, 0.35f, 0.5f),
+                "Assets/Prefabs/Building/BedPiece.prefab", "Assets/Data/BuildPieces/Bed.asset");
+
+            AddPiece(controller, "Storage Crate", "storage_crate", PrimitiveType.Cube,
+                new Vector3(1.0f, 1.0f, 1.0f), new Color(0.45f, 0.32f, 0.18f),
+                "Assets/Prefabs/Building/StorageCratePiece.prefab", "Assets/Data/BuildPieces/StorageCrate.asset");
+
+            AddPiece(controller, "Water Collector", "water_collector", PrimitiveType.Cylinder,
+                new Vector3(0.8f, 1.2f, 0.8f), new Color(0.4f, 0.55f, 0.6f),
+                "Assets/Prefabs/Building/WaterCollectorPiece.prefab", "Assets/Data/BuildPieces/WaterCollector.asset");
+
+            AddPiece(controller, "Generator", "generator", PrimitiveType.Cube,
+                new Vector3(1.2f, 1.2f, 1.2f), new Color(0.6f, 0.55f, 0.2f),
+                "Assets/Prefabs/Building/GeneratorPiece.prefab", "Assets/Data/BuildPieces/Generator.asset");
+        }
+
+        private static void AddPiece(BuildModeController controller, string displayName, string id, PrimitiveType primitiveType,
+            Vector3 footprintSize, Color color, string prefabPath, string assetPath)
+        {
+            GameObject prefab = CreatePrimitivePrefab(displayName.Replace(" ", "") + "Piece", id, footprintSize, prefabPath, color, primitiveType);
+            BuildPieceDefinition definition = CreatePieceDefinition(id, displayName, prefab, footprintSize, assetPath);
+            controller.availablePieces.Add(definition);
         }
 
         private static void EnsureFolder(string parent, string name)
@@ -94,11 +136,15 @@ namespace SheltreSim.EditorTools
             }
         }
 
-        private static GameObject CreatePrimitivePrefab(string name, string pieceId, Vector3 scale, string path)
+        private static GameObject CreatePrimitivePrefab(string name, string pieceId, Vector3 scale, string path, Color color, PrimitiveType primitiveType = PrimitiveType.Cube)
         {
-            GameObject temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject temp = GameObject.CreatePrimitive(primitiveType);
             temp.name = name;
             temp.transform.localScale = scale;
+            // Blue-ish tones so player-built pieces read as distinct from the grey/brown
+            // world geometry. BuildModeController's ghost tint still overrides this during
+            // preview (green/red), so there's no conflict with that feedback.
+            EditorMaterialUtility.Apply(temp, color);
 
             // Baked onto the prefab so every real instantiated copy carries a stable id for
             // save/load (see SheltreSim.Saving.PlacedPiece/PlacedPieceRegistry). Ghost previews

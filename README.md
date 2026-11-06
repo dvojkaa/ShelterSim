@@ -9,10 +9,13 @@ visuals, no procedural generation, no combat — just build, scavenge, and endur
 
 ## Status
 
-**Prototype — all 7 planned milestones implemented.** Built with heavy AI assistance (Claude),
-verified to compile and run cleanly via headless Unity batch-mode automation, but **not yet
-playtested by a human**. See [`DESIGN_NOTES.md`](DESIGN_NOTES.md) for the full build log and
-every design decision made along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone
+**Prototype — all 7 planned milestones implemented and through one round of human playtesting.**
+Built with heavy AI assistance (Claude), verified to compile and run cleanly via headless Unity
+batch-mode automation after every change. First playtest found a door-hinge bug (fixed), a
+confusing survival-stat pacing issue (tuned, and death now has a real visible consequence
+instead of being a silent no-op), and asked for more visual variety and a bigger map (done —
+see Features below). See [`DESIGN_NOTES.md`](DESIGN_NOTES.md) for the full build log and every
+design decision made along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone
 playtest checklist.
 
 ## Gameplay loop
@@ -30,12 +33,15 @@ playtest checklist.
 | Milestone | What it adds |
 |---|---|
 | M1 | First-person movement & look, interaction system (raycast + prompt), a starter bunker room |
-| M2 | Grid-snapped building system — place walls and floors with a live ghost preview |
+| M2 | Grid-snapped building system — 7 placeable pieces (Wall, Floor, Workbench, Bed, Storage Crate, Water Collector, Generator) with a live ghost preview |
 | M3 | Hunger/thirst/health, an on-screen HUD, and JSON save/load (F5 / F9) |
-| M4 | An outdoor area beyond the bunker doorway, with gatherable Wood and Scrap Metal nodes |
-| M5 | Crafting — building pieces cost real resources, drawn from your inventory |
-| M6 | Raiders — simple AI that detects, chases, and attacks on sight (no combat yet — avoid or flee) |
+| M4 | A 40×36m outdoor wasteland beyond the bunker doorway — 8 gatherable Wood/Scrap Metal nodes plus decorative rubble |
+| M5 | Crafting — every build piece costs real resources, drawn from your inventory |
+| M6 | 4 raiders — simple AI that detects, chases, and attacks on sight (no combat yet — avoid or flee) |
 | M7 | The apocalypse trigger itself, tying the whole loop together |
+
+All world objects are flat-colored primitives (still grey-box by design, just not all the same
+grey/white anymore) — generated entirely in code, no imported art assets.
 
 ## Controls
 

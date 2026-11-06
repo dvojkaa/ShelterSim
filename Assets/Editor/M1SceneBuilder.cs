@@ -32,37 +32,54 @@ namespace SheltreSim.EditorTools
             Debug.Log("M1 bunker shell scene built: Assets/Scenes/M1_BunkerShell.unity");
         }
 
+        private static readonly Color FloorColor = new Color(0.5f, 0.5f, 0.5f);
+        private static readonly Color WallColor = new Color(0.35f, 0.35f, 0.38f);
+        private static readonly Color DoorColor = new Color(0.45f, 0.28f, 0.14f);
+
         private static void BuildRoom()
         {
             float half = RoomSize / 2f;
 
-            CreateBlock("Floor", new Vector3(0f, -WallThickness / 2f, 0f), new Vector3(RoomSize, WallThickness, RoomSize));
+            CreateBlock("Floor", new Vector3(0f, -WallThickness / 2f, 0f), new Vector3(RoomSize, WallThickness, RoomSize), FloorColor);
 
-            CreateBlock("Wall_North", new Vector3(0f, WallHeight / 2f, half), new Vector3(RoomSize, WallHeight, WallThickness));
-            CreateBlock("Wall_East", new Vector3(half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize));
-            CreateBlock("Wall_West", new Vector3(-half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize));
+            CreateBlock("Wall_North", new Vector3(0f, WallHeight / 2f, half), new Vector3(RoomSize, WallHeight, WallThickness), WallColor);
+            CreateBlock("Wall_East", new Vector3(half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor);
+            CreateBlock("Wall_West", new Vector3(-half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor);
 
             // South wall split around a doorway gap centered on x = 0.
             float sideSpan = (RoomSize - DoorGap) / 2f;
             float sideCenterOffset = DoorGap / 2f + sideSpan / 2f;
-            CreateBlock("Wall_South_A", new Vector3(-sideCenterOffset, WallHeight / 2f, -half), new Vector3(sideSpan, WallHeight, WallThickness));
-            CreateBlock("Wall_South_B", new Vector3(sideCenterOffset, WallHeight / 2f, -half), new Vector3(sideSpan, WallHeight, WallThickness));
+            CreateBlock("Wall_South_A", new Vector3(-sideCenterOffset, WallHeight / 2f, -half), new Vector3(sideSpan, WallHeight, WallThickness), WallColor);
+            CreateBlock("Wall_South_B", new Vector3(sideCenterOffset, WallHeight / 2f, -half), new Vector3(sideSpan, WallHeight, WallThickness), WallColor);
+
+            // Hinge-based door: rotating the door's OWN transform around its own center just
+            // spins it in place (a 1m x 0.1m slab becomes a 0.1m x 1m slab at the same spot —
+            // it still blocks the gap, just along the other axis). A real door needs to pivot
+            // around one vertical edge. "DoorHinge" sits at the left edge of the gap; the
+            // visible door mesh is its child, offset by half the door's width, so rotating the
+            // HINGE swings the mesh out of the doorway instead of spinning it on the spot.
+            const float doorWidth = 1.0f;
+            GameObject doorHinge = new GameObject("DoorHinge");
+            doorHinge.transform.position = new Vector3(-doorWidth / 2f, 1.1f, -half);
 
             GameObject door = GameObject.CreatePrimitive(PrimitiveType.Cube);
             door.name = "Door";
-            door.transform.localScale = new Vector3(1.0f, 2.2f, 0.1f);
-            door.transform.position = new Vector3(0f, 1.1f, -half);
+            door.transform.SetParent(doorHinge.transform, false);
+            door.transform.localScale = new Vector3(doorWidth, 2.2f, 0.1f);
+            door.transform.localPosition = new Vector3(doorWidth / 2f, 0f, 0f);
+            EditorMaterialUtility.Apply(door, DoorColor);
 
             InteractableDoor doorScript = door.AddComponent<InteractableDoor>();
-            doorScript.doorVisual = door.transform;
+            doorScript.doorVisual = doorHinge.transform;
         }
 
-        private static GameObject CreateBlock(string name, Vector3 position, Vector3 scale)
+        private static GameObject CreateBlock(string name, Vector3 position, Vector3 scale, Color color)
         {
             GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
             block.name = name;
             block.transform.position = position;
             block.transform.localScale = scale;
+            EditorMaterialUtility.Apply(block, color);
             return block;
         }
 

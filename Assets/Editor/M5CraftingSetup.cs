@@ -76,12 +76,52 @@ namespace SheltreSim.EditorTools
             EditorUtility.SetDirty(wallSegment);
             EditorUtility.SetDirty(floorTile);
 
+            BuildPieceDefinition workbench = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>("Assets/Data/BuildPieces/Workbench.asset");
+            BuildPieceDefinition bed = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>("Assets/Data/BuildPieces/Bed.asset");
+            BuildPieceDefinition storageCrate = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>("Assets/Data/BuildPieces/StorageCrate.asset");
+            BuildPieceDefinition waterCollector = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>("Assets/Data/BuildPieces/WaterCollector.asset");
+            BuildPieceDefinition generator = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>("Assets/Data/BuildPieces/Generator.asset");
+            if (workbench == null || bed == null || storageCrate == null || waterCollector == null || generator == null)
+            {
+                Debug.LogError("Build piece definitions not found at Assets/Data/BuildPieces/ — run Tools > SheltreSim > Setup M2 Build System first.");
+                return;
+            }
+
+            workbench.craftingCost = new System.Collections.Generic.List<CraftingCost>
+            {
+                new CraftingCost { resource = wood, amount = 1 },
+                new CraftingCost { resource = scrapMetal, amount = 1 },
+            };
+            bed.craftingCost = new System.Collections.Generic.List<CraftingCost>
+            {
+                new CraftingCost { resource = wood, amount = 2 },
+            };
+            storageCrate.craftingCost = new System.Collections.Generic.List<CraftingCost>
+            {
+                new CraftingCost { resource = wood, amount = 1 },
+            };
+            waterCollector.craftingCost = new System.Collections.Generic.List<CraftingCost>
+            {
+                new CraftingCost { resource = scrapMetal, amount = 2 },
+            };
+            generator.craftingCost = new System.Collections.Generic.List<CraftingCost>
+            {
+                new CraftingCost { resource = scrapMetal, amount = 3 },
+                new CraftingCost { resource = wood, amount = 1 },
+            };
+
+            EditorUtility.SetDirty(workbench);
+            EditorUtility.SetDirty(bed);
+            EditorUtility.SetDirty(storageCrate);
+            EditorUtility.SetDirty(waterCollector);
+            EditorUtility.SetDirty(generator);
+
             buildController.inventory = inventory;
 
             AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
-            Debug.Log("M5 crafting ready. Wall Segment costs 2 Wood, Floor Tile costs 1 Scrap Metal — gather resources outside before building.");
+            Debug.Log("M5 crafting ready. Wall Segment: 2 Wood. Floor Tile: 1 Scrap Metal. Workbench: 1 Wood + 1 Scrap Metal. Bed: 2 Wood. Storage Crate: 1 Wood. Water Collector: 2 Scrap Metal. Generator: 3 Scrap Metal + 1 Wood.");
         }
     }
 }

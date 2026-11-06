@@ -31,12 +31,16 @@ namespace SheltreSim.EditorTools
                 return;
             }
 
+            // Repositioned for M4's enlarged 40x36m outdoor area (was 24x20m) — 2 more raiders
+            // added since the bigger map had too much empty space for just 2.
             SpawnEnemy("Raider_1", new Vector3(0f, 1f, -11f), outdoorArea.transform);
-            SpawnEnemy("Raider_2", new Vector3(8f, 1f, -20f), outdoorArea.transform);
+            SpawnEnemy("Raider_2", new Vector3(15f, 1f, -22f), outdoorArea.transform);
+            SpawnEnemy("Raider_3", new Vector3(-15f, 1f, -22f), outdoorArea.transform);
+            SpawnEnemy("Raider_4", new Vector3(0f, 1f, -34f), outdoorArea.transform);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
-            Debug.Log("M6 enemies ready. 2 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. There is currently no way to fight back; avoid or flee.");
+            Debug.Log("M6 enemies ready. 4 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. There is currently no way to fight back; avoid or flee.");
         }
 
         private static void SpawnEnemy(string name, Vector3 position, Transform parent)
@@ -50,6 +54,7 @@ namespace SheltreSim.EditorTools
             enemy.name = name;
             enemy.transform.SetParent(parent, false);
             enemy.transform.position = position;
+            EditorMaterialUtility.Apply(enemy, new Color(0.6f, 0.15f, 0.15f));
             enemy.AddComponent<EnemyAI>();
         }
     }

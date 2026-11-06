@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: WaterCollector
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Water Collector
+  id: water_collector
+  prefab: {fileID: 8048846367147755386, guid: 01a78b95f9b6f6884a5593383d4f5934, type: 3}
+  footprintSize: {x: 0.8, y: 1.2, z: 0.8}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 2

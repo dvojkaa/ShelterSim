@@ -122,6 +122,11 @@ namespace SheltreSim.Enemies
 
         private void TryAttack()
         {
+            if (playerStats != null && playerStats.IsDead)
+            {
+                return;
+            }
+
             if (Time.time - lastAttackTime < attackCooldown)
             {
                 return;

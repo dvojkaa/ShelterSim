@@ -54,6 +54,7 @@ namespace SheltreSim.EditorTools
                 trigger.name = "ApocalypseButton";
                 trigger.transform.position = new Vector3(2.3f, 1f, 2.6f);
                 trigger.transform.localScale = new Vector3(0.4f, 0.4f, 0.2f);
+                EditorMaterialUtility.Apply(trigger, new Color(0.9f, 0.1f, 0.1f));
             }
 
             ApocalypseTrigger apocalypseTrigger = trigger.GetComponent<ApocalypseTrigger>();

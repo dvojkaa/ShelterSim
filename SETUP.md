@@ -30,13 +30,19 @@ round-trip) — that needs a human. This file is for that pass.
 **Movement & interaction (M1)**
 - WASD + mouse look moves/rotates the player; cursor is locked.
 - Walk through the bunker's south doorway gap.
-- Looking at the bunker door logs an interact prompt; **E** toggles it open/closed.
+- Looking at the bunker door logs an interact prompt; **E** toggles it open/closed — it should
+  now swing out to the side on a hinge rather than just spinning in place (that was a real bug,
+  fixed after the first playtest — it used to still block the gap once "opened").
 
 **Building (M2)**
 - **B** toggles build mode. A ghost piece follows your look direction, snapped to a 2m grid.
-- Scroll wheel cycles Wall Segment / Floor Tile. **R** rotates 90°.
+- Scroll wheel cycles through **7 pieces**: Wall Segment, Floor Tile, Workbench, Bed, Storage
+  Crate, Water Collector, Generator. **R** rotates 90°.
 - Ghost tints green (clear) / red (overlapping something). Left-click places when green.
 - **Escape** exits build mode.
+- The 5 new pieces (Workbench/Bed/Storage Crate/Water Collector/Generator) are placeable
+  decoration only — no unique gameplay function yet (no sleeping, no crafting-at-station, no
+  real power generation).
 - *Known rough edge:* a placed Floor Tile's pivot is centered, so it slightly intersects the
   floor rather than sitting flush — cosmetic only.
 
@@ -47,30 +53,36 @@ round-trip) — that needs a human. This file is for that pass.
   pieces, and inventory all restore).
 
 **Outdoor area & gathering (M4)**
-- Beyond the doorway: ground + 3 boundary walls, 2 cylinder "Wood" nodes, 2 sphere "Scrap
-  Metal" nodes.
+- Beyond the doorway: a 40×36m wasteland (ground + 3 boundary walls so you can't walk off the
+  edge), 4 cylinder "Wood" nodes, 4 sphere "Scrap Metal" nodes, and ~9 small cube "rubble" props
+  scattered around for visual variety (purely decorative, not interactable).
 - Looking at a node shows a gather prompt with remaining charges; **E** gathers it (logs the
   new inventory total). After 3 gathers it logs "Depleted" and disappears.
 
 **Crafting (M5)**
-- Wall Segment costs 2 Wood, Floor Tile costs 1 Scrap Metal. Try building with an empty
-  inventory — it should log "Cannot afford" and refuse; gather first, then it should work and
-  the resource count should drop.
+- Wall Segment: 2 Wood. Floor Tile: 1 Scrap Metal. Workbench: 1 Wood + 1 Scrap Metal. Bed: 2
+  Wood. Storage Crate: 1 Wood. Water Collector: 2 Scrap Metal. Generator: 3 Scrap Metal + 1
+  Wood. Try building with an empty inventory — it should log "Cannot afford" and refuse; gather
+  first, then it should work and the resource count should drop.
 
 **Enemies (M6)**
-- Two capsule "Raider" enemies patrol the outdoor area (`Raider_1` near the doorway,
-  `Raider_2` further out). Get within ~10m and they should turn and approach; within ~1.5m
-  they stop and attack on a cooldown (Console logs each hit, and your health HUD bar should
-  drop *once the apocalypse has started* — see M7). There is no way to fight back yet — the
-  intended play is to avoid or flee.
+- 4 capsule "Raider" enemies patrol the outdoor area, spread across the larger map. Get within
+  ~10m and they should turn and approach; within ~1.5m they stop and attack on a cooldown
+  (Console logs each hit, and your health HUD bar should drop *once the apocalypse has
+  started* — see M7). There is no way to fight back yet — the intended play is to avoid or
+  flee. If health reaches 0, you should actually freeze (movement/interaction disabled, cursor
+  unlocked) — this used to be silent (Console-log only), now it's a real, visible consequence.
 
 **Apocalypse trigger & full loop (M7)**
-- A small button-like cube ("ApocalypseButton") sits inside the bunker near the north wall.
+- A small red button-like cube ("ApocalypseButton") sits inside the bunker near the north wall.
   Look at it, press **E** — Console logs "Sirens wail in the distance...", then ~2s later
   "The ground shakes. It's begun.", then ~1s later survival ticking starts for real (HUD bars
-  begin draining, enemy attacks start affecting health).
+  begin draining — faster than before a balance pass, expect hunger/thirst to empty within
+  ~60-90s and health to follow within another ~20s if you do nothing).
 - Pressing **E** on it again afterward should be a harmless no-op (logs "Already triggered"
   via the prompt, or a warning if interacted with anyway).
+- Let health reach 0 (wait it out, or let a raider finish you off) and confirm you actually
+  freeze — this is a real fix, previously death did nothing visible at all.
 
 ## Known scope gaps (by design, not oversights — see DESIGN_NOTES.md)
 
