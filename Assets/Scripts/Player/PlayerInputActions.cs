@@ -21,7 +21,7 @@ namespace SheltreSim.Player
         {
             map = new InputActionMap("Player");
 
-            Move = map.AddAction("Move", InputActionType.Value, expectedControlType: "Vector2");
+            Move = map.AddAction("Move", InputActionType.Value, expectedControlLayout: "Vector2");
             Move.AddCompositeBinding("2DVector")
                 .With("Up", "<Keyboard>/w")
                 .With("Down", "<Keyboard>/s")
@@ -29,7 +29,7 @@ namespace SheltreSim.Player
                 .With("Right", "<Keyboard>/d");
             Move.AddBinding("<Gamepad>/leftStick");
 
-            Look = map.AddAction("Look", InputActionType.Value, expectedControlType: "Vector2");
+            Look = map.AddAction("Look", InputActionType.Value, expectedControlLayout: "Vector2");
             Look.AddBinding("<Mouse>/delta");
             Look.AddBinding("<Gamepad>/rightStick");
 

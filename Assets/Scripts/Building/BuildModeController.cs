@@ -242,11 +242,14 @@ namespace SheltreSim.Building
                 return;
             }
 
-            // URP's Lit shader reads "_BaseColor", not the legacy Built-in "_Color" property —
-            // setting "_Color" here would silently do nothing visually. This is a flat tint only
-            // (no alpha blending); true transparency would additionally require the material's
-            // Surface Type set to Transparent, which these stub prefabs don't have. Acceptable
-            // simplification for M2, revisit later if wanted.
+            // The project turned out to be Built-in Render Pipeline (Standard shader reads
+            // "_Color"), not URP (Lit shader reads "_BaseColor") as originally planned — set
+            // both so this works regardless; setting a property name the active shader doesn't
+            // have is a harmless no-op. This is a flat tint only (no alpha blending); true
+            // transparency would additionally require the material's render mode/surface type
+            // set to transparent, which these stub prefabs don't have. Acceptable simplification,
+            // revisit later if wanted.
+            materialPropertyBlock.SetColor("_Color", color);
             materialPropertyBlock.SetColor("_BaseColor", color);
 
             foreach (MeshRenderer renderer in currentGhost.GetComponentsInChildren<MeshRenderer>())

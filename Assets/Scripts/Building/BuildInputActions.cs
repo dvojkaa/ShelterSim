@@ -39,7 +39,7 @@ namespace SheltreSim.Building
 
             // Value only — sign (positive/negative) indicates cycle direction. The consumer
             // reads the sign and applies its own debounce; this map only exposes the raw axis.
-            CyclePiece = map.AddAction("CyclePiece", InputActionType.Value, expectedControlType: "Axis");
+            CyclePiece = map.AddAction("CyclePiece", InputActionType.Value, expectedControlLayout: "Axis");
             CyclePiece.AddBinding("<Mouse>/scroll/y");
         }
 

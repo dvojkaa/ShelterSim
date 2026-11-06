@@ -25,7 +25,7 @@ Scope is explicitly: **bunker with multiple rooms + one outdoor map + basic craf
 
 ## Confirmed decisions
 
-- Render pipeline: **URP**.
+- Render pipeline: **URP was the plan, but the actual created project turned out to be Built-in Render Pipeline** (discovered 2026-11-06 during first real Unity verification — `GraphicsSettings.asset` has no SRP assigned, `Packages/manifest.json` has no `com.unity.render-pipelines.universal`). Not worth converting for a grey-box/primitive-shapes prototype — code was patched to be pipeline-agnostic instead (`BuildModeController.TintGhost` now sets both `_Color` and `_BaseColor`). Revisit only if visual fidelity needs ever go beyond solid-color primitives.
 - Save/load: **core requirement**, not deferred — build it in from the start, not bolted on later.
 - Enemies: **simple AI** (raiders/mutants) — basic movement, player detection, attack. Not deep combat, but a real moving threat, not just environmental hazards.
 - Working style: **longer agentic sessions per milestone** — I implement a larger chunk (e.g. the whole build system) in one go, user reviews at the end of the milestone rather than after every small step. Implication: be extra careful to keep scope tight and self-consistent within a milestone, since there's no mid-flight checkpoint. Flag assumptions/decisions made along the way in the session summary so they're reviewable even without a diff-by-diff walkthrough.
