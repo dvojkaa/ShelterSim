@@ -31,6 +31,9 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M6 enemies...");
             M6EnemySetup.SetupEnemies();
 
+            Debug.Log("[BatchSetupAll] Setting up M7 apocalypse trigger...");
+            M7ApocalypseSetup.SetupApocalypseTrigger();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }

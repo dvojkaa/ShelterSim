@@ -16,6 +16,13 @@ namespace SheltreSim.Survival
         public float thirstDecayPerSecond = 0.8f;
         public float healthDecayWhenStarving = 2f;
 
+        /// <summary>
+        /// M7 — while true, Update does nothing (no decay at all). Lets the Building phase
+        /// (before the apocalypse trigger) be stress-free; GameStateManager flips this off
+        /// once the apocalypse sequence completes.
+        /// </summary>
+        public bool decayPaused;
+
         private bool isDead;
 
         private void Awake()
@@ -27,7 +34,7 @@ namespace SheltreSim.Survival
 
         private void Update()
         {
-            if (isDead)
+            if (isDead || decayPaused)
             {
                 return;
             }
