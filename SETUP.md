@@ -2,7 +2,7 @@
 
 Unity 6000.6.8f1 is already installed on this machine and the full project (scene,
 prefabs, generated assets) is committed and verified via headless batch mode — 0 compile
-errors, 0 exceptions, all 7 milestones' setup tools run clean end to end. What's **not**
+errors, 0 exceptions, all 8 milestones' setup tools run clean end to end. What's **not**
 verified is actual Play Mode gameplay (movement feel, HUD rendering, a real save/load
 round-trip) — that needs a human. This file is for that pass.
 
@@ -19,7 +19,7 @@ round-trip) — that needs a human. This file is for that pass.
    chained via `Assets/Editor/BatchSetupAll.cs`). Just open that scene and press Play.
 4. If you ever want to regenerate everything from scratch (e.g. after wiping the scene),
    run each `Tools > SheltreSim > ...` menu item in order (M1 → M2 → M3 → M4 → M5 → M6 →
-   M7), or headlessly via:
+   M7 → M8), or headlessly via:
    ```
    /home/vojta/Unity/Hub/Editor/6000.6.8f1/Editor/Unity -batchmode -nographics \
      -projectPath /home/vojta/git/SheltreSim -executeMethod SheltreSim.EditorTools.BatchSetupAll.RunAll -quit
@@ -43,14 +43,19 @@ round-trip) — that needs a human. This file is for that pass.
 - The 5 new pieces (Workbench/Bed/Storage Crate/Water Collector/Generator) are placeable
   decoration only — no unique gameplay function yet (no sleeping, no crafting-at-station, no
   real power generation).
-- *Known rough edge:* a placed Floor Tile's pivot is centered, so it slightly intersects the
-  floor rather than sitting flush — cosmetic only.
+- Pieces now rest ON the surface you're aiming at rather than sinking half-way into it —
+  the ghost is offset up by half its height. (An older note here warned that a placed Floor
+  Tile sinks into the floor; that was fixed along with the "everything's always red" bug.)
 
 **Survival & save (M3)**
-- Three HUD bars top-left: health (red), hunger (brown), thirst (blue) — **frozen** until you
-  trigger the apocalypse (see M7 below); this is intentional, not a bug.
+- Three HUD bars top-left: health (red), hunger (brown), thirst (blue). Their *passive* decay
+  is **frozen** until you trigger the apocalypse (see M7 below) — intentional, not a bug. The
+  health bar can still drop before then if a raider hits you.
 - **F5** saves (Console logs the file path), **F9** loads (player position, stats, placed
   pieces, and inventory all restore).
+- Worth testing once: die, then press **F9** on a save taken while alive. You should get
+  control back. (Until the second review you did not — health came back but the player stayed
+  frozen forever.)
 
 **Outdoor area & gathering (M4)**
 - Beyond the doorway: a 40×36m wasteland (ground + 3 boundary walls so you can't walk off the
@@ -68,10 +73,15 @@ round-trip) — that needs a human. This file is for that pass.
 **Enemies (M6)**
 - 4 capsule "Raider" enemies patrol the outdoor area, spread across the larger map. Get within
   ~10m and they should turn and approach; within ~1.5m they stop and attack on a cooldown
-  (Console logs each hit, and your health HUD bar should drop *once the apocalypse has
-  started* — see M7). There is no way to fight back yet — the intended play is to avoid or
-  flee. If health reaches 0, you should actually freeze (movement/interaction disabled, cursor
-  unlocked) — this used to be silent (Console-log only), now it's a real, visible consequence.
+  (Console logs each hit, and your health HUD bar drops immediately — raider damage is NOT
+  gated on the apocalypse having started; only the *passive* hunger/thirst/health decay is.
+  An older version of this note claimed otherwise and was wrong). You can fight back with
+  left-click — see M8 below; avoiding or fleeing is still the cheaper option. If health
+  reaches 0, you should actually freeze (movement/interaction disabled, cursor unlocked) —
+  this used to be silent (Console-log only), now it's a real, visible consequence, and as of
+  the second review it works before the apocalypse trigger too (it previously did not: the
+  death check sat behind the "decay paused" gate, so a raider could grind you to 0 HP during
+  the build phase and nothing at all would happen).
 
 **Apocalypse trigger & full loop (M7)**
 - A small red button-like cube ("ApocalypseButton") sits inside the bunker near the north wall.
@@ -86,17 +96,28 @@ round-trip) — that needs a human. This file is for that pass.
 
 **Menus, inventory, combat (M8)**
 - **Escape** (outside build mode) opens a Pause menu with Resume/Quit — cursor unlocks, time
-  freezes (`Time.timeScale = 0`). Click Resume or press Escape again to close.
+  freezes (`Time.timeScale = 0`). Click Resume or press Escape again to close. While it's open
+  the view should stay still as you move the mouse to the button, clicking Resume should not
+  also swing the weapon, and **B** should not drop you into build mode behind the panel — all
+  three were live bugs until the second review.
+- **Escape while in build mode** should only leave build mode; it must not also pop the pause
+  menu open in the same keypress (both maps bind Escape — the hand-off is explicit now).
 - **I** toggles an Inventory panel listing Wood/Scrap Metal counts, live-updating.
 - **Left-click** (outside build mode) swings a melee weapon — anything with `EnemyAI` within
   ~2.5m in front of you takes damage (30 HP per raider, 20 damage per hit — 2 hits kills one).
   There's a simple procedural swing animation (no character rig exists, so it's a primitive
   prop rotating forward and back, not a skeletal animation).
-  **Please specifically check:** does this actually land on raiders — including when one is
-  pressed right up against you, not just at arm's length? The detection sweep was reworked
-  during review (see the 2026-11-07 review entry in DESIGN_NOTES.md); the earlier worry that it
-  self-collided with the player's own body turned out to be unfounded, but point-blank hits were
-  genuinely broken and are the thing most worth confirming by hand.
+  **Please specifically check all three of these** — the detection sweep has been reworked
+  twice during review (see the 2026-11-07 entries in DESIGN_NOTES.md) and only the first case
+  below has ever worked:
+  1. a raider at arm's length;
+  2. a raider pressed right up against you (point-blank);
+  3. a swing while you are standing close to a wall, crate or bit of rubble — the second
+     review found that any scenery merely *beside* you (within the sweep's 0.5m radius)
+     silently swallowed every swing, because Unity reports an already-overlapping collider at
+     distance 0 and it therefore always won the "nearest hit" test.
+  A wall genuinely *between* you and a raider should still block the swing — that part is
+  intended.
 - The starting bunker room now has a Bed, Storage Crate, and Workbench in it from the start.
 
 ## Known scope gaps (by design, not oversights — see DESIGN_NOTES.md)

@@ -42,7 +42,25 @@ namespace SheltreSim.Survival
 
         private void Update()
         {
-            if (IsDead || decayPaused)
+            if (IsDead)
+            {
+                return;
+            }
+
+            // The death check must sit ABOVE the decayPaused gate, not below it. decayPaused
+            // only means "survival stats don't tick down on their own" (the pre-apocalypse
+            // Building phase); it does NOT mean the player is invulnerable — EnemyAI writes
+            // health directly and has no notion of game phase, so raiders outside the bunker
+            // can empty your health bar before the apocalypse button is ever pressed. With the
+            // check below the gate, that left the player sitting at 0 HP, alive and unfrozen,
+            // and then dying instantly the moment they triggered the apocalypse.
+            if (health <= 0f)
+            {
+                Die();
+                return;
+            }
+
+            if (decayPaused)
             {
                 return;
             }
@@ -55,7 +73,7 @@ namespace SheltreSim.Survival
                 health = Mathf.Clamp(health - healthDecayWhenStarving * Time.deltaTime, 0f, maxHealth);
             }
 
-            if (health <= 0f && !IsDead)
+            if (health <= 0f)
             {
                 Die();
             }
@@ -72,17 +90,44 @@ namespace SheltreSim.Survival
         {
             IsDead = true;
             Debug.Log("Player has died.");
+            SetPlayerControlEnabled(false);
+        }
 
+        /// <summary>
+        /// Save/load entry point for the three vitals. Goes through here rather than letting
+        /// callers poke the public fields directly, because restoring health is not just a
+        /// number change: loading a save made while alive, from a session where the player had
+        /// already died, has to undo <see cref="Die"/> as well. Previously F9-after-death
+        /// restored the saved health to the HUD but left IsDead true and FirstPersonController
+        /// /PlayerInteractor disabled, so the loaded game was permanently frozen and
+        /// unrecoverable while showing a healthy player.
+        /// </summary>
+        public void RestoreVitals(float restoredHunger, float restoredThirst, float restoredHealth)
+        {
+            hunger = Mathf.Clamp(restoredHunger, 0f, maxHunger);
+            thirst = Mathf.Clamp(restoredThirst, 0f, maxThirst);
+            health = Mathf.Clamp(restoredHealth, 0f, maxHealth);
+
+            if (IsDead && health > 0f)
+            {
+                IsDead = false;
+                SetPlayerControlEnabled(true);
+                Debug.Log("Player revived by load.");
+            }
+        }
+
+        private void SetPlayerControlEnabled(bool value)
+        {
             var controller = GetComponent<SheltreSim.Player.FirstPersonController>();
             if (controller != null)
             {
-                controller.enabled = false;
+                controller.enabled = value;
             }
 
-            var interactor = GetComponentInChildren<SheltreSim.Interaction.PlayerInteractor>();
+            var interactor = GetComponentInChildren<SheltreSim.Interaction.PlayerInteractor>(true);
             if (interactor != null)
             {
-                interactor.enabled = false;
+                interactor.enabled = value;
             }
         }
     }

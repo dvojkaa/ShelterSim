@@ -104,12 +104,27 @@ namespace SheltreSim.Saving
 
             SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
 
-            player.transform.position = data.playerPosition;
-            player.transform.rotation = Quaternion.Euler(0f, data.playerYaw, 0f);
+            // Teleporting a CharacterController by writing transform.position while the
+            // controller is enabled is unreliable — the controller keeps its own cached
+            // position and can stomp the write on its next Move(). Switching it off around
+            // the assignment is the standard idiom and has no other side effects.
+            CharacterController characterController = player.GetComponent<CharacterController>();
+            if (characterController != null)
+            {
+                characterController.enabled = false;
+            }
 
-            stats.hunger = data.hunger;
-            stats.thirst = data.thirst;
-            stats.health = data.health;
+            player.transform.SetPositionAndRotation(data.playerPosition, Quaternion.Euler(0f, data.playerYaw, 0f));
+
+            if (characterController != null)
+            {
+                characterController.enabled = true;
+            }
+
+            // Not three field assignments: RestoreVitals also un-does a prior death, so that
+            // loading a save taken while alive actually gives control back instead of leaving
+            // a frozen player staring at a full health bar.
+            stats.RestoreVitals(data.hunger, data.thirst, data.health);
 
             // Snapshot first — destroying a piece triggers OnDisable -> Unregister,
             // which would mutate PlacedPieceRegistry.All while we're iterating it.

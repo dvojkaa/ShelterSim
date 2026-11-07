@@ -26,7 +26,21 @@ namespace SheltreSim.Building
         /// </summary>
         public bool IsBuildModeActive => isBuildModeActive;
 
+        /// <summary>
+        /// True during the frame in which Escape was used to leave build mode.
+        ///
+        /// PauseMenu binds Escape too and skips its own handling while build mode is active —
+        /// but both maps receive the same keypress in the same frame, and the Input System
+        /// gives no ordering guarantee between two independently-enabled action maps bound to
+        /// the same control. If this controller's CancelBuild callback happens to run first it
+        /// has already cleared isBuildModeActive by the time PauseMenu looks at it, so one
+        /// Escape press would both exit build mode AND open the pause menu. Checking this flag
+        /// as well makes the hand-off deterministic regardless of callback order.
+        /// </summary>
+        public bool ConsumedCancelThisFrame => Time.frameCount == lastCancelFrame;
+
         private BuildInputActions input;
+        private int lastCancelFrame = -1;
 
         private bool isBuildModeActive;
         private int currentPieceIndex;
@@ -67,6 +81,16 @@ namespace SheltreSim.Building
 
         private void OnToggleBuildMode(UnityEngine.InputSystem.InputAction.CallbackContext context)
         {
+            // B is still live while the pause menu has the game time-frozen (Update and input
+            // callbacks both keep running at timeScale 0). Entering build mode from behind the
+            // pause panel would float a ghost over it and turn the Resume click into a piece
+            // placement. Blocking entry here is enough to keep the two modes mutually
+            // exclusive: PauseMenu already refuses to open while build mode is active.
+            if (Time.timeScale == 0f)
+            {
+                return;
+            }
+
             isBuildModeActive = !isBuildModeActive;
 
             if (isBuildModeActive)
@@ -89,6 +113,7 @@ namespace SheltreSim.Building
 
             DestroyGhost();
             isBuildModeActive = false;
+            lastCancelFrame = Time.frameCount;
         }
 
         private void OnRotatePiece(UnityEngine.InputSystem.InputAction.CallbackContext context)

@@ -56,6 +56,15 @@ namespace SheltreSim.Combat
                 return;
             }
 
+            // Nothing consumes UI clicks away from gameplay input in this project (every map
+            // is hand-built and always listening), so without this the click that presses the
+            // pause menu's Resume button would also swing the weapon - and the swing coroutine
+            // would then sit frozen at timeScale 0 until the game resumed.
+            if (Time.timeScale == 0f)
+            {
+                return;
+            }
+
             if (Time.time - lastAttackTime < attackCooldown)
             {
                 return;
@@ -91,34 +100,45 @@ namespace SheltreSim.Combat
         }
 
         /// <summary>
-        /// Sweeps forward from the camera and returns the nearest collider the swing would
-        /// connect with, or null if the swing hits nothing at all.
+        /// Sweeps forward from the camera and returns the collider the swing connects with,
+        /// or null if it connects with nothing.
         ///
-        /// Deliberately NOT the single-hit Physics.SphereCast. Unity documents that overload as
-        /// "will not detect colliders for which the sphere overlaps the collider" at the start
-        /// of the sweep. That rule is why this cast originating inside the player's own body is
-        /// harmless - the CameraPivot sits at Y=1.6, well inside the CharacterController capsule
-        /// (radius 0.35, spanning Y 0-1.8), and the sphere therefore starts overlapping it, so
-        /// the player's own collider is silently skipped rather than self-hit at distance 0.
+        /// Deliberately NOT the single-hit Physics.SphereCast: that overload drops every
+        /// collider the sphere already overlaps at the start of the sweep, so an enemy pressed
+        /// right up against you (enemy capsule radius 0.5 + player controller radius 0.35 means
+        /// contact at ~0.85m centre-to-centre, inside this cast's 0.5 + 0.5 = 1.0m overlap
+        /// threshold) is silently skipped — exactly when a melee swing most needs to land.
         ///
-        /// The same rule bites the other way, though, and that part IS a real bug: an enemy
-        /// capsule is radius 0.5 and the player's controller is radius 0.35, so walking into an
-        /// enemy closes the gap to ~0.85m - inside this cast's 0.5 + 0.5 = 1.0m overlap
-        /// threshold. With the single-hit overload that enemy overlaps the sphere at t=0 and is
-        /// skipped too, meaning you cannot hit an enemy you are pressed right up against, which
-        /// is exactly when a melee swing should land. SphereCastAll DOES return those
-        /// zero-distance overlap hits, so sweep with it and filter explicitly: drop anything
-        /// belonging to the player's own hierarchy, then take the nearest of what's left. Taking
-        /// the nearest hit of ANY kind (rather than the nearest enemy) preserves the single-hit
-        /// behaviour where a wall between you and a raider blocks the swing.
+        /// SphereCastAll does return those overlaps, but it reports them with distance 0 and
+        /// point (0,0,0): there is no contact geometry for an overlap, so the numbers carry no
+        /// directional information at all. That means they cannot be fed into a plain
+        /// nearest-hit comparison, which is what the first version of this did — any collider
+        /// merely touching the sphere won at distance 0 and swallowed the swing. Since the
+        /// sphere has a 0.5m radius and the player can stand within 0.35m of a surface, that
+        /// included every wall, crate and bit of rubble the player happened to be standing
+        /// NEXT TO rather than facing: standing anywhere near bunker geometry made every swing
+        /// report "nothing to hit" regardless of what was actually in front of you.
+        ///
+        /// So the two cases are handled separately, which is what their different semantics
+        /// require:
+        ///  - distance 0 (already overlapping): only meaningful as "this thing is touching me".
+        ///    Used solely to find a point-blank enemy; overlapping scenery is ignored, because
+        ///    scenery you are standing against is not between you and anything.
+        ///  - distance > 0 (actually swept into): real, directional, ordered. Nearest wins, and
+        ///    if the nearest is scenery the swing is blocked — a wall genuinely between you and
+        ///    a raider reports a real distance (measured: 0.4 for a wall at 1.0m with a raider
+        ///    behind it at 0.805), so that behaviour is preserved.
+        /// Anything in the player's own hierarchy is dropped in both cases — the player's own
+        /// body does come back as a distance-0 hit (verified by probe, not assumed).
         /// </summary>
         private Collider FindSwingTarget()
         {
             RaycastHit[] hits = Physics.SphereCastAll(transform.position, attackRadius, transform.forward, attackRange);
 
-            Collider nearest = null;
-            float nearestDistance = float.PositiveInfinity;
             Transform playerRoot = transform.root;
+            Collider pointBlankEnemy = null;
+            Collider nearestSwept = null;
+            float nearestDistance = float.PositiveInfinity;
 
             foreach (RaycastHit candidate in hits)
             {
@@ -129,14 +149,25 @@ namespace SheltreSim.Combat
                     continue;
                 }
 
+                if (candidate.distance <= 0f)
+                {
+                    if (pointBlankEnemy == null && candidate.collider.GetComponentInParent<SheltreSim.Enemies.EnemyAI>() != null)
+                    {
+                        pointBlankEnemy = candidate.collider;
+                    }
+
+                    continue;
+                }
+
                 if (candidate.distance < nearestDistance)
                 {
                     nearestDistance = candidate.distance;
-                    nearest = candidate.collider;
+                    nearestSwept = candidate.collider;
                 }
             }
 
-            return nearest;
+            // An enemy touching you is closer than anything the sweep can reach, so it wins.
+            return pointBlankEnemy != null ? pointBlankEnemy : nearestSwept;
         }
 
         private IEnumerator SwingWeapon()

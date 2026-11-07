@@ -51,9 +51,14 @@ namespace SheltreSim.Core
 
         private void OnTogglePause(InputAction.CallbackContext context)
         {
-            if (buildModeController != null && buildModeController.IsBuildModeActive)
+            if (buildModeController != null &&
+                (buildModeController.IsBuildModeActive || buildModeController.ConsumedCancelThisFrame))
             {
-                // Build mode's own Escape binding (CancelBuild) owns this keypress right now.
+                // Build mode's own Escape binding (CancelBuild) owns this keypress. The second
+                // test matters because both action maps get the same keypress in the same frame
+                // with no guaranteed callback order: if CancelBuild ran first, IsBuildModeActive
+                // is already false here and this menu would pop open on the very press that was
+                // meant to leave build mode. See BuildModeController.ConsumedCancelThisFrame.
                 return;
             }
 
@@ -114,6 +119,12 @@ namespace SheltreSim.Core
 
             Canvas canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            // SurvivalHUD and InventoryUI each build their own independent overlay canvas and
+            // all three default to sortingOrder 0, where draw order between root canvases is
+            // incidental. This one is the modal, so pin it on top rather than leaving it to
+            // chance — the inventory panel in particular occupies the same centre of screen as
+            // the Resume/Quit buttons.
+            canvas.sortingOrder = 100;
 
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;

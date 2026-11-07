@@ -49,13 +49,31 @@ namespace SheltreSim.Player
         private void OnDisable()
         {
             input.Disable();
-            input.Dispose();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
 
+        // Disposal belongs here, not in OnDisable. This component is genuinely disabled and
+        // re-enabled during normal play — SurvivalStats.Die() switches it off, and loading a
+        // save taken while alive switches it back on — and a disposed InputActionMap is not
+        // something OnEnable can safely re-Enable(). OnDestroy still runs on scene unload and
+        // on application quit, so nothing leaks.
+        private void OnDestroy()
+        {
+            input?.Dispose();
+        }
+
         private void Update()
         {
+            // Time-frozen means the pause menu is open (it's the only thing in the project
+            // that touches timeScale). Movement is already dead at deltaTime 0, but look is
+            // driven by raw mouse delta and is NOT — without this the player's view spins
+            // around behind the pause panel while they move the mouse to click Resume.
+            if (Time.timeScale == 0f)
+            {
+                return;
+            }
+
             HandleLook();
             HandleMove();
         }
