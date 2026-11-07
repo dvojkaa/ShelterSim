@@ -84,9 +84,24 @@ round-trip) — that needs a human. This file is for that pass.
 - Let health reach 0 (wait it out, or let a raider finish you off) and confirm you actually
   freeze — this is a real fix, previously death did nothing visible at all.
 
+**Menus, inventory, combat (M8)**
+- **Escape** (outside build mode) opens a Pause menu with Resume/Quit — cursor unlocks, time
+  freezes (`Time.timeScale = 0`). Click Resume or press Escape again to close.
+- **I** toggles an Inventory panel listing Wood/Scrap Metal counts, live-updating.
+- **Left-click** (outside build mode) swings a melee weapon — anything with `EnemyAI` within
+  ~2.5m in front of you takes damage (30 HP per raider, 20 damage per hit — 2 hits kills one).
+  There's a simple procedural swing animation (no character rig exists, so it's a primitive
+  prop rotating forward and back, not a skeletal animation).
+  **Please specifically check:** does this actually land on raiders — including when one is
+  pressed right up against you, not just at arm's length? The detection sweep was reworked
+  during review (see the 2026-11-07 review entry in DESIGN_NOTES.md); the earlier worry that it
+  self-collided with the player's own body turned out to be unfounded, but point-blank hits were
+  genuinely broken and are the thing most worth confirming by hand.
+- The starting bunker room now has a Bed, Storage Crate, and Workbench in it from the start.
+
 ## Known scope gaps (by design, not oversights — see DESIGN_NOTES.md)
 
-- No weapon/combat system — enemies are pure pressure, not defeatable.
+- Combat is one melee weapon and one swing — no ranged weapons, blocking, or hit reactions.
 - No day/night cycle, weather, or procedural generation anywhere.
 - Building/crafting isn't gated to the Survival phase — you can keep building after the
   apocalypse too (deliberate restraint, not a missed requirement).

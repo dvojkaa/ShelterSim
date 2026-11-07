@@ -20,6 +20,12 @@ namespace SheltreSim.Building
         /// <summary>M5 — wired by the M5 editor setup tool to the Player's Inventory.</summary>
         public SheltreSim.Items.Inventory inventory;
 
+        /// <summary>
+        /// Exposed so other systems that also bind Escape or left-click (melee attack, pause
+        /// menu) can defer to build mode instead of double-firing on the same input.
+        /// </summary>
+        public bool IsBuildModeActive => isBuildModeActive;
+
         private BuildInputActions input;
 
         private bool isBuildModeActive;
@@ -159,12 +165,30 @@ namespace SheltreSim.Building
 
             EnsureGhostForPiece(activePiece);
 
-            currentGhost.transform.position = BuildGrid.SnapPosition(hit.point);
+            // BUG FIX (playtest): positioning the ghost's pivot (box center) exactly AT the
+            // raycast hit point means half the box's height sits below whatever surface it hit
+            // — a wall/floor piece ghost permanently intersects the ground/floor collider it's
+            // standing on, so the overlap check below always failed and the ghost was always
+            // red, regardless of resources. Offset up by half the footprint height so the box's
+            // BOTTOM face rests on the hit surface instead of its center.
+            Vector3 snapped = BuildGrid.SnapPosition(hit.point);
+            snapped.y = hit.point.y + activePiece.footprintSize.y / 2f;
+            currentGhost.transform.position = snapped;
             currentGhost.transform.rotation = BuildGrid.SnapRotation(currentYawDegrees);
+
+            // Shrink the overlap box by a hair before testing. Because of the offset above, the
+            // ghost's bottom face is now exactly coplanar with the surface it rests on, and an
+            // exact-tangency overlap test is a floating-point coin flip — a false positive there
+            // would resurrect the very "always red" bug the offset was added to fix. 1cm of skin
+            // is invisible in-game but puts the test unambiguously on the right side.
+            const float overlapSkin = 0.01f;
+            Vector3 halfExtents = Vector3.Max(
+                activePiece.footprintSize / 2f - Vector3.one * overlapSkin,
+                Vector3.one * overlapSkin);
 
             placementValid = !Physics.CheckBox(
                 currentGhost.transform.position,
-                activePiece.footprintSize / 2f,
+                halfExtents,
                 currentGhost.transform.rotation,
                 obstructionMask);
 

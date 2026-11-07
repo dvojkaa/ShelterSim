@@ -40,7 +40,7 @@ namespace SheltreSim.EditorTools
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
-            Debug.Log("M6 enemies ready. 4 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. There is currently no way to fight back; avoid or flee.");
+            Debug.Log("M6 enemies ready. 4 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. Fight back with left-click (M8 melee) or avoid them.");
         }
 
         private static void SpawnEnemy(string name, Vector3 position, Transform parent)

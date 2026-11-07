@@ -82,11 +82,40 @@ namespace SheltreSim.EditorTools
             controller.availablePieces.Add(floorPiece);
 
             CreateExtraPieces(controller);
+            AddStartingFurnishings();
 
             AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
             Debug.Log("M2 build system ready. 7 buildable pieces available (Wall, Floor, Workbench, Bed, Storage Crate, Water Collector, Generator). Press B to toggle build mode, scroll to cycle, R to rotate 90°, left-click to place, Escape to cancel.");
+        }
+
+        /// <summary>
+        /// Playtest feedback: "let the bunker have something in it at the start" — an empty
+        /// room with just a door felt bare. Places a few of the same pieces players can later
+        /// build, already furnished, using the prefabs CreateExtraPieces just created. Positions
+        /// are hand-picked to clear the M1 room's walls, the player spawn point (0,1,1.5), and
+        /// the M7 apocalypse button (2.3,1,2.6) — M7 runs after this tool in the setup chain, so
+        /// this just has to avoid that fixed spot, not look it up.
+        /// </summary>
+        private static void AddStartingFurnishings()
+        {
+            InstantiateFurnishing("Assets/Prefabs/Building/BedPiece.prefab", new Vector3(-2.2f, 0.25f, -1.0f), Quaternion.identity);
+            InstantiateFurnishing("Assets/Prefabs/Building/StorageCratePiece.prefab", new Vector3(2.2f, 0.5f, -2.2f), Quaternion.identity);
+            InstantiateFurnishing("Assets/Prefabs/Building/WorkbenchPiece.prefab", new Vector3(2.3f, 0.5f, 0.3f), Quaternion.Euler(0f, 90f, 0f));
+        }
+
+        private static void InstantiateFurnishing(string prefabPath, Vector3 position, Quaternion rotation)
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"Starting furnishing prefab not found at {prefabPath} — skipping.");
+                return;
+            }
+
+            GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            instance.transform.SetPositionAndRotation(position, rotation);
         }
 
         /// <summary>

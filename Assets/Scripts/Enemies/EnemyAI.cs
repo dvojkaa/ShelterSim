@@ -8,14 +8,15 @@ namespace SheltreSim.Enemies
     /// Simple raider/mutant AI: detect -> chase -> attack. No pathfinding (flat open
     /// outdoor area, direct MoveTowards is enough) and no NavMesh dependency.
     ///
-    /// Scope note: there is no way for the player to fight back or kill an enemy yet -
-    /// no weapon system exists in this project and none is planned in the current
-    /// milestone roadmap. This script is a pure pressure/avoidance mechanic; it does
-    /// not give enemies health or a death condition - that would be scope creep beyond
-    /// what was asked.
+    /// Playtest feedback reversed the original "no combat" scope decision - the player can
+    /// now fight back via SheltreSim.Combat.MeleeAttacker, which calls TakeDamage below.
     /// </summary>
     public class EnemyAI : MonoBehaviour
     {
+        public float maxHealth = 30f;
+        public float health;
+        private bool isDead;
+
         public float detectionRadius = 10f;
 
         /// <summary>
@@ -44,6 +45,12 @@ namespace SheltreSim.Enemies
 
         private void Start()
         {
+            // Must happen BEFORE the early return below. 'health' is a serialized public field
+            // that the M6 editor tool saves into the scene as 0 (Start doesn't run at edit
+            // time), so if the player lookup fails and this is skipped, the enemy sits at 0 HP
+            // and dies to the first swing that touches it.
+            health = maxHealth;
+
             FirstPersonController player = Object.FindFirstObjectByType<FirstPersonController>();
             if (player == null)
             {
@@ -53,6 +60,23 @@ namespace SheltreSim.Enemies
 
             playerTransform = player.transform;
             playerStats = player.GetComponent<SurvivalStats>();
+        }
+
+        public void TakeDamage(float amount)
+        {
+            if (isDead)
+            {
+                return;
+            }
+
+            health = Mathf.Clamp(health - amount, 0f, maxHealth);
+
+            if (health <= 0f)
+            {
+                isDead = true;
+                Debug.Log($"{name} was killed.");
+                Destroy(gameObject);
+            }
         }
 
         private void Update()

@@ -11,10 +11,27 @@ namespace SheltreSim.Survival
         private Image hungerFill;
         private Image thirstFill;
 
+        private Text healthLabel;
+        private Text hungerLabel;
+        private Text thirstLabel;
+
         private bool loggedMissingStats;
 
         private void Awake()
         {
+            // Awake() runs twice across this component's real lifetime: once when an editor
+            // tool adds it (AddComponent triggers Awake immediately in-editor, and that canvas
+            // gets saved into the scene), and again when Play Mode actually starts (a fresh
+            // scene load re-runs every component's Awake). Without this guard, that leaves two
+            // "HUD_Canvas" objects stacked on screen — the edit-time one frozen forever at its
+            // initial fillAmount, on top of (or behind) the live one this Update() actually
+            // drives, reading as "the HUD bars never move."
+            Transform stale = transform.Find("HUD_Canvas");
+            if (stale != null)
+            {
+                DestroyImmediate(stale.gameObject);
+            }
+
             GameObject canvasObject = new GameObject("HUD_Canvas", typeof(RectTransform));
             canvasObject.transform.SetParent(transform, false);
 
@@ -28,12 +45,12 @@ namespace SheltreSim.Survival
             canvasObject.AddComponent<GraphicRaycaster>();
 
             // No EventSystem: this HUD is a passive readout, nothing on it is clickable.
-            healthFill = CreateBar(canvasObject.transform, "HealthBar", -20f, new Color(0.8f, 0.1f, 0.1f));
-            hungerFill = CreateBar(canvasObject.transform, "HungerBar", -54f, new Color(0.6f, 0.4f, 0.1f));
-            thirstFill = CreateBar(canvasObject.transform, "ThirstBar", -88f, new Color(0.2f, 0.5f, 0.9f));
+            healthFill = CreateBar(canvasObject.transform, "HealthBar", -20f, new Color(0.8f, 0.1f, 0.1f), out healthLabel);
+            hungerFill = CreateBar(canvasObject.transform, "HungerBar", -54f, new Color(0.6f, 0.4f, 0.1f), out hungerLabel);
+            thirstFill = CreateBar(canvasObject.transform, "ThirstBar", -88f, new Color(0.2f, 0.5f, 0.9f), out thirstLabel);
         }
 
-        private static Image CreateBar(Transform parent, string name, float yOffset, Color fillColor)
+        private static Image CreateBar(Transform parent, string name, float yOffset, Color fillColor, out Text label)
         {
             // No sprite assets exist in this project (low-poly/primitive style per design notes) —
             // Image with sprite == null renders as a plain solid color via Unity's default texture,
@@ -69,6 +86,26 @@ namespace SheltreSim.Survival
             fillImage.color = fillColor;
             fillImage.fillAmount = 1f;
 
+            // Label sits on top of the bar (same rect as the background), showing the name
+            // and live numeric value in one Text — e.g. "Health 72/100". Plain legacy Text,
+            // not TextMeshPro — this project doesn't have the TMP package installed.
+            GameObject labelObject = new GameObject(name + "_Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            labelObject.transform.SetParent(background.transform, false);
+
+            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.pivot = new Vector2(0f, 1f);
+            labelRect.anchoredPosition = Vector2.zero;
+            labelRect.sizeDelta = Vector2.zero;
+
+            label = labelObject.GetComponent<Text>();
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = 14;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.text = name;
+
             return fillImage;
         }
 
@@ -87,6 +124,10 @@ namespace SheltreSim.Survival
             healthFill.fillAmount = Mathf.Clamp01(stats.health / stats.maxHealth);
             hungerFill.fillAmount = Mathf.Clamp01(stats.hunger / stats.maxHunger);
             thirstFill.fillAmount = Mathf.Clamp01(stats.thirst / stats.maxThirst);
+
+            healthLabel.text = $"Health {stats.health:F0}/{stats.maxHealth:F0}";
+            hungerLabel.text = $"Hunger {stats.hunger:F0}/{stats.maxHunger:F0}";
+            thirstLabel.text = $"Thirst {stats.thirst:F0}/{stats.maxThirst:F0}";
         }
     }
 }

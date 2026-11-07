@@ -5,7 +5,7 @@ apocalypse when you're ready, then survive inside it while scavenging resources 
 irradiated world outside — all before the raiders find you.
 
 Think *Fallout* scaled down to a weekend-sized project: one hand-built outdoor area, grey-box
-visuals, no procedural generation, no combat — just build, scavenge, and endure.
+visuals, no procedural generation — build, scavenge, bash the occasional raider, and endure.
 
 ## Status
 
@@ -25,7 +25,7 @@ playtest checklist.
    it, survival pressure begins for real.
 3. **Survive** — hunger, thirst, and health tick down continuously from that point on.
 4. **Scavenge** — venture out through the bunker's doorway to gather Wood and Scrap Metal,
-   while avoiding (or fleeing) the raiders patrolling outside.
+   fighting off (or fleeing) the raiders patrolling outside.
 5. **Craft** — spend gathered resources to build more of your bunker. Repeat.
 
 ## Features
@@ -37,8 +37,9 @@ playtest checklist.
 | M3 | Hunger/thirst/health, an on-screen HUD, and JSON save/load (F5 / F9) |
 | M4 | A 40×36m outdoor wasteland beyond the bunker doorway — 8 gatherable Wood/Scrap Metal nodes plus decorative rubble |
 | M5 | Crafting — every build piece costs real resources, drawn from your inventory |
-| M6 | 4 raiders — simple AI that detects, chases, and attacks on sight (no combat yet — avoid or flee) |
+| M6 | 4 raiders — simple AI that detects, chases, and attacks on sight (at this point unbeatable; M8 added the means to fight back) |
 | M7 | The apocalypse trigger itself, tying the whole loop together |
+| M8 | Pause menu, inventory screen ("I"), melee combat with a procedural weapon swing, and starting furniture in the bunker |
 
 All world objects are flat-colored primitives (still grey-box by design, just not all the same
 grey/white anymore) — generated entirely in code, no imported art assets.
@@ -75,7 +76,8 @@ you ever need to regenerate it from scratch, each milestone has its own menu ite
 
 ## Known limitations
 
-No weapon/combat system — raiders are pure pressure, not (yet) defeatable. No day/night cycle,
-weather, or procedural generation. Building and crafting aren't locked to the post-apocalypse
+Combat is one melee weapon and one swing — raiders have health and die, but there are no
+ranged weapons, no blocking, and no hit reactions. No day/night cycle, weather, or procedural
+generation. Building and crafting aren't locked to the post-apocalypse
 phase (you can keep building any time). All deliberate scope decisions for a first prototype,
 not oversights — see `DESIGN_NOTES.md` for the reasoning behind each one.
