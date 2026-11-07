@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Items.ResourceDefinition
   id: scrap_metal
   displayName: Scrap Metal
+  isFood: 0
+  hungerRestored: 25

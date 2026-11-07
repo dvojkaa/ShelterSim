@@ -120,10 +120,43 @@ round-trip) — that needs a human. This file is for that pass.
   intended.
 - The starting bunker room now has a Bed, Storage Crate, and Workbench in it from the start.
 
+**Resources, food & crafting reference (M9)**
+- The outdoor area now also has Trees (trunk + foliage, give Wood — extra nodes alongside
+  M4's original cylinders), Stone and Iron Ore clusters (rock piles, grey vs. rust-colored),
+  and Food Bushes (a conifer shape with small blue berry spheres) scattered around, all at
+  least 3m clear of the original M4 nodes/rubble.
+- Gathering a Food Bush gives Blueberries. Open the Inventory (**I**) — each food resource row
+  (Blueberries) has an **Eat** button on the right. Clicking it consumes one and restores 30
+  hunger — **please verify this actually moves the hunger bar**, since batch-mode verification
+  cannot click UI buttons and this path has not been exercised in a real Play session yet.
+- **The inventory panel is now modal, like the pause menu** (QC fix — the Eat button was
+  literally unclickable before it, because the cursor stays locked to the centre of the screen
+  during normal play). While it's open: the game is frozen, the mouse cursor is free, and
+  looking/moving/swinging/entering build mode are all suppressed. **I** or **Escape** closes it
+  again and re-locks the cursor. Worth confirming by hand: the cursor appears when you press
+  **I**, the Eat button highlights under it and responds to a click, and closing the panel
+  hands control cleanly back to the game (view doesn't jump, movement works again).
+- **I** does nothing while you're in build mode — that's deliberate (build mode owns left-click
+  for placement). Leave build mode with **B**/**Escape** first.
+- The Inventory panel now also has a **Recipes** section below the resource list: every build
+  piece with its real resource cost (e.g. "Wall Segment — 2 Wood"), greyed out when you can't
+  currently afford it. This is reference-only — it does not place anything itself; placing
+  still happens through build mode (**B**) same as before.
+- Letting *hunger* run out should now be meaningfully avoidable by scavenging Food Bushes —
+  worth checking that enough bushes exist within reasonable walking distance of the bunker
+  doorway. **But eating will not visibly extend how long you survive**, and that is expected:
+  thirst still decays faster than hunger (1.7/s vs 1.1/s, so it empties in ~59s against ~91s)
+  and health drains as soon as *either* one hits zero. There is no way to drink anything yet,
+  so thirst, not hunger, is what actually kills you. Food only becomes a real survival lever
+  once a water source exists — see DESIGN_NOTES.md's M9 QC entry.
+
 ## Known scope gaps (by design, not oversights — see DESIGN_NOTES.md)
 
 - Combat is one melee weapon and one swing — no ranged weapons, blocking, or hit reactions.
 - No day/night cycle, weather, or procedural generation anywhere.
+- The Recipes list in the Inventory panel is read-only — it can't place pieces itself.
+- There is no drink/water mechanic, so thirst is still an unavoidable timer even with food
+  available (the Water Collector build piece is decoration, it doesn't produce anything).
 - Building/crafting isn't gated to the Survival phase — you can keep building after the
   apocalypse too (deliberate restraint, not a missed requirement).
 - Render pipeline ended up Built-in, not URP as originally planned — doesn't matter visually

@@ -40,6 +40,7 @@ playtest checklist.
 | M6 | 4 raiders — simple AI that detects, chases, and attacks on sight (at this point unbeatable; M8 added the means to fight back) |
 | M7 | The apocalypse trigger itself, tying the whole loop together |
 | M8 | Pause menu, inventory screen ("I"), melee combat with a procedural weapon swing, and starting furniture in the bunker |
+| M9 | More resource variety (trees, stone, iron ore) and a food source (blueberry bushes) you can eat from the inventory screen to recover hunger, plus a read-only recipe/crafting list in that same screen. The inventory is a modal panel now — it frees the cursor and freezes the game while open, same as the pause menu |
 
 All world objects are flat-colored primitives (still grey-box by design, just not all the same
 grey/white anymore) — generated entirely in code, no imported art assets.
@@ -78,6 +79,11 @@ you ever need to regenerate it from scratch, each milestone has its own menu ite
 
 Combat is one melee weapon and one swing — raiders have health and die, but there are no
 ranged weapons, no blocking, and no hit reactions. No day/night cycle, weather, or procedural
-generation. Building and crafting aren't locked to the post-apocalypse
-phase (you can keep building any time). All deliberate scope decisions for a first prototype,
-not oversights — see `DESIGN_NOTES.md` for the reasoning behind each one.
+generation (M9's extra trees/stone/iron/food nodes are hand-placed, same as every other
+object in the game). Building and crafting aren't locked to the post-apocalypse
+phase (you can keep building any time). Thirst still has no counterpart to food — nothing in the
+game can be drunk, so thirst remains the timer that actually kills you. The inventory's
+"Recipes" list is read-only reference —
+it shows what you can afford, but actually placing a piece still happens through build mode (B),
+not from this screen. All deliberate scope decisions for a first prototype, not oversights — see
+`DESIGN_NOTES.md` for the reasoning behind each one.

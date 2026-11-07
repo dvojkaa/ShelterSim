@@ -19,6 +19,14 @@ namespace SheltreSim.Core
     {
         public SheltreSim.Building.BuildModeController buildModeController;
 
+        /// <summary>
+        /// M9 QC — wired by M8MenusSetup. The inventory panel became modal in M9 (it takes
+        /// the cursor and freezes time so its Eat button is clickable at all), so Escape has
+        /// to back out of it rather than open a second modal on top: otherwise Resume would
+        /// unfreeze time and re-lock the cursor while the inventory was still on screen.
+        /// </summary>
+        public SheltreSim.Items.InventoryUI inventoryUi;
+
         private InputActionMap map;
         private InputAction togglePause;
         private GameObject panel;
@@ -59,6 +67,14 @@ namespace SheltreSim.Core
                 // with no guaranteed callback order: if CancelBuild ran first, IsBuildModeActive
                 // is already false here and this menu would pop open on the very press that was
                 // meant to leave build mode. See BuildModeController.ConsumedCancelThisFrame.
+                return;
+            }
+
+            if (inventoryUi != null && inventoryUi.IsOpen)
+            {
+                // Inventory is the thing currently on screen and currently owning timeScale /
+                // the cursor. Escape closes it (and only it) — single owner at all times.
+                inventoryUi.CloseIfOpen();
                 return;
             }
 

@@ -38,5 +38,21 @@ namespace SheltreSim.Items
         {
             counts.Clear();
         }
+
+        /// <summary>
+        /// M9 — atomic check-and-deduct for consumable use (eating food). Unlike
+        /// CraftingSystem's separate TryAfford/Spend pair, there's a single call site for
+        /// this (InventoryUI's Eat button) so there's no risk of the two steps racing apart.
+        /// </summary>
+        public bool TryConsume(string resourceId, int amount)
+        {
+            if (GetCount(resourceId) < amount)
+            {
+                return false;
+            }
+
+            counts[resourceId] = GetCount(resourceId) - amount;
+            return true;
+        }
     }
 }

@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Items.ResourceDefinition
   id: wood
   displayName: Wood
+  isFood: 0
+  hungerRestored: 25

@@ -116,6 +116,23 @@ namespace SheltreSim.Survival
             }
         }
 
+        /// <summary>
+        /// M9 — called by InventoryUI's Eat button after Inventory.TryConsume has already
+        /// removed the food item. No-op while dead: a dead player has no Update loop pushing
+        /// hunger back down, and letting a corpse "eat" would be a confusing, meaningless
+        /// inventory interaction rather than a useful recovery path (there is no recovery
+        /// path — see Die()'s summary).
+        /// </summary>
+        public void Eat(float amount)
+        {
+            if (IsDead)
+            {
+                return;
+            }
+
+            hunger = Mathf.Clamp(hunger + amount, 0f, maxHunger);
+        }
+
         private void SetPlayerControlEnabled(bool value)
         {
             var controller = GetComponent<SheltreSim.Player.FirstPersonController>();

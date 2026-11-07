@@ -25,6 +25,12 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M4 outdoor area...");
             M4OutdoorAreaSetup.SetupOutdoorArea();
 
+            // Must run before M8: M8MenusSetup wires the new Stone/IronOre/Berries resource
+            // definitions and the Recipes list into InventoryUI, and those assets don't exist
+            // until this has created them.
+            Debug.Log("[BatchSetupAll] Setting up M9 world resources...");
+            M9WorldResourcesSetup.SetupWorldResources();
+
             Debug.Log("[BatchSetupAll] Setting up M5 crafting...");
             M5CraftingSetup.SetupCrafting();
 

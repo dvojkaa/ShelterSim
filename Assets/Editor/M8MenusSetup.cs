@@ -52,8 +52,10 @@ namespace SheltreSim.EditorTools
                 return;
             }
 
-            SetupPauseMenu(buildController);
-            SetupInventoryUI(player, inventory);
+            // Inventory first: the pause menu needs a reference to it (M9 made the inventory
+            // panel modal, so Escape has to close it rather than stack a second modal on top).
+            InventoryUI inventoryUi = SetupInventoryUI(player, inventory, buildController);
+            SetupPauseMenu(buildController, inventoryUi);
             SetupMeleeAttacker(cameraPivot, buildController);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
@@ -61,7 +63,7 @@ namespace SheltreSim.EditorTools
             Debug.Log("M8 ready. Escape (outside build mode) pauses/resumes. I toggles the inventory. Left-click (outside build mode) swings your melee weapon at anything in range.");
         }
 
-        private static void SetupPauseMenu(BuildModeController buildController)
+        private static void SetupPauseMenu(BuildModeController buildController, InventoryUI inventoryUi)
         {
             GameObject pauseMenuObject = GameObject.Find("PauseMenu");
             if (pauseMenuObject == null)
@@ -75,9 +77,10 @@ namespace SheltreSim.EditorTools
                 pauseMenu = pauseMenuObject.AddComponent<PauseMenu>();
             }
             pauseMenu.buildModeController = buildController;
+            pauseMenu.inventoryUi = inventoryUi;
         }
 
-        private static void SetupInventoryUI(GameObject player, Inventory inventory)
+        private static InventoryUI SetupInventoryUI(GameObject player, Inventory inventory, BuildModeController buildController)
         {
             GameObject inventoryUiObject = GameObject.Find("InventoryUI");
             if (inventoryUiObject == null)
@@ -92,8 +95,22 @@ namespace SheltreSim.EditorTools
             }
             inventoryUi.inventory = inventory;
 
+            // M9 — Eat button needs SurvivalStats to actually restore hunger. Same component
+            // that owns decay/death, found on the Player (see M3SurvivalSaveSetup).
+            inventoryUi.stats = player.GetComponent<SheltreSim.Survival.SurvivalStats>();
+
+            // M9 QC — the panel is modal now (cursor + timeScale), so it must defer to build
+            // mode exactly like PauseMenu does.
+            inventoryUi.buildModeController = buildController;
+
             ResourceDefinition wood = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Wood.asset");
             ResourceDefinition scrapMetal = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/ScrapMetal.asset");
+            // M9 — only present once Tools > SheltreSim > Setup M9 World Resources has run
+            // (BatchSetupAll does, in order, before this); null-checked below same as wood/
+            // scrapMetal always were, so running M8 without M9 still degrades gracefully.
+            ResourceDefinition stone = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Stone.asset");
+            ResourceDefinition ironOre = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/IronOre.asset");
+            ResourceDefinition berries = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Berries.asset");
 
             inventoryUi.knownResources.Clear();
             if (wood != null)
@@ -104,6 +121,39 @@ namespace SheltreSim.EditorTools
             {
                 inventoryUi.knownResources.Add(scrapMetal);
             }
+            if (stone != null)
+            {
+                inventoryUi.knownResources.Add(stone);
+            }
+            if (ironOre != null)
+            {
+                inventoryUi.knownResources.Add(ironOre);
+            }
+            if (berries != null)
+            {
+                inventoryUi.knownResources.Add(berries);
+            }
+
+            // M9 — "crafting menu" reference list: the same build pieces BuildModeController
+            // can place, shown read-only with their real cost (CraftingSystem.TryAfford keeps
+            // the affordability color in sync automatically).
+            //
+            // M9 QC — taken straight from the controller's own availablePieces rather than a
+            // hard-coded list of four asset paths. The hard-coded version silently listed 4 of
+            // the 7 buildable pieces (no Storage Crate, Water Collector or Generator) and would
+            // have gone stale again the next time the build menu grew. Reading the same list
+            // the build system cycles through is what actually makes "this panel cannot drift
+            // out of sync with what build mode will let you place" true.
+            inventoryUi.knownRecipes.Clear();
+            foreach (SheltreSim.Building.BuildPieceDefinition piece in buildController.availablePieces)
+            {
+                if (piece != null)
+                {
+                    inventoryUi.knownRecipes.Add(piece);
+                }
+            }
+
+            return inventoryUi;
         }
 
         private static void SetupMeleeAttacker(Transform cameraPivot, BuildModeController buildController)
