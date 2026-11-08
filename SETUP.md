@@ -41,9 +41,9 @@ save/load round-trip) — that needs a human. This file is for that pass.
   Crate, Water Collector, Generator. **R** rotates 90°.
 - Ghost tints green (clear) / red (overlapping something). Left-click places when green.
 - **Escape** exits build mode.
-- The 5 new pieces (Workbench/Bed/Storage Crate/Water Collector/Generator) are placeable
-  decoration only — no unique gameplay function yet (no sleeping, no crafting-at-station, no
-  real power generation).
+- Of the 5 new pieces, Bed/Storage Crate/Generator are still placeable decoration only (no
+  sleeping, no real power generation). Workbench and Water Collector gained real function in
+  M11 — see that section below.
 - Pieces now rest ON the surface you're aiming at rather than sinking half-way into it —
   the ghost is offset up by half its height. (An older note here warned that a placed Floor
   Tile sinks into the floor; that was fixed along with the "everything's always red" bug.)
@@ -198,18 +198,56 @@ save/load round-trip) — that needs a human. This file is for that pass.
   earlier milestone's placement was 100% hand-picked literal coordinates) — worth confirming
   it doesn't feel janky or repetitive before treating it as settled.
 
+**Workbench & Water Collector (M11)**
+- Place or find a Workbench (the bunker starts with one). Look at it, press **E**: with at
+  least 2 Scrap Metal and 2 Wood in your inventory, it should log a "Crafted 1 Makeshift Blade"
+  style message and add a Makeshift Blade to your inventory — check the count goes up. Without
+  enough materials it should log "Cannot afford" and not consume anything. Unlike resource nodes
+  or loot crates, the Workbench should be usable repeatedly — crafting again immediately after
+  (with enough materials) should work again, not say "already used."
+- Place a Water Collector (2 Scrap Metal). Looking at it logs "Collecting water... (none ready
+  yet)" immediately after placing; keep looking at it and after roughly 30 real seconds the
+  prompt should **update on its own** to "Press E to collect 1 Water", then 2, 3… capping at 5.
+  (The prompt refreshing while you stand still is a QC fix from this pass — before it, the text
+  froze at whatever it said when you first looked, so the collector appeared permanently empty.
+  Prompts are Console messages; there is still no on-screen prompt UI anywhere in the game.)
+  Pressing **E** should add that much Water to your inventory and reset it to accumulating from
+  zero. This is a simple timer, not real weather/rain — it accumulates indoors, outdoors, or
+  anywhere else.
+- **Check the placed Water Collector is standing on the floor, not sunk into it.** It used to be
+  (Unity's Cylinder primitive is 2 units tall, not 1, so it was buried 0.6m); the fix is
+  geometry-only and unverifiable without eyes on it. It should be a waist-high 1.2m barrel
+  resting on the surface, and the red/green ghost should turn red when its *top* overlaps
+  something, not just its bottom half.
+- **With the pause menu (Escape) or the inventory panel (I) open, pressing E should now do
+  nothing.** It previously still fired at whatever the frozen view was pointing at — crafting,
+  draining a collector, or even tripping M7's one-way apocalypse trigger from behind the panel.
+- Expect roughly 2.5 minutes for one collector to fill all 5. One collector on its own does
+  **not** out-pace thirst (see the balance note in Known scope gaps) — build two if you want to
+  actually live off it.
+
 ## Known scope gaps (by design, not oversights — see DESIGN_NOTES.md)
 
-- Combat is one melee weapon and one swing (upgradeable once via a looted weapon item) — no
-  ranged weapons, blocking, or hit reactions.
-- No day/night cycle or weather.
+- Combat is one melee weapon and one swing (upgradeable once via a looted weapon item, or
+  crafted at a Workbench) — no ranged weapons, blocking, or hit reactions.
+- No day/night cycle or weather — the Water Collector's "collecting rainwater" is a flat timer,
+  not an actual weather simulation.
 - The Recipes list in the Inventory panel is read-only — it can't place pieces itself.
 - M10's buildings/cars/loot are "randomly generated" only in the sense of a seeded, one-time
-  editor-tool roll — not runtime randomness. The Water Collector build piece is still
-  decoration regardless; it doesn't produce water itself, looting is currently the only source.
+  editor-tool roll — not runtime randomness.
 - Which crates you've already searched is not written to the save file (nor is resource-node
-  depletion, nor the current game phase) — it persists for the session but resets when you
-  reopen the project. Fixing it needs stable per-object IDs in the save format.
+  depletion, nor a Water Collector's pending water, nor the current game phase) — it persists
+  for the session but resets when you reopen the project. Fixing it needs stable per-object IDs
+  in the save format.
+- **One Water Collector does not out-pace thirst.** Thirst empties in ~59s and one Water
+  restores ~21s of it, so a collector's 1-per-30s covers about 70% of the drain. Two clear it
+  easily. Deliberately left as-is — it gives the build system a real survival purpose — but it's
+  a tuning call the project owner may want to revisit.
+- **Re-run the whole setup chain, not individual Tools-menu items.** `Setup M2 Build System`
+  rewrites the build-piece prefabs from scratch, which silently strips M11's Workbench/Water
+  Collector behaviour back off them (and stacks a duplicate BuildSystem and duplicate starting
+  furniture). The batch chain is ordered correctly and always starts from a fresh scene; running
+  one tool by hand is not.
 - The expanded wasteland has no enemies in it, and nothing scales the survival clock to its
   size — both deliberate, both worth revisiting if the big map becomes the main play space.
 - Building/crafting isn't gated to the Survival phase — you can keep building after the

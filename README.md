@@ -43,6 +43,7 @@ along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone playtest 
 | M8 | Pause menu, inventory screen ("I"), melee combat with a procedural weapon swing, and starting furniture in the bunker |
 | M9 | More resource variety (trees, stone, iron ore) and a food source (blueberry bushes) you can eat from the inventory screen to recover hunger, plus a read-only recipe/crafting list in that same screen. The inventory is a modal panel now — it frees the cursor and freezes the game while open, same as the pause menu |
 | M10 | A second, much larger wasteland zone (~24,000m², ~17x the original outdoor area) beyond the first, with 12 lootable building shells and 15 lootable cars scattered via seeded random placement. 38 loot crates roll (once, deterministically) into Wood/Scrap Metal/Stone/Iron Ore/Blueberries/Water/a First Aid Kit/a weapon upgrade, or nothing — about 30% of crates come up empty. Water (drink) and First Aid Kits (heal) get their own inventory buttons alongside Eat; a weapon upgrade item permanently boosts melee damage when Equipped |
+| M11 | The Workbench and Water Collector build pieces actually do something now. Workbench: press E to craft a Makeshift Blade (2 Scrap Metal + 2 Wood) — the same weapon-upgrade item M10 made lootable. Water Collector: passively accumulates 1 Water every 30s (caps at 5), press E to collect |
 
 All world objects are flat-colored primitives (still grey-box by design, just not all the same
 grey/white anymore) — generated entirely in code, no imported art assets.
@@ -79,9 +80,11 @@ you ever need to regenerate it from scratch, each milestone has its own menu ite
 
 ## Known limitations
 
-Combat is one melee weapon (now upgradeable once, via a looted weapon item) and one swing —
-raiders have health and die, but there are no ranged weapons, no blocking, and no hit reactions.
-No day/night cycle or weather. "Random generation" (M10's buildings/cars/loot) is seeded and
+Combat is one melee weapon (upgradeable via a looted *or* workbench-crafted weapon item) and one
+swing — raiders have health and die, but there are no ranged weapons, no blocking, and no hit
+reactions. No day/night cycle or weather, so the Water Collector's "collecting rainwater" is a
+flat 30-second timer rather than a simulation, and a single collector produces roughly 70% of
+what thirst drains — build two if you want to live off them. "Random generation" (M10's buildings/cars/loot) is seeded and
 rolled once at scene-construction time by an editor tool, the same way every other milestone's
 content gets built — it is not runtime randomness, the layout and loot contents are identical
 every time you open the project, and a new "random" layout only happens if the project owner
@@ -90,7 +93,8 @@ can keep building any time). The inventory's "Recipes" list is read-only referen
 what you can afford, but actually placing a piece still happens through build mode (B), not from
 this screen. Save files cover the player, survival stats, placed build pieces, inventory counts
 and (since M10) melee damage — but not which loot crates you've already searched, resource-node
-depletion, or the current game phase, so those reset when you reopen the project. The expanded
+depletion, a Water Collector's pending water, or the current game phase, so those reset when you
+reopen the project. Interaction prompts are Console messages; there is no on-screen prompt UI. The expanded
 wasteland has no enemies in it, and reaching its far end and getting back may not be survivable
 on the current decay rates. All deliberate scope decisions for a first prototype, not oversights
 — see `DESIGN_NOTES.md` for the reasoning behind each one.

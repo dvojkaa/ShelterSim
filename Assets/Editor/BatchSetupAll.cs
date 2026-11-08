@@ -40,6 +40,11 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M10 consumables and loot...");
             M10ConsumablesAndLootSetup.SetupConsumablesAndLoot();
 
+            // Must run after M10ConsumablesAndLootSetup (needs Water/WeaponUpgrade to exist)
+            // and after M2 (needs the Workbench/Water Collector prefabs to exist).
+            Debug.Log("[BatchSetupAll] Setting up M11 workbench and water...");
+            M11WorkbenchAndWaterSetup.SetupWorkbenchAndWater();
+
             Debug.Log("[BatchSetupAll] Setting up M5 crafting...");
             M5CraftingSetup.SetupCrafting();
 

@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5959653908242351336}
   - component: {fileID: 1347260617220473599}
   - component: {fileID: 6341111400553615956}
+  - component: {fileID: -4819521907217992981}
   m_Layer: 0
   m_Name: WorkbenchPiece
   m_TagString: Untagged
@@ -126,3 +127,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: workbench
+--- !u!114 &-4819521907217992981
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6449928620821688399}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f047d5bb6944fc03fbe27d41acb254d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.WorkbenchStation
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 2
+  - resource: {fileID: 11400000, guid: a4bad508bf8180c8083a0a2a23a87ad7, type: 2}
+    amount: 2
+  output: {fileID: 11400000, guid: e32254eacab02fc698d2ea3ae6a0cd31, type: 2}
+  outputAmount: 1

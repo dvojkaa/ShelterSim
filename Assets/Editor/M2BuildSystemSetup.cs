@@ -139,19 +139,36 @@ namespace SheltreSim.EditorTools
                 new Vector3(1.0f, 1.0f, 1.0f), new Color(0.45f, 0.32f, 0.18f),
                 "Assets/Prefabs/Building/StorageCratePiece.prefab", "Assets/Data/BuildPieces/StorageCrate.asset");
 
+            // M11 QC: Unity's Cylinder primitive mesh is 2 units TALL (and 1 unit across) at
+            // scale 1, unlike Cube which is 1x1x1 — so a localScale of y=1.2 produced a 2.4m
+            // cylinder while footprintSize claimed 1.2m. BuildModeController derives both the
+            // ghost's rest-on-the-surface Y offset and the CheckBox overlap extents from
+            // footprintSize, so the placed piece ended up sunk 0.6m into the floor with an
+            // overlap test covering only its lower half (measured: collider spanned y -0.6 to
+            // 1.8 for a placement on y=0). Explicit prefabScale with a halved Y keeps the real
+            // world bounds equal to footprintSize, which is what the rest of the build system
+            // assumes. This is the only non-Cube piece; any future one needs the same care.
             AddPiece(controller, "Water Collector", "water_collector", PrimitiveType.Cylinder,
                 new Vector3(0.8f, 1.2f, 0.8f), new Color(0.4f, 0.55f, 0.6f),
-                "Assets/Prefabs/Building/WaterCollectorPiece.prefab", "Assets/Data/BuildPieces/WaterCollector.asset");
+                "Assets/Prefabs/Building/WaterCollectorPiece.prefab", "Assets/Data/BuildPieces/WaterCollector.asset",
+                prefabScale: new Vector3(0.8f, 0.6f, 0.8f));
 
             AddPiece(controller, "Generator", "generator", PrimitiveType.Cube,
                 new Vector3(1.2f, 1.2f, 1.2f), new Color(0.6f, 0.55f, 0.2f),
                 "Assets/Prefabs/Building/GeneratorPiece.prefab", "Assets/Data/BuildPieces/Generator.asset");
         }
 
+        /// <summary>
+        /// <paramref name="footprintSize"/> is the piece's real WORLD size — the build system
+        /// derives the ghost's Y offset and the overlap-test extents from it, so it has to
+        /// match what the collider actually occupies. <paramref name="prefabScale"/> defaults
+        /// to the same vector because that's true for Cube primitives (1x1x1 at scale 1); pass
+        /// it explicitly for any primitive whose unit mesh isn't 1x1x1 (Cylinder is 2 tall).
+        /// </summary>
         private static void AddPiece(BuildModeController controller, string displayName, string id, PrimitiveType primitiveType,
-            Vector3 footprintSize, Color color, string prefabPath, string assetPath)
+            Vector3 footprintSize, Color color, string prefabPath, string assetPath, Vector3? prefabScale = null)
         {
-            GameObject prefab = CreatePrimitivePrefab(displayName.Replace(" ", "") + "Piece", id, footprintSize, prefabPath, color, primitiveType);
+            GameObject prefab = CreatePrimitivePrefab(displayName.Replace(" ", "") + "Piece", id, prefabScale ?? footprintSize, prefabPath, color, primitiveType);
             BuildPieceDefinition definition = CreatePieceDefinition(id, displayName, prefab, footprintSize, assetPath);
             controller.availablePieces.Add(definition);
         }
