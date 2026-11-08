@@ -52,15 +52,41 @@ namespace SheltreSim.EditorTools
                 return;
             }
 
-            // Inventory first: the pause menu needs a reference to it (M9 made the inventory
-            // panel modal, so Escape has to close it rather than stack a second modal on top).
-            InventoryUI inventoryUi = SetupInventoryUI(player, inventory, buildController);
+            // Melee attacker first: M10's Equip button needs a reference to it, and the
+            // inventory needs to exist before the pause menu (M9 made the inventory panel
+            // modal, so Escape has to close it rather than stack a second modal on top).
+            MeleeAttacker meleeAttacker = SetupMeleeAttacker(cameraPivot, buildController);
+            InventoryUI inventoryUi = SetupInventoryUI(player, inventory, buildController, meleeAttacker);
             SetupPauseMenu(buildController, inventoryUi);
-            SetupMeleeAttacker(cameraPivot, buildController);
+            WireMeleeAttackerIntoSave(meleeAttacker);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
             Debug.Log("M8 ready. Escape (outside build mode) pauses/resumes. I toggles the inventory. Left-click (outside build mode) swings your melee weapon at anything in range.");
+        }
+
+        /// <summary>
+        /// M10 QC — MeleeAttacker.attackDamage is permanent progression once a looted weapon
+        /// upgrade is equipped, so the save file has to know about it; without this the item
+        /// came back on load while the bonus stayed, which stacks damage without limit across
+        /// repeated F5/Equip/F9 cycles. Optional in the same degrade-gracefully way M4 wires
+        /// the inventory: if M3 hasn't run there's no SaveManager and melee damage simply
+        /// isn't persisted.
+        /// </summary>
+        private static void WireMeleeAttackerIntoSave(MeleeAttacker meleeAttacker)
+        {
+            GameObject saveManagerObject = GameObject.Find("SaveManager");
+            SheltreSim.Saving.SaveManager saveManager = saveManagerObject != null
+                ? saveManagerObject.GetComponent<SheltreSim.Saving.SaveManager>()
+                : null;
+
+            if (saveManager == null)
+            {
+                Debug.LogWarning("No SaveManager found — a looted weapon upgrade will not survive save/load. Run Tools > SheltreSim > Setup M3 Survival & Save first if you want that.");
+                return;
+            }
+
+            saveManager.meleeAttacker = meleeAttacker;
         }
 
         private static void SetupPauseMenu(BuildModeController buildController, InventoryUI inventoryUi)
@@ -80,7 +106,7 @@ namespace SheltreSim.EditorTools
             pauseMenu.inventoryUi = inventoryUi;
         }
 
-        private static InventoryUI SetupInventoryUI(GameObject player, Inventory inventory, BuildModeController buildController)
+        private static InventoryUI SetupInventoryUI(GameObject player, Inventory inventory, BuildModeController buildController, MeleeAttacker meleeAttacker)
         {
             GameObject inventoryUiObject = GameObject.Find("InventoryUI");
             if (inventoryUiObject == null)
@@ -103,35 +129,32 @@ namespace SheltreSim.EditorTools
             // mode exactly like PauseMenu does.
             inventoryUi.buildModeController = buildController;
 
-            ResourceDefinition wood = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Wood.asset");
-            ResourceDefinition scrapMetal = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/ScrapMetal.asset");
-            // M9 — only present once Tools > SheltreSim > Setup M9 World Resources has run
-            // (BatchSetupAll does, in order, before this); null-checked below same as wood/
-            // scrapMetal always were, so running M8 without M9 still degrades gracefully.
-            ResourceDefinition stone = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Stone.asset");
-            ResourceDefinition ironOre = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/IronOre.asset");
-            ResourceDefinition berries = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/Berries.asset");
+            // M10 — Equip button needs something to apply the weapon-upgrade bonus to.
+            inventoryUi.meleeAttacker = meleeAttacker;
+
+            // M9/M10 — only present once their respective Setup tools have run (BatchSetupAll
+            // does, in order, before this); null-checked below so running M8 without them
+            // still degrades gracefully, same as wood/scrapMetal always did.
+            string[] resourcePaths =
+            {
+                "Assets/Data/Resources/Wood.asset",
+                "Assets/Data/Resources/ScrapMetal.asset",
+                "Assets/Data/Resources/Stone.asset",
+                "Assets/Data/Resources/IronOre.asset",
+                "Assets/Data/Resources/Berries.asset",
+                "Assets/Data/Resources/Water.asset",
+                "Assets/Data/Resources/FirstAidKit.asset",
+                "Assets/Data/Resources/WeaponUpgrade.asset",
+            };
 
             inventoryUi.knownResources.Clear();
-            if (wood != null)
+            foreach (string path in resourcePaths)
             {
-                inventoryUi.knownResources.Add(wood);
-            }
-            if (scrapMetal != null)
-            {
-                inventoryUi.knownResources.Add(scrapMetal);
-            }
-            if (stone != null)
-            {
-                inventoryUi.knownResources.Add(stone);
-            }
-            if (ironOre != null)
-            {
-                inventoryUi.knownResources.Add(ironOre);
-            }
-            if (berries != null)
-            {
-                inventoryUi.knownResources.Add(berries);
+                ResourceDefinition resource = AssetDatabase.LoadAssetAtPath<ResourceDefinition>(path);
+                if (resource != null)
+                {
+                    inventoryUi.knownResources.Add(resource);
+                }
             }
 
             // M9 — "crafting menu" reference list: the same build pieces BuildModeController
@@ -156,7 +179,7 @@ namespace SheltreSim.EditorTools
             return inventoryUi;
         }
 
-        private static void SetupMeleeAttacker(Transform cameraPivot, BuildModeController buildController)
+        private static MeleeAttacker SetupMeleeAttacker(Transform cameraPivot, BuildModeController buildController)
         {
             MeleeAttacker attacker = cameraPivot.GetComponent<MeleeAttacker>();
             if (attacker == null)
@@ -193,6 +216,8 @@ namespace SheltreSim.EditorTools
             }
 
             attacker.weaponVisual = weaponObject.transform;
+
+            return attacker;
         }
     }
 }

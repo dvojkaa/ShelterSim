@@ -133,6 +133,28 @@ namespace SheltreSim.Survival
             hunger = Mathf.Clamp(hunger + amount, 0f, maxHunger);
         }
 
+        /// <summary>M10 — same shape as <see cref="Eat"/>, for drinkable resources.</summary>
+        public void Drink(float amount)
+        {
+            if (IsDead)
+            {
+                return;
+            }
+
+            thirst = Mathf.Clamp(thirst + amount, 0f, maxThirst);
+        }
+
+        /// <summary>M10 — same shape as <see cref="Eat"/>, for medicine resources.</summary>
+        public void Heal(float amount)
+        {
+            if (IsDead)
+            {
+                return;
+            }
+
+            health = Mathf.Clamp(health + amount, 0f, maxHealth);
+        }
+
         private void SetPlayerControlEnabled(bool value)
         {
             var controller = GetComponent<SheltreSim.Player.FirstPersonController>();

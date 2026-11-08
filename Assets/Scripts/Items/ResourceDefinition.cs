@@ -21,5 +21,24 @@ namespace SheltreSim.Items
         public bool isFood = false;
 
         public float hungerRestored = 25f;
+
+        /// <summary>M10 — marks this resource as drinkable via InventoryUI's Drink button.</summary>
+        public bool isDrink = false;
+
+        public float thirstRestored = 30f;
+
+        /// <summary>M10 — marks this resource as usable-as-medicine via InventoryUI's Use button.</summary>
+        public bool isMedicine = false;
+
+        public float healAmount = 40f;
+
+        /// <summary>
+        /// M10 — marks this resource as an equippable weapon upgrade via InventoryUI's Equip
+        /// button. Permanent: equipping consumes the item and adds damageBonus to
+        /// MeleeAttacker.attackDamage once, there's no un-equip.
+        /// </summary>
+        public bool isWeapon = false;
+
+        public float damageBonus = 10f;
     }
 }

@@ -25,6 +25,17 @@ namespace SheltreSim.Combat
         private float lastAttackTime = float.NegativeInfinity;
         private Quaternion restRotation;
 
+        /// <summary>
+        /// M10 — called by InventoryUI's Equip button after Inventory.TryConsume has already
+        /// removed the weapon item. Permanent, additive, and there's no un-equip — a weapon
+        /// pickup here is a consumable damage upgrade, not an inventory slot swap (no weapon
+        /// switching UI exists, and the viewmodel is a single fixed prop).
+        /// </summary>
+        public void ApplyWeaponUpgrade(float bonusDamage)
+        {
+            attackDamage += bonusDamage;
+        }
+
         private void Awake()
         {
             input = new MeleeInputActions();

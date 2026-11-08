@@ -17,6 +17,13 @@ namespace SheltreSim.Saving
         /// </summary>
         public SheltreSim.Items.Inventory inventory;
 
+        /// <summary>
+        /// Optional — M8's setup tool wires this in once melee combat exists. Only needed so
+        /// a looted weapon upgrade (M10) survives a save/load round trip; save/load works
+        /// without it, the damage bonus is just not persisted.
+        /// </summary>
+        public SheltreSim.Combat.MeleeAttacker meleeAttacker;
+
         private const string SaveFileName = "savegame.json";
 
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
@@ -58,6 +65,7 @@ namespace SheltreSim.Saving
                 hunger = stats.hunger,
                 thirst = stats.thirst,
                 health = stats.health,
+                attackDamage = meleeAttacker != null ? meleeAttacker.attackDamage : -1f,
             };
 
             foreach (PlacedPiece p in PlacedPieceRegistry.All)
@@ -125,6 +133,13 @@ namespace SheltreSim.Saving
             // loading a save taken while alive actually gives control back instead of leaving
             // a frozen player staring at a full health bar.
             stats.RestoreVitals(data.hunger, data.thirst, data.health);
+
+            // Non-positive means the save predates this field (see SaveData.attackDamage) —
+            // keep whatever damage the live component already has rather than zeroing it.
+            if (meleeAttacker != null && data.attackDamage > 0f)
+            {
+                meleeAttacker.attackDamage = data.attackDamage;
+            }
 
             // Snapshot first — destroying a piece triggers OnDisable -> Unregister,
             // which would mutate PlacedPieceRegistry.All while we're iterating it.

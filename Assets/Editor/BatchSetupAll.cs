@@ -31,6 +31,15 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M9 world resources...");
             M9WorldResourcesSetup.SetupWorldResources();
 
+            Debug.Log("[BatchSetupAll] Setting up M10 map expansion...");
+            M10MapExpansionSetup.SetupMapExpansion();
+
+            // Must run after M10MapExpansionSetup (consumes the "LootSpawn" markers it leaves
+            // behind) and before M8 (which wires Water/First Aid Kit/Makeshift Blade into
+            // InventoryUI, same ordering reason as M9 above).
+            Debug.Log("[BatchSetupAll] Setting up M10 consumables and loot...");
+            M10ConsumablesAndLootSetup.SetupConsumablesAndLoot();
+
             Debug.Log("[BatchSetupAll] Setting up M5 crafting...");
             M5CraftingSetup.SetupCrafting();
 

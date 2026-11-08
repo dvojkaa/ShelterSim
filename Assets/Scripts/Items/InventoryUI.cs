@@ -71,6 +71,12 @@ namespace SheltreSim.Items
         public SheltreSim.Building.BuildModeController buildModeController;
 
         /// <summary>
+        /// M10 — wired externally by M8MenusSetup, same as <see cref="stats"/>. Needed so the
+        /// Equip button on a weapon-upgrade resource has something to apply the bonus to.
+        /// </summary>
+        public SheltreSim.Combat.MeleeAttacker meleeAttacker;
+
+        /// <summary>
         /// True while the panel is showing. PauseMenu reads this so Escape backs out of the
         /// inventory instead of stacking a second modal on top of it — only one thing at a
         /// time may own Time.timeScale and the cursor.
@@ -140,11 +146,11 @@ namespace SheltreSim.Items
                     continue;
                 }
 
-                if (resource.isFood)
+                if (TryGetRowAction(resource, out string actionLabel, out Action onClick))
                 {
-                    // Food row: label takes the left portion, an Eat button sits anchored to
-                    // the panel's right edge so the two never overlap regardless of exact
-                    // label text length.
+                    // Action row (Eat/Drink/Use/Equip): label takes the left portion, the
+                    // button sits anchored to the panel's right edge so the two never overlap
+                    // regardless of exact label text length.
                     Text row = CreateLabelAt(
                         panel.transform, "Row_" + resource.id, $"{resource.displayName}: 0", font, 18,
                         anchorMin: new Vector2(0f, 1f), anchorMax: new Vector2(0f, 1f), pivot: new Vector2(0f, 1f),
@@ -152,36 +158,11 @@ namespace SheltreSim.Items
                         alignment: TextAnchor.MiddleLeft, style: FontStyle.Normal);
                     rows[resource.id] = row;
 
-                    // Capture a per-iteration local for the closure. C# foreach loop variables
-                    // have been per-iteration since C# 5, so capturing `resource` directly
-                    // would already be safe — this local is just belt-and-suspenders clarity.
-                    ResourceDefinition capturedResource = resource;
                     CreateButtonAt(
-                        panel.transform, "EatButton_" + resource.id, "Eat", font,
+                        panel.transform, "ActionButton_" + resource.id, actionLabel, font,
                         anchorMin: new Vector2(1f, 1f), anchorMax: new Vector2(1f, 1f), pivot: new Vector2(1f, 1f),
                         anchoredPosition: new Vector2(-20f, rowY), sizeDelta: new Vector2(90f, 28f),
-                        onClick: () =>
-                        {
-                            if (stats == null || inventory == null)
-                            {
-                                return;
-                            }
-
-                            // SurvivalStats.Eat() no-ops while dead, and this panel is still
-                            // reachable after death (nothing disables InventoryUI, and Die()
-                            // leaves the cursor free), so without this test a click would
-                            // destroy a berry for literally nothing. Consume only once the
-                            // effect is known to be able to land.
-                            if (stats.IsDead)
-                            {
-                                return;
-                            }
-
-                            if (inventory.TryConsume(capturedResource.id, 1))
-                            {
-                                stats.Eat(capturedResource.hungerRestored);
-                            }
-                        });
+                        onClick: onClick);
                 }
                 else
                 {
@@ -209,6 +190,109 @@ namespace SheltreSim.Items
             }
 
             panel.SetActive(false);
+        }
+
+        /// <summary>
+        /// M10 — generalizes M9's Eat-only row into one button per "actionable" resource
+        /// flag (isFood/isDrink/isMedicine/isWeapon). A resource is expected to have at most
+        /// one of these set; if more than one were ever set on the same asset, the first match
+        /// below wins and the others are silently ignored — not worth a defensive check for
+        /// a ScriptableObject only the project owner edits.
+        /// </summary>
+        private bool TryGetRowAction(ResourceDefinition resource, out string label, out Action onClick)
+        {
+            // Captured once per call (per row, since this runs inside the Awake() foreach) —
+            // same per-iteration-safe reasoning M9 already established for the Eat closure.
+            ResourceDefinition captured = resource;
+
+            if (resource.isFood)
+            {
+                label = "Eat";
+                onClick = () =>
+                {
+                    if (stats == null || inventory == null || stats.IsDead)
+                    {
+                        // SurvivalStats' *.* methods all no-op while dead, and this panel is
+                        // still reachable after death (nothing disables InventoryUI, and
+                        // Die() leaves the cursor free) — without this test a click would
+                        // consume the item for literally no effect.
+                        return;
+                    }
+
+                    if (inventory.TryConsume(captured.id, 1))
+                    {
+                        stats.Eat(captured.hungerRestored);
+                    }
+                };
+                return true;
+            }
+
+            if (resource.isDrink)
+            {
+                label = "Drink";
+                onClick = () =>
+                {
+                    if (stats == null || inventory == null || stats.IsDead)
+                    {
+                        return;
+                    }
+
+                    if (inventory.TryConsume(captured.id, 1))
+                    {
+                        stats.Drink(captured.thirstRestored);
+                    }
+                };
+                return true;
+            }
+
+            if (resource.isMedicine)
+            {
+                label = "Use";
+                onClick = () =>
+                {
+                    if (stats == null || inventory == null || stats.IsDead)
+                    {
+                        return;
+                    }
+
+                    if (inventory.TryConsume(captured.id, 1))
+                    {
+                        stats.Heal(captured.healAmount);
+                    }
+                };
+                return true;
+            }
+
+            if (resource.isWeapon)
+            {
+                label = "Equip";
+                onClick = () =>
+                {
+                    if (inventory == null || meleeAttacker == null)
+                    {
+                        return;
+                    }
+
+                    if (stats != null && stats.IsDead)
+                    {
+                        // Consistent with the three consumable actions above: a dead player
+                        // can't swing (Die() disables FirstPersonController/PlayerInteractor
+                        // but nothing disables this panel), so spending the only weapon
+                        // upgrade from a corpse would be a pure loss.
+                        return;
+                    }
+
+                    if (inventory.TryConsume(captured.id, 1))
+                    {
+                        meleeAttacker.ApplyWeaponUpgrade(captured.damageBonus);
+                    }
+                };
+                return true;
+            }
+
+            label = null;
+            onClick = null;
+            return false;
         }
 
         /// <summary>

@@ -16,3 +16,9 @@ MonoBehaviour:
   displayName: Blueberries
   isFood: 1
   hungerRestored: 30
+  isDrink: 0
+  thirstRestored: 30
+  isMedicine: 0
+  healAmount: 40
+  isWeapon: 0
+  damageBonus: 10
