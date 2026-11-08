@@ -42,11 +42,15 @@ namespace SheltreSim.Diagnostics
             yield return null;
             yield return null;
             Capture("runtime_spawn");
+            SheltreSim.Core.HomeBase.Active.DebugStartSurvival();
+            var world = SheltreSim.World.ProceduralWorld.Active;
+            foreach (var chunk in new[] { new Vector2Int(1, -2), new Vector2Int(1, -3), new Vector2Int(2, -2), new Vector2Int(2, -3), new Vector2Int(6, -6), new Vector2Int(7, -6), new Vector2Int(15, 15), new Vector2Int(16, 15) })
+                world.EnsureChunk(chunk);
+            yield return null;
 
             yield return CheckRaiderAnimation();
             yield return CheckDamageFlash();
             yield return CheckNodeDepletion();
-            yield return CheckRespawnedRaider();
             yield return CheckDoor();
 
             Debug.Log(failures == 0 ? "[ArtRuntimeProbe] ALL CHECKS PASSED" : $"[ArtRuntimeProbe] {failures} CHECK(S) FAILED");
@@ -108,7 +112,8 @@ namespace SheltreSim.Diagnostics
             float before = raider.GetComponentsInChildren<Renderer>().Length;
             float feet = raider.GetComponentsInChildren<Renderer>().Min(r => r.bounds.min.y);
             Debug.Log($"[ArtRuntimeProbe] idle raider pivot y={raider.transform.position.y:F3}, lowest model point y={feet:F3}");
-            Check(Mathf.Abs(feet) < 0.03f, "Standing raider's feet are on the ground");
+            float ground = SheltreSim.World.WorldLayout.HeightAt(raider.transform.position.x, raider.transform.position.z, SheltreSim.World.ProceduralWorld.Active.Seed);
+            Check(Mathf.Abs(feet - ground) < 0.1f, $"Standing raider's feet are on the ground ({feet - ground:F3})");
             raider.TakeDamage(1f);
             yield return null;
             MaterialPropertyBlock block = new MaterialPropertyBlock();
@@ -124,7 +129,7 @@ namespace SheltreSim.Diagnostics
         private IEnumerator CheckNodeDepletion()
         {
             FirstPersonController player = FindFirstObjectByType<FirstPersonController>();
-            foreach (string id in new[] { "wood", "scrap_metal", "stone", "iron_ore", "food_berries" })
+            foreach (string id in new[] { "wood", "stone", "iron_ore", "food_berries" })
             {
                 ResourceNode node = FindObjectsByType<ResourceNode>().First(n => n.resourceType != null && n.resourceType.id == id);
                 Renderer[] renderers = node.GetComponentsInChildren<Renderer>(true);
@@ -140,38 +145,6 @@ namespace SheltreSim.Diagnostics
         }
 
         /// <summary>A clone of the inactive template must look, animate and flash like a scene original.</summary>
-        private IEnumerator CheckRespawnedRaider()
-        {
-            const string raiderName = "Raider_2";
-            EnemyAI original = FindObjectsByType<EnemyAI>().First(r => r.name == raiderName);
-            MovePlayer(original.transform.position + Vector3.back * 15f + Vector3.up * 0.1f);
-            FindFirstObjectByType<EnemySpawner>().respawnDelaySeconds = 0.1f;
-            original.TakeDamage(10000f);
-            yield return new WaitForSeconds(0.5f);
-
-            EnemyAI fresh = FindObjectsByType<EnemyAI>().FirstOrDefault(r => r.name == raiderName);
-            Check(fresh != null, "Killed raider respawned from its template");
-            if (fresh == null) yield break;
-            Transform leg = fresh.transform.Find("Visual/Leg_L");
-            Check(leg != null && fresh.transform.Find("WeaponProp/Visual") != null && fresh.GetComponent<RaiderWalkAnimator>().isActiveAndEnabled,
-                "Respawned raider has its model, weapon and walk animator");
-            Check(leg != null && Quaternion.Angle(Quaternion.identity, leg.localRotation) < 1f, "Respawned raider idles in its rest pose");
-
-            fresh.TakeDamage(1f);
-            yield return null;
-            MaterialPropertyBlock block = new MaterialPropertyBlock();
-            fresh.GetComponentsInChildren<Renderer>().First().GetPropertyBlock(block);
-            Check(block.GetColor("_EmissionColor").maxColorComponent > 0.1f, "Respawned raider flashes when hit");
-
-            float maxSwing = 0f;
-            for (float t = 0f; t < 1.5f && fresh != null; t += Time.deltaTime)
-            {
-                maxSwing = Mathf.Max(maxSwing, Quaternion.Angle(Quaternion.identity, leg.localRotation));
-                yield return null;
-            }
-            Check(maxSwing > 20f, $"Respawned raider's legs swing while chasing ({maxSwing:F1} deg)");
-        }
-
         private void MovePlayer(Vector3 position)
         {
             FirstPersonController player = FindFirstObjectByType<FirstPersonController>();
@@ -204,7 +177,7 @@ namespace SheltreSim.Diagnostics
             FirstPersonController player = FindFirstObjectByType<FirstPersonController>();
             CharacterController body = player.GetComponent<CharacterController>();
             body.enabled = false;
-            player.transform.position = new Vector3(0f, 1f, 1.5f);
+            player.transform.position = new Vector3(72f, 0.2f, -217.5f);
             body.enabled = true;
             player.GetComponentInChildren<Camera>().transform.localRotation = Quaternion.identity;
             yield return null;

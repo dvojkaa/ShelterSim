@@ -97,6 +97,18 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Applying M16 art pass...");
             M16ArtPass.ApplyArt();
 
+            Debug.Log("[BatchSetupAll] Setting up M18 runtime procedural world...");
+            M18ProceduralWorldSetup.Setup();
+
+            M19ExpeditionSetup.Setup();
+
+            // Removes the old starting region, so it has to follow everything that built or read it.
+            Debug.Log("[BatchSetupAll] Setting up M20 home site...");
+            M20HomeSetup.Setup();
+
+            Debug.Log("[BatchSetupAll] Setting up M21 crafting...");
+            M21CraftingSetup.Setup();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }

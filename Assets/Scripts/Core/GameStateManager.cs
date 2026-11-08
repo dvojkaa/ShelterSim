@@ -17,11 +17,15 @@ namespace SheltreSim.Core
 
         public SheltreSim.Survival.SurvivalStats stats;
 
+        /// <summary>Warning between the sirens and the bombs: long enough to get down the stairs from anywhere nearby.</summary>
+        public float warningSeconds = 45f;
+        public float surfaceBlastDamage = 40f;
+
         private Coroutine apocalypseSequence;
         private float apocalypseStartedAt;
 
         public float ApocalypseSecondsRemaining => CurrentPhase == GamePhase.Apocalypse
-            ? Mathf.Max(0f, 3f - (Time.time - apocalypseStartedAt))
+            ? Mathf.Max(0f, warningSeconds - (Time.time - apocalypseStartedAt))
             : 0f;
 
         private void Awake()
@@ -54,6 +58,8 @@ namespace SheltreSim.Core
             {
                 stats.decayPaused = (phase == GamePhase.Building);
             }
+            SheltreSim.World.WeatherPresentation.ApocalypseAmount = phase == GamePhase.Building ? 0f : 1f;
+            if (HomeBase.Active != null) HomeBase.Active.RefreshVisuals();
         }
 
         public void TriggerApocalypse()
@@ -65,25 +71,46 @@ namespace SheltreSim.Core
             }
 
             CurrentPhase = GamePhase.Apocalypse;
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Siren, 0.6f, 0f, 0.3f);
             apocalypseStartedAt = Time.time;
-            GameMessageBus.Post("Emergency alert. Stay in your shelter. The apocalypse is beginning.");
+            GameMessageBus.Post("EMERGENCY ALERT. Missiles inbound. Get underground, now.");
             apocalypseSequence = StartCoroutine(ApocalypseSequence());
         }
 
         private IEnumerator ApocalypseSequence()
         {
-            yield return new WaitForSeconds(2f);
-            GameMessageBus.Post("The ground shakes. Keep food, water and a way home.");
+            // Sirens repeat through the warning. The world doesn't change until the bombs land.
+            const float sirenEvery = 15f;
+            float elapsed = 0f;
+            while (elapsed + sirenEvery < warningSeconds)
+            {
+                yield return new WaitForSeconds(sirenEvery);
+                elapsed += sirenEvery;
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Siren, 0.6f, 0f, 0.3f);
+            }
+            yield return new WaitForSeconds(Mathf.Max(0f, warningSeconds - elapsed));
 
-            yield return new WaitForSeconds(1f);
+            SheltreSim.World.WeatherPresentation.Flash(3.5f);
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Quake, 0.95f, 0f);
             if (stats != null)
             {
                 stats.decayPaused = false;
             }
-
             CurrentPhase = GamePhase.Survival;
             apocalypseSequence = null;
-            GameMessageBus.Post("Survival has begun. Food and water now drain. Open I or Tab to use supplies.");
+            // Swapped under the flash: the town burns, and loot, raiders and animals appear.
+            if (SheltreSim.World.ProceduralWorld.Active != null) SheltreSim.World.ProceduralWorld.Active.SetRuined(true);
+            SheltreSim.World.WeatherPresentation.ApocalypseAmount = 1f;
+            if (HomeBase.Active != null) HomeBase.Active.RefreshVisuals();
+
+            bool sheltered = stats == null || SheltreSim.World.WorldLayout.UndergroundAmount(stats.transform.position + Vector3.up) > 0.5f;
+            if (!sheltered)
+            {
+                stats.TakeDamage(surfaceBlastDamage);
+                GameMessageBus.Post("Caught in the open. The blast burns you.");
+            }
+            GameMessageBus.Post("The ground shakes. The town is burning. Food and water now drain.");
+            GameMessageBus.Post("Survive: scavenge, craft, build. C: craft by hand. I or Tab: supplies.");
         }
     }
 }

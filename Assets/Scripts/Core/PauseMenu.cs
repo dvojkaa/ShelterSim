@@ -104,7 +104,7 @@ namespace SheltreSim.Core
             Canvas canvas = GameUI.CreateCanvas(transform, "PauseCanvas", 100, true);
             panel = GameUI.Backdrop(canvas.transform, "PausePanel");
             Transform card = GameUI.Panel(panel.transform, "Card", new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 680f), GameUI.PanelColor, true).transform;
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 735f), GameUI.PanelColor, true).transform;
             GameUI.Label(card, "Title", "PAUSED", TopLeft, TopLeft, new Vector2(32f, -28f),
                 new Vector2(896f, 50f), 38, GameUI.Accent, bold: true);
             GameUI.Label(card, "Subtitle", "Take a breath. The world is paused.", TopLeft, TopLeft,
@@ -129,6 +129,7 @@ namespace SheltreSim.Core
             GameUI.Label(card, "Advice",
                 "Prepare supplies and a Water Collector before using the red bunker console.\nFood and water stay full during preparation; raiders can still hurt you.\nAfter the alarm, scavenge, return home, eat, drink and rest. Save regularly.",
                 TopLeft, TopLeft, new Vector2(32f, -554f), new Vector2(896f, 96f), 19, GameUI.Muted);
+            SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -664f));
             panel.SetActive(false);
         }
 

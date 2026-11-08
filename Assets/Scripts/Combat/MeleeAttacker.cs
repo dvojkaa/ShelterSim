@@ -17,6 +17,12 @@ namespace SheltreSim.Combat
         public float attackRange = 2.5f;
         public float attackRadius = 0.5f;
         public float attackDamage = 20f;
+
+        /// <summary>Unarmed damage. PlayerGear sets attackDamage to the equipped weapon's value, or back to this.</summary>
+        public const float DefaultDamage = 20f;
+
+        /// <summary>Test hook: lets probes swing without the locked-cursor requirement (batch mode has no real cursor).</summary>
+        public bool ignoreCursorLock;
         public float attackCooldown = 0.6f;
         public float swingDuration = 0.1f;
         public float returnDuration = 0.15f;
@@ -34,6 +40,7 @@ namespace SheltreSim.Combat
             if (bonusDamage > 0f && !float.IsNaN(bonusDamage) && !float.IsInfinity(bonusDamage))
             {
                 attackDamage += bonusDamage;
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Equip, 0.8f);
             }
         }
 
@@ -76,34 +83,46 @@ namespace SheltreSim.Combat
             }
         }
 
-        private void OnAttackPerformed(InputAction.CallbackContext context)
+        private void OnAttackPerformed(InputAction.CallbackContext context) => TryAttack();
+
+        /// <summary>One swing with the real hit-detection path. Returns false when gated (paused, dead, cooldown...).</summary>
+        public bool TryAttack()
         {
-            if (!isActiveAndEnabled || Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked ||
+            if (!isActiveAndEnabled || Time.timeScale <= 0f || (!ignoreCursorLock && Cursor.lockState != CursorLockMode.Locked) ||
                 (stats != null && (stats.IsDead || stats.health <= 0f)) ||
                 (playerController != null && !playerController.isActiveAndEnabled) ||
                 (buildModeController != null && buildModeController.IsBuildModeActive) ||
                 Time.time - lastAttackTime < Mathf.Max(0.05f, attackCooldown))
             {
-                return;
+                return false;
             }
 
             lastAttackTime = Time.time;
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Swing, 0.55f, 0.08f);
             Collider target = FindSwingTarget();
             EnemyAI enemy = target != null ? target.GetComponentInParent<EnemyAI>() : null;
             if (enemy != null)
             {
                 enemy.TakeDamage(attackDamage);
+                SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitFlesh, enemy.transform.position + Vector3.up, 0.9f, 25f);
                 GameMessageBus.Post(enemy.IsDead
                     ? "Raider defeated."
                     : $"Hit raider for {attackDamage:0} damage ({enemy.health:0} HP left).");
             }
+            else if (target != null && target.GetComponentInParent<SheltreSim.World.WorldWildlife>() is SheltreSim.World.WorldWildlife animal)
+            {
+                SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitFlesh, animal.transform.position + Vector3.up, 0.9f, 25f);
+                GameMessageBus.Post(animal.TakeHit(attackDamage, transform.position));
+            }
             else
             {
+                if (target != null) SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitBlock, transform.position + transform.forward, 0.75f, 20f);
                 GameMessageBus.Post(target != null ? "Swing blocked." : "Swing missed — move closer and aim at the raider.");
             }
 
             ResetSwing();
             swingCoroutine = StartCoroutine(SwingWeapon());
+            return true;
         }
 
         /// <summary>
@@ -118,6 +137,8 @@ namespace SheltreSim.Combat
                 transform.forward, Mathf.Max(0f, attackRange), ~0, QueryTriggerInteraction.Ignore);
             Collider nearestEnemy = null;
             Collider nearestObstacle = null;
+            Collider nearestAnimal = null;
+            float animalDistance = float.PositiveInfinity;
             float enemyDistance = float.PositiveInfinity;
             float obstacleDistance = float.PositiveInfinity;
 
@@ -132,6 +153,19 @@ namespace SheltreSim.Combat
                 EnemyAI enemy = candidate.GetComponentInParent<EnemyAI>();
                 if (enemy == null)
                 {
+                    SheltreSim.World.WorldWildlife animal = candidate.GetComponentInParent<SheltreSim.World.WorldWildlife>();
+                    if (animal != null)
+                    {
+                        if (animal.IsDead) continue;
+                        Vector3 animalOffset = candidate.bounds.center - transform.position;
+                        if (Vector3.Dot(animalOffset.normalized, transform.forward) >= 0.25f && HasClearStrikeAnimal(candidate, animal) &&
+                            animalOffset.sqrMagnitude < animalDistance)
+                        {
+                            animalDistance = animalOffset.sqrMagnitude;
+                            nearestAnimal = candidate;
+                        }
+                        continue;
+                    }
                     if (hit.distance > 0f && hit.distance < obstacleDistance)
                     {
                         obstacleDistance = hit.distance;
@@ -157,7 +191,29 @@ namespace SheltreSim.Combat
                 }
             }
 
-            return nearestEnemy != null ? nearestEnemy : nearestObstacle;
+            if (nearestEnemy != null) return nearestEnemy;
+            return nearestAnimal != null ? nearestAnimal : nearestObstacle;
+        }
+
+        private bool HasClearStrikeAnimal(Collider target, SheltreSim.World.WorldWildlife animal)
+        {
+            Bounds bounds = target.bounds;
+            Vector3 point = bounds.center;
+            point.y = Mathf.Clamp(transform.position.y, bounds.min.y + 0.1f, bounds.max.y - 0.1f);
+            Vector3 direction = point - transform.position;
+            RaycastHit[] hits = Physics.RaycastAll(transform.position, direction.normalized,
+                direction.magnitude, ~0, QueryTriggerInteraction.Ignore);
+            Collider nearest = null;
+            float distance = float.PositiveInfinity;
+            foreach (RaycastHit hit in hits)
+            {
+                if (!BelongsToPlayer(hit.collider) && hit.distance < distance)
+                {
+                    nearest = hit.collider;
+                    distance = hit.distance;
+                }
+            }
+            return nearest == null || nearest.GetComponentInParent<SheltreSim.World.WorldWildlife>() == animal;
         }
 
         private bool HasClearStrike(Collider target, EnemyAI enemy)

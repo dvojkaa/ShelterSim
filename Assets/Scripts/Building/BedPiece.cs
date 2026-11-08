@@ -39,6 +39,7 @@ namespace SheltreSim.Building
             }
             if (IsRaiderNearby(true))
             {
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiDeny, 0.35f);
                 GameMessageBus.Post("Can't sleep — a raider is nearby.");
                 return;
             }
@@ -75,6 +76,7 @@ namespace SheltreSim.Building
                 return;
             }
 
+            SheltreSim.Audio.PlayerAudio.NoteRest();
             float previousHealth = stats.health;
             stats.Heal(healAmount);
             if (stats.health <= previousHealth)
@@ -84,6 +86,7 @@ namespace SheltreSim.Building
             stats.hunger = Mathf.Clamp(stats.hunger - hungerCost, 0f, stats.maxHunger);
             stats.thirst = Mathf.Clamp(stats.thirst - thirstCost, 0f, stats.maxThirst);
 
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Sleep, 0.8f, 0f);
             GameMessageBus.Post($"Rested and recovered {stats.health - previousHealth:F0} health (-{hungerCost:F0} hunger, -{thirstCost:F0} thirst).");
         }
 

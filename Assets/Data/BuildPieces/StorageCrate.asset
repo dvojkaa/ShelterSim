@@ -17,5 +17,7 @@ MonoBehaviour:
   prefab: {fileID: 2673520565814828883, guid: 664d30561e82953dca2c284a60dc4300, type: 3}
   footprintSize: {x: 1, y: 1, z: 1}
   craftingCost:
-  - resource: {fileID: 11400000, guid: a4bad508bf8180c8083a0a2a23a87ad7, type: 2}
-    amount: 1
+  - resource: {fileID: 11400000, guid: f0b9010cbdf8c3e86bf973f4995f66f8, type: 2}
+    amount: 3
+  - resource: {fileID: 11400000, guid: ed90cf100948da0b2b621fbd2852cdc1, type: 2}
+    amount: 4

@@ -43,6 +43,9 @@ namespace SheltreSim.Player
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            // Keep displacement independent of frame rate. At high FPS the default
+            // 1 mm cutoff silently discards otherwise valid walking and gravity steps.
+            controller.minMoveDistance = 0f;
             input = new PlayerInputActions();
 
             if (cameraPivot == null)

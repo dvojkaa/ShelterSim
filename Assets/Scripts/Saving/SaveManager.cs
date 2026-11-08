@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,6 +9,7 @@ using SheltreSim.Enemies;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
 using SheltreSim.UI;
+using SheltreSim.World;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Object = UnityEngine.Object;
@@ -26,6 +28,8 @@ namespace SheltreSim.Saving
 
         private const string SaveFileName = "savegame.json";
         private const int MaximumEntries = 10000;
+        private const int MaximumProceduralEntries = 100000;
+        private const int MaximumChunkCoordinate = 100000;
         private const long MaximumSaveBytes = 10 * 1024 * 1024;
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
         public bool HasSave => File.Exists(SavePath) || File.Exists(SavePath + ".bak");
@@ -99,12 +103,14 @@ namespace SheltreSim.Saving
             try
             {
                 SaveData data = CaptureSnapshot();
-                ValidateSnapshot(data, BuildDefinitions());
+                Dictionary<string, BuildPieceDefinition> definitions = BuildDefinitions();
+                ValidateSnapshot(data, definitions);
                 string json = JsonUtility.ToJson(data, true);
+                byte[] bytes = Encoding.UTF8.GetBytes(json);
+                Require(bytes.Length <= MaximumSaveBytes, "The save file is too large.");
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
                 using (FileStream stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write))
                 {
-                    byte[] bytes = Encoding.UTF8.GetBytes(json);
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush(true);
                 }
@@ -113,7 +119,10 @@ namespace SheltreSim.Saving
                 // leave the last successful save recoverable rather than truncating it.
                 if (File.Exists(path))
                 {
-                    File.Replace(temporaryPath, path, path + ".bak");
+                    // After recovering a backup, the primary can still be corrupt. Never
+                    // rotate that rejected file over the last known-good backup on F5.
+                    bool primaryIsValid = TryReadSnapshot(path, definitions, out _, out _);
+                    File.Replace(temporaryPath, path, primaryIsValid ? path + ".bak" : null);
                 }
                 else
                 {
@@ -210,14 +219,32 @@ namespace SheltreSim.Saving
                 crateStates = new List<SaveData.CrateState>(),
                 doorStates = new List<SaveData.DoorState>(),
                 raiderStates = enemySpawner != null ? enemySpawner.CaptureState() : null,
+                hasProceduralWorld = ProceduralWorld.Active != null,
+                worldSeed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 0,
+                worldElapsedSeconds = ProceduralWorld.Active != null && ProceduralWorld.Active.GetComponent<WorldAtmosphere>() != null
+                    ? ProceduralWorld.Active.GetComponent<WorldAtmosphere>().ElapsedSeconds : 0f,
+                expeditionUpgrades = ExpeditionProgression.Active != null ? ExpeditionProgression.Active.UpgradeMask : 0,
+                discoveredLandmarks = ExpeditionProgression.Active != null ? ExpeditionProgression.Active.CaptureDiscoveries() : new List<string>(),
+                proceduralChunks = ProceduralWorld.Active != null ? ProceduralWorld.Active.CaptureWorld()
+                    : new List<ProceduralWorldState.ChunkState>(),
+                money = HomeBase.Active != null ? HomeBase.Active.Money : 0,
+                bunkerStages = HomeBase.Active != null ? HomeBase.Active.CompletedStages : 0,
+                bunkerBuilding = HomeBase.Active != null && HomeBase.Active.IsBuilding,
+                bunkerBuildElapsed = HomeBase.Active != null ? HomeBase.Active.BuildElapsed : 0f,
+                bunkerAnnex = HomeBase.Active != null && HomeBase.Active.HasAnnex,
+                equippedGear = player.GetComponent<SheltreSim.Crafting.PlayerGear>() != null
+                    ? player.GetComponent<SheltreSim.Crafting.PlayerGear>().CaptureEquipped() : new List<string>(),
             };
 
             foreach (PlacedPiece piece in PlacedPieceRegistry.All)
             {
                 if (piece.gameObject.scene != player.gameObject.scene) continue;
                 WaterCollectorPiece collector = piece.GetComponent<WaterCollectorPiece>();
+                FarmPlot farm = piece.GetComponent<FarmPlot>();
                 data.placedPieces.Add(new SaveData.PlacedPieceData
                 {
+                    farmStored = farm != null ? farm.State : -1,
+                    farmElapsed = farm != null ? farm.GrowElapsed : 0f,
                     pieceId = piece.pieceId,
                     position = piece.transform.position,
                     rotation = piece.transform.rotation,
@@ -228,6 +255,7 @@ namespace SheltreSim.Saving
 
             foreach (ResourceNode node in SceneObjects<ResourceNode>())
             {
+                if (node.GetComponentInParent<ProceduralWorld>() != null) continue;
                 data.nodeStates.Add(new SaveData.NodeState
                 {
                     id = ComputeStableId(node.transform),
@@ -238,6 +266,7 @@ namespace SheltreSim.Saving
             }
             foreach (LootContainer crate in SceneObjects<LootContainer>())
             {
+                if (crate.GetComponentInParent<ProceduralWorld>() != null) continue;
                 data.crateStates.Add(new SaveData.CrateState
                 {
                     id = ComputeStableId(crate.transform),
@@ -275,7 +304,7 @@ namespace SheltreSim.Saving
             return definitions;
         }
 
-        private static bool TryReadSnapshot(string path, Dictionary<string, BuildPieceDefinition> definitions,
+        private bool TryReadSnapshot(string path, Dictionary<string, BuildPieceDefinition> definitions,
             out SaveData data, out string error)
         {
             data = null;
@@ -291,6 +320,10 @@ namespace SheltreSim.Saving
                 // FromJson's behavior for absent fields must not decide migration defaults.
                 JsonUtility.FromJsonOverwrite(json, data);
                 ValidateSnapshot(data, definitions);
+                Require(!data.hasProceduralWorld || ProceduralWorld.Active != null,
+                    "The procedural world system is unavailable.");
+                Require(string.IsNullOrEmpty(data.sceneName) || data.sceneName == player.gameObject.scene.name,
+                    "The save belongs to a different scene.");
                 error = null;
                 return true;
             }
@@ -304,8 +337,11 @@ namespace SheltreSim.Saving
 
         private static void ValidateSnapshot(SaveData data, Dictionary<string, BuildPieceDefinition> definitions)
         {
-            Require(data != null && (data.version == 0 || data.version == SaveData.CurrentVersion),
-                "This save format is unsupported.");
+            // Version 5 moved the start of the game: older saves place everything in a world that's gone.
+            Require(data != null && data.version == SaveData.CurrentVersion, "This save format is unsupported.");
+            Require(data.money >= 0 && data.bunkerStages >= 0 && data.bunkerStages <= HomeBase.Stages.Length &&
+                Finite(data.bunkerBuildElapsed) && data.bunkerBuildElapsed >= 0f, "The saved bunker project is invalid.");
+            Require(data.equippedGear != null && data.equippedGear.Count <= 8, "The saved gear is invalid.");
             Require(Finite(data.playerPosition) && Finite(data.playerYaw) && Finite(data.playerPitch),
                 "The saved player position is invalid.");
             Require(Finite(data.hunger) && Finite(data.thirst) && Finite(data.health)
@@ -330,15 +366,24 @@ namespace SheltreSim.Saving
                 Require(Finite(piece.position) && ValidRotation(piece.rotation), "A build piece has an invalid transform.");
                 Require(piece.waterStored >= -1 && Finite(piece.collectionElapsed) && piece.collectionElapsed >= 0f,
                     "A water collector has invalid saved progress.");
+                Require(piece.farmStored >= -1 && piece.farmStored <= 2 && Finite(piece.farmElapsed) && piece.farmElapsed >= 0f,
+                    "A farm plot has invalid saved progress.");
             }
 
-            if (data.version == SaveData.CurrentVersion)
+            if (data.version >= 2)
             {
                 Require(!string.IsNullOrEmpty(data.sceneName) && data.inventory != null
                     && data.nodeStates != null && data.crateStates != null && data.doorStates != null,
                     "The save is incomplete.");
             }
 
+            Require(Finite(data.worldElapsedSeconds) && data.worldElapsedSeconds >= 0f && data.worldElapsedSeconds <= 100000000f,
+                "The world clock is invalid.");
+            Require(data.expeditionUpgrades >= 0 && data.expeditionUpgrades <= 7, "Unknown expedition upgrade.");
+            Require(data.discoveredLandmarks != null && data.discoveredLandmarks.Count <= MaximumEntries &&
+                data.discoveredLandmarks.All(id => !string.IsNullOrEmpty(id) && id.Length <= 256) &&
+                data.discoveredLandmarks.Distinct().Count() == data.discoveredLandmarks.Count, "Invalid landmark discoveries.");
+            ValidateProceduralChunks(data);
             ValidateEntries(data.inventory, entry => entry.resourceId, entry => entry.count >= 0, true);
             ValidateEntries(data.nodeStates, entry => entry.id,
                 entry => entry.remainingCharges >= 0 && Finite(entry.regrowthElapsed) && entry.regrowthElapsed >= 0f,
@@ -350,6 +395,36 @@ namespace SheltreSim.Saving
                     && Finite(entry.health) && entry.health >= 0f
                     && Finite(entry.respawnRemaining) && entry.respawnRemaining >= 0f, true);
         }
+
+        private static void ValidateProceduralChunks(SaveData data)
+        {
+            Require(data.version >= 3 || !data.hasProceduralWorld,
+                "An older save contains unsupported procedural world state.");
+            Require(data.proceduralChunks != null && data.proceduralChunks.Count <= MaximumEntries,
+                "The saved procedural chunks are missing or too numerous.");
+            Require(data.hasProceduralWorld || data.proceduralChunks.Count == 0,
+                "The save contains chunks without a procedural world.");
+            HashSet<Vector2Int> coordinates = new HashSet<Vector2Int>();
+            int totalEntries = 0;
+            foreach (ProceduralWorldState.ChunkState chunk in data.proceduralChunks)
+            {
+                Require(chunk != null && chunk.x >= -MaximumChunkCoordinate && chunk.x <= MaximumChunkCoordinate
+                    && chunk.z >= -MaximumChunkCoordinate && chunk.z <= MaximumChunkCoordinate,
+                    "A saved chunk has invalid coordinates.");
+                Require(coordinates.Add(new Vector2Int(chunk.x, chunk.z)), "The save contains a duplicate chunk.");
+                Require(chunk.nodes != null && chunk.crates != null, "A saved chunk is incomplete.");
+                if(chunk.encounters == null) chunk.encounters = new List<ProceduralWorldState.EncounterState>();
+                totalEntries += chunk.nodes.Count + chunk.crates.Count + chunk.encounters.Count;
+                Require(totalEntries <= MaximumProceduralEntries, "The save contains too much procedural state.");
+                ValidateEntries(chunk.nodes, node => node.id,
+                    node => ValidProceduralId(node.id) && node.charges >= 0 && node.charges <= MaximumEntries
+                        && Finite(node.elapsed) && node.elapsed >= 0f, true);
+                ValidateEntries(chunk.crates, crate => crate.id, crate => ValidProceduralId(crate.id), true);
+                ValidateEntries(chunk.encounters, actor=>actor.id, actor=>ValidProceduralId(actor.id)&&Finite(actor.health)&&actor.health>=0f&&actor.health<=10000f,true);
+            }
+        }
+
+        private static bool ValidProceduralId(string id) => !string.IsNullOrEmpty(id) && id.Length <= 1024;
 
         private static void ValidateEntries<T>(List<T> entries, Func<T, string> id, Func<T, bool> valid,
             bool requireUnique) where T : class
@@ -381,6 +456,8 @@ namespace SheltreSim.Saving
                     {
                         collector.RestoreState(piece.waterStored, piece.collectionElapsed);
                     }
+                    FarmPlot farm = instance.GetComponent<FarmPlot>();
+                    if (farm != null && piece.farmStored >= 0) farm.RestoreState(piece.farmStored, piece.farmElapsed);
                 }
                 return staging;
             }
@@ -435,6 +512,19 @@ namespace SheltreSim.Saving
             {
                 if (controllerWasEnabled) controller.enabled = true;
             }
+            // Chunk generation must see the restored location, never the location from the
+            // session being replaced. Old saves start fresh generated surroundings while
+            // retaining their hand-built-region state above.
+            if (ProceduralWorld.Active != null)
+                ProceduralWorld.Active.RestoreWorld(data.hasProceduralWorld ? data.worldSeed : ProceduralWorld.Active.Seed,
+                    data.hasProceduralWorld ? data.proceduralChunks : new List<ProceduralWorldState.ChunkState>(),
+                    data.gamePhase != (int)GamePhase.Building);
+            if (HomeBase.Active != null)
+                HomeBase.Active.Restore(data.money, data.bunkerStages, data.bunkerBuilding, data.bunkerBuildElapsed, data.bunkerAnnex);
+            SheltreSim.Crafting.PlayerGear gear = player.GetComponent<SheltreSim.Crafting.PlayerGear>();
+            if (gear != null) gear.RestoreEquipped(data.equippedGear);
+            if(ExpeditionProgression.Active!=null)ExpeditionProgression.Active.Restore(data.expeditionUpgrades,data.discoveredLandmarks);
+            if(ProceduralWorld.Active!=null)ProceduralWorld.Active.GetComponent<WorldAtmosphere>()?.RestoreTime(data.worldElapsedSeconds);
             stats.RestoreVitals(data.hunger, data.thirst, data.health);
             Physics.SyncTransforms();
         }
@@ -446,7 +536,10 @@ namespace SheltreSim.Saving
             {
                 Dictionary<string, ResourceNode> nodes = new Dictionary<string, ResourceNode>();
                 foreach (ResourceNode node in SceneObjects<ResourceNode>())
+                {
+                    if (node.GetComponentInParent<ProceduralWorld>() != null) continue;
                     nodes[legacy ? LegacyId(node.transform) : ComputeStableId(node.transform)] = node;
+                }
                 foreach (SaveData.NodeState state in data.nodeStates)
                     if (nodes.TryGetValue(state.id, out ResourceNode node))
                         node.RestoreState(state.remainingCharges, state.depleted, state.regrowthElapsed);
@@ -466,8 +559,11 @@ namespace SheltreSim.Saving
                     else searched[state.id] = state.searched;
                 }
                 foreach (LootContainer crate in SceneObjects<LootContainer>())
+                {
+                    if (crate.GetComponentInParent<ProceduralWorld>() != null) continue;
                     if (searched.TryGetValue(legacy ? LegacyId(crate.transform) : ComputeStableId(crate.transform), out bool value))
                         crate.RestoreSearchedState(value);
+                }
                 if (ambiguousLegacyCrates)
                     Debug.LogWarning("This older save shared IDs between nearby crates. Ambiguous groups keep any searched state; new saves track every crate separately.");
             }
@@ -529,9 +625,14 @@ namespace SheltreSim.Saving
 
         private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
         private static bool Finite(Vector3 value) => Finite(value.x) && Finite(value.y) && Finite(value.z);
-        private static bool ValidRotation(Quaternion value) => Finite(value.x) && Finite(value.y)
-            && Finite(value.z) && Finite(value.w)
-            && value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w > 0.0001f;
+        private static bool ValidRotation(Quaternion value)
+        {
+            if (!Finite(value.x) || !Finite(value.y) || !Finite(value.z) || !Finite(value.w)) return false;
+            float squaredLength = value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w;
+            // Transform rotations are unit quaternions. Reject corrupt magnitudes, including
+            // finite components whose squared length overflows, before touching Unity physics.
+            return Finite(squaredLength) && Mathf.Abs(squaredLength - 1f) <= 0.01f;
+        }
 
         private static void Require(bool condition, string message)
         {

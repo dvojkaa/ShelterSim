@@ -64,7 +64,8 @@ namespace SheltreSim.Enemies
 
             foreach (EnemyAI raider in originals)
             {
-                if (raider.gameObject.scene != gameObject.scene || !raider.isActiveAndEnabled || raider.IsDead) continue;
+                if (raider.gameObject.scene != gameObject.scene || !raider.isActiveAndEnabled || raider.IsDead ||
+                    raider.GetComponentInParent<SheltreSim.World.ProceduralWorld>() != null) continue;
                 SpawnSlot slot = new SpawnSlot
                 {
                     id = StableId(raider.transform),

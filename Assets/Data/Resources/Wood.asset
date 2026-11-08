@@ -14,11 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Items.ResourceDefinition
   id: wood
   displayName: Wood
+  category: 0
+  description: Logs and branches. Planks, fuel, tool handles.
   isFood: 0
-  hungerRestored: 25
+  hungerRestored: 0
   isDrink: 0
-  thirstRestored: 30
+  thirstRestored: 0
   isMedicine: 0
-  healAmount: 40
+  healAmount: 0
   isWeapon: 0
-  damageBonus: 10
+  weaponDamage: 0
+  damageBonus: 0
+  toolKind: 0
+  toolTier: 0
+  toolBonus: 0
+  gearSlot: 0
+  damageReduction: 0
+  warmth: 0

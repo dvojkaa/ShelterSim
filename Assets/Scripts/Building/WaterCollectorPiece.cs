@@ -101,6 +101,7 @@ namespace SheltreSim.Building
             }
 
             inventory.Add(waterResource.id, stored);
+            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.Drink, transform.position, 0.6f, 15f, 0.05f, 0f, 1.3f);
             GameMessageBus.Post($"Collected {stored} Water.");
             stored = 0;
         }

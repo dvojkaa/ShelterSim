@@ -19,3 +19,7 @@ MonoBehaviour:
   craftingCost:
   - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
     amount: 2
+  - resource: {fileID: 11400000, guid: f0b9010cbdf8c3e86bf973f4995f66f8, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: ed90cf100948da0b2b621fbd2852cdc1, type: 2}
+    amount: 2

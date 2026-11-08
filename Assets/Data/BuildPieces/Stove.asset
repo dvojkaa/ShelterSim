@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: Stove
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Stove
+  id: piece_stove
+  prefab: {fileID: 5539437556876178522, guid: b24eda601fe652d43a172977a31a6af6, type: 3}
+  footprintSize: {x: 1, y: 1, z: 0.8}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 3334b784a5ce819a5b7fed8d52523dfc, type: 2}
+    amount: 8
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 4
+  - resource: {fileID: 11400000, guid: d7915f0ed73f1ee92af2d1e8be4f7e8a, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: ed90cf100948da0b2b621fbd2852cdc1, type: 2}
+    amount: 4

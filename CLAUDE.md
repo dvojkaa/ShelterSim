@@ -148,6 +148,15 @@ never rescinded, to keep building this way:
   placement from seeded draws and renderer bounds, so a visual edit there moves the map. New asset:
   add a script per `ArtSource/ASSET_SPEC.md`, map it in `M16ArtPass`. Only one process can hold the
   Unity project, so art agents must run Blender only.
+- **Sound goes through `GameAudio` and `ArtSource/audio/`.** Gameplay code makes a one-line `GameAudio.Play2D`/`PlayAt`
+  call with a constant from `Sfx.cs`, or `PlayerAudio`/`RaiderAudio` observe public state. You can't hear it, but you can
+  measure it: `--audio-probe <folder>` in the built player (without `-nographics`) runs real gameplay paths and writes the
+  real final mix to a WAV, silenced before the speakers. Don't infer state from behaviour when a real property can be
+  read: "raiders only walk while chasing" was true until patrols were added, then it held chase music on forever.
+- **The world is built twice per chunk: normal, then ruined after the bombs (`ProceduralWorld.Ruined`).** Anything drawn only in the ruined version must not consume a random number another object depends on, or buildings shift at the bombs: use a per-lot `SlotRandom`. Nothing lootable, gatherable or alive belongs in the normal version. The probes: `--home-probe <folder>` plays the opening for real and writes screenshots; call `HomeBase.DebugStartSurvival()` for tests of the ruined world.
+- **Probes must not overwrite the player's PlayerPrefs**, which are shared with their real game: the user's volume settings made audio checks fail. Use `GameAudio.DebugEffectsVolume`. A chunk replaced in the same frame still exists until end of frame, so `ComputeStableId` sees a same-named sibling: match by position in such tests.
+- **Check `DEV_COORDINATION.md` before shared work** if another AI is active here. Don't edit its dirty files, and don't
+  run Unity on this project while the user's editor holds it: verify in your own scratch copy.
 - **You can see the game.** `-batchmode` without `-nographics` renders on the real GPU:
   `-executeMethod SheltreSim.EditorTools.ArtCapture.RebuildVerifyAndCapture`, then read
   `ArtSource/previews/ingame_*.png` at full size. Don't use `montage` sheets to judge gradients: it

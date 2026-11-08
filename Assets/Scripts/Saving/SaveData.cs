@@ -6,7 +6,7 @@ namespace SheltreSim.Saving
     [System.Serializable]
     public class SaveData
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 5;
 
         // Zero identifies the unversioned M3-M15 format. Missing required values remain
         // invalid because SaveManager deserializes by overwriting a constructed instance.
@@ -20,6 +20,19 @@ namespace SheltreSim.Saving
         public float health = float.NaN;
         public float attackDamage = -1f;
         public int gamePhase;
+        public bool hasProceduralWorld;
+        public int worldSeed;
+        public float worldElapsedSeconds;
+        public int expeditionUpgrades;
+        public List<string> discoveredLandmarks = new List<string>();
+        public int money;
+        public int bunkerStages;
+        public bool bunkerBuilding;
+        public float bunkerBuildElapsed;
+        public bool bunkerAnnex;
+        public List<string> equippedGear = new List<string>();
+        public List<SheltreSim.World.ProceduralWorldState.ChunkState> proceduralChunks
+            = new List<SheltreSim.World.ProceduralWorldState.ChunkState>();
 
         public List<PlacedPieceData> placedPieces;
         public List<InventoryEntry> inventory;
@@ -36,6 +49,8 @@ namespace SheltreSim.Saving
             public Quaternion rotation;
             public int waterStored = -1;
             public float collectionElapsed;
+            public int farmStored = -1;
+            public float farmElapsed;
         }
 
         [System.Serializable]

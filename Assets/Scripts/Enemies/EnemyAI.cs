@@ -2,6 +2,7 @@ using System.Collections;
 using SheltreSim.Interaction;
 using SheltreSim.Player;
 using SheltreSim.Survival;
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Enemies
@@ -26,6 +27,7 @@ namespace SheltreSim.Enemies
         public float gravity = -18f;
 
         public bool IsDead { get; private set; }
+        public bool IsChasing => chasing;
         public event System.Action<EnemyAI> OnDeath;
 
         private bool initialized;
@@ -72,6 +74,9 @@ namespace SheltreSim.Enemies
             }
             initialized = true;
             controller = GetComponent<CharacterController>();
+            // Keep displacement independent of frame rate. At high FPS the default
+            // 1 mm cutoff silently discards otherwise valid walking and gravity steps.
+            controller.minMoveDistance = 0f;
             health = Mathf.Max(1f, maxHealth);
             nextAttackTime = Time.time + 0.5f;
             flashProperties = new MaterialPropertyBlock();
@@ -220,6 +225,15 @@ namespace SheltreSim.Enemies
                 return;
             }
 
+            // A distant actor must not keep falling or walking after its streamed terrain
+            // has been released. Resume simulation when that region becomes resident again.
+            if (SheltreSim.World.ProceduralWorld.Active != null &&
+                !SheltreSim.World.ProceduralWorld.Active.HasGroundAt(transform.position))
+            {
+                CancelAttack();
+                verticalSpeed = 0f;
+                return;
+            }
             Vector3 offset = PlayerCenter - BodyCenter;
             float distance = offset.magnitude;
             bool visible = HasClearLine(BodyCenter + Vector3.up * 0.25f,
@@ -246,7 +260,7 @@ namespace SheltreSim.Enemies
                 else
                 {
                     CancelAttack();
-                    Vector3 destination = GetChaseDestination();
+                    Vector3 destination = GetChaseDestination(visible);
                     Vector3 direction = Vector3.ProjectOnPlane(destination - transform.position, Vector3.up);
                     if (Time.time >= nextSteerTime)
                     {
@@ -306,7 +320,13 @@ namespace SheltreSim.Enemies
             attackPending = false;
             nextAttackTime = Time.time + Mathf.Max(0.1f, attackCooldown);
             // Update has rechecked range, sight and life on every frame of the wind-up.
+            float previousHealth = playerStats.health;
             playerStats.TakeDamage(attackDamage);
+            float damageDealt = previousHealth - playerStats.health;
+            if (damageDealt > 0f)
+            {
+                GameMessageBus.Post($"A raider hit you for {damageDealt:0} damage.");
+            }
             if (weaponVisual != null)
             {
                 weaponVisual.localRotation = weaponRestRotation * Quaternion.Euler(70f, 0f, 0f);
@@ -326,7 +346,7 @@ namespace SheltreSim.Enemies
             }
         }
 
-        private Vector3 GetChaseDestination()
+        private Vector3 GetChaseDestination(bool playerVisible)
         {
             if (navigationDoor != null)
             {
@@ -338,8 +358,17 @@ namespace SheltreSim.Enemies
                 }
             }
 
-            if (navigationDoor == null && doors != null)
+            if (navigationDoor == null && doors != null && doors.Length > 0)
             {
+                // A door's plane extends across the whole map. Opposite sides of that
+                // plane alone do not mean this doorway lies on our route: outdoors the
+                // player may be reachable directly, well to the side of the bunker.
+                Vector3 direct = Vector3.ProjectOnPlane(playerTransform.position - transform.position, Vector3.up);
+                if (direct.sqrMagnitude < 0.001f ||
+                    (playerVisible && ProbeClearance(direct.normalized, direct.magnitude) >= direct.magnitude))
+                {
+                    return playerTransform.position;
+                }
                 float nearest = float.PositiveInfinity;
                 foreach (InteractableDoor door in doors)
                 {
@@ -394,7 +423,7 @@ namespace SheltreSim.Enemies
             return best;
         }
 
-        private float ProbeClearance(Vector3 direction)
+        private float ProbeClearance(Vector3 direction, float probeDistance = SteeringDistance)
         {
             Vector3 scale = transform.lossyScale;
             float radius = controller.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
@@ -405,8 +434,8 @@ namespace SheltreSim.Enemies
             Vector3 bottom = center - Vector3.up * Mathf.Max(0f, halfHeight - radius - controller.stepOffset - 0.03f);
             Vector3 top = center + Vector3.up * Mathf.Max(0f, halfHeight - radius - 0.03f);
             RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius + 0.02f, direction,
-                SteeringDistance, ~0, QueryTriggerInteraction.Ignore);
-            float distance = SteeringDistance;
+                probeDistance, ~0, QueryTriggerInteraction.Ignore);
+            float distance = probeDistance;
             foreach (RaycastHit hit in hits)
             {
                 if (IsSelf(hit.collider) || BelongsTo(hit.collider, playerTransform)) continue;

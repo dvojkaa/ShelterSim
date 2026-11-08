@@ -32,6 +32,7 @@ namespace SheltreSim.UI
             owner = nextOwner;
             dismiss = onDismiss;
             Time.timeScale = 0f;
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiOpen, 0.6f);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             return true;
@@ -58,6 +59,7 @@ namespace SheltreSim.UI
             owner = null;
             dismiss = null;
             Time.timeScale = resumeTimeScale;
+            SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiClose, 0.6f);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }

@@ -80,8 +80,9 @@ namespace SheltreSim.Survival
                 return;
             }
 
-            float hungerRate = Mathf.Max(0f, hungerDecayPerSecond);
-            float thirstRate = Mathf.Max(0f, thirstDecayPerSecond);
+            float needsMultiplier = SheltreSim.World.ExpeditionProgression.Active != null ? SheltreSim.World.ExpeditionProgression.Active.NeedsMultiplier : 1f;
+            float hungerRate = Mathf.Max(0f, hungerDecayPerSecond) * needsMultiplier;
+            float thirstRate = Mathf.Max(0f, thirstDecayPerSecond) * needsMultiplier;
             float untilHungry = hunger <= 0f ? 0f
                 : hungerRate > 0f ? hunger / hungerRate : float.PositiveInfinity;
             float untilThirsty = thirst <= 0f ? 0f
@@ -92,11 +93,21 @@ namespace SheltreSim.Survival
             // Only the part of this frame spent at zero needs damages health. This also
             // keeps a slow frame from charging a whole frame of starvation prematurely.
             float starvingSeconds = Mathf.Max(0f, seconds - Mathf.Min(untilHungry, untilThirsty));
-            TakeDamage(Mathf.Max(0f, healthDecayWhenStarving) * starvingSeconds);
+            ApplyDamage(Mathf.Max(0f, healthDecayWhenStarving) * starvingSeconds);
         }
 
         /// <summary>Applies damage and resolves death in the same call as a lethal hit.</summary>
         public void TakeDamage(float amount)
+        {
+            // M21: worn armor removes a fraction of attack damage. Starvation uses ApplyDamage and ignores it.
+            if (gear == null) gear = GetComponent<SheltreSim.Crafting.PlayerGear>();
+            if (gear != null && amount > 0f && !float.IsNaN(amount) && !float.IsInfinity(amount)) amount *= 1f - gear.DamageReduction;
+            ApplyDamage(amount);
+        }
+
+        private SheltreSim.Crafting.PlayerGear gear;
+
+        private void ApplyDamage(float amount)
         {
             if (IsDead || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount))
             {

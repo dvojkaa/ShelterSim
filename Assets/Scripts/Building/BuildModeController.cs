@@ -58,6 +58,7 @@ namespace SheltreSim.Building
         private GameObject currentGhost;
         private BuildPieceDefinition currentGhostPiece;
         private bool placementValid;
+        private string placementFeedback = string.Empty;
         private MaterialPropertyBlock materialPropertyBlock;
 
         private float lastCycleTime;
@@ -156,6 +157,7 @@ namespace SheltreSim.Building
             RefreshPlacement();
             if (!placementValid || currentGhost == null)
             {
+                SheltreSim.UI.GameMessageBus.Post(placementFeedback);
                 return;
             }
 
@@ -173,7 +175,8 @@ namespace SheltreSim.Building
 
 
             Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
-            SheltreSim.UI.GameMessageBus.Post($"Placed '{piece.displayName}' at {currentGhost.transform.position}.");
+            SheltreSim.UI.GameMessageBus.Post($"Placed {piece.displayName}.");
+            RefreshPlacement();
         }
 
         private void Update()
@@ -200,6 +203,9 @@ namespace SheltreSim.Building
 
             if (availablePieces.Count == 0 || raycastCamera == null)
             {
+                DestroyGhost();
+                ClearBuildReadout();
+                placementFeedback = "Build mode needs a camera and an available blueprint.";
                 if (!loggedMissingPiecesOrCamera)
                 {
                     Debug.LogError($"{nameof(BuildModeController)} on '{name}' needs a raycastCamera and at least one entry in availablePieces.");
@@ -209,16 +215,20 @@ namespace SheltreSim.Building
             }
 
             BuildPieceDefinition activePiece = GetActivePiece();
-            UpdateBuildReadout(activePiece);
 
             if (activePiece == null)
             {
                 DestroyGhost();
+                ClearBuildReadout();
+                placementFeedback = "No build piece selected.";
                 return;
             }
 
             if (activePiece.prefab == null)
             {
+                DestroyGhost();
+                placementFeedback = "This blueprint has no buildable prefab.";
+                UpdateBuildReadout(activePiece);
                 if (!loggedMissingPrefab)
                 {
                     Debug.LogError($"BuildPieceDefinition '{activePiece.displayName}' has no prefab assigned.");
@@ -230,6 +240,8 @@ namespace SheltreSim.Building
             if (!Physics.Raycast(raycastCamera.transform.position, raycastCamera.transform.forward, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore) || hit.normal.y < 0.7f)
             {
                 DestroyGhost();
+                placementFeedback = "Aim at a level surface within build range.";
+                UpdateBuildReadout(activePiece);
                 return;
             }
 
@@ -240,6 +252,8 @@ namespace SheltreSim.Building
                     groundMask, QueryTriggerInteraction.Ignore) || supportHit.normal.y < 0.7f)
             {
                 DestroyGhost();
+                placementFeedback = "Move away from the edge: the snapped position needs support.";
+                UpdateBuildReadout(activePiece);
                 return;
             }
 
@@ -252,7 +266,7 @@ namespace SheltreSim.Building
             // red, regardless of resources. Offset up by half the footprint height so the box's
             // BOTTOM face rests on the hit surface instead of its center.
             Vector3 snapped = BuildGrid.SnapPosition(hit.point);
-            snapped.y = hit.point.y + activePiece.footprintSize.y / 2f;
+            snapped.y = supportHit.point.y + activePiece.footprintSize.y / 2f;
             currentGhost.transform.position = snapped;
             currentGhost.transform.rotation = BuildGrid.SnapRotation(currentYawDegrees);
 
@@ -273,7 +287,10 @@ namespace SheltreSim.Building
                 obstructionMask, QueryTriggerInteraction.Ignore);
 
             bool affordable = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
+            placementFeedback = !placementValid ? "Blocked: move the preview clear of obstacles."
+                : !affordable ? "Need supplies: gather the missing resources." : "Ready: click to place.";
             TintGhost(!placementValid ? Color.red : affordable ? Color.green : Color.yellow);
+            UpdateBuildReadout(activePiece);
         }
 
         private void HandleCycleInput()
@@ -315,34 +332,29 @@ namespace SheltreSim.Building
             bool canAfford = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost);
 
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            sb.Append(piece.displayName).Append(" — ");
-            if (piece.craftingCost == null || piece.craftingCost.Count == 0)
+            sb.Append(currentPieceIndex + 1).Append('/').Append(availablePieces.Count)
+                .Append("  ").Append(piece.displayName).Append('\n');
+            bool hasCost = false;
+            if (piece.craftingCost != null)
             {
-                sb.Append("free");
-            }
-            else
-            {
-                for (int i = 0; i < piece.craftingCost.Count; i++)
+                foreach (var line in piece.craftingCost)
                 {
-                    var line = piece.craftingCost[i];
-                    if (line == null || line.resource == null)
-                    {
-                        continue;
-                    }
-                    if (i > 0)
-                    {
-                        sb.Append(", ");
-                    }
-                    sb.Append(line.amount).Append(' ').Append(line.resource.displayName);
+                    if (line == null || line.resource == null || line.amount <= 0) continue;
+                    if (hasCost) sb.Append("   ");
+                    int owned = inventory != null ? inventory.GetCount(line.resource.id) : 0;
+                    sb.Append(line.resource.displayName).Append(' ').Append(owned).Append('/').Append(line.amount);
+                    hasCost = true;
                 }
             }
+            if (!hasCost) sb.Append("Free");
+            sb.Append('\n').Append(placementFeedback);
 
             // Rebuilt and re-sent every frame while in build mode (not just on piece-change) —
             // affordability can flip without the selected piece changing (gathering/spending
             // resources while still looking at the same piece), and this project's scale makes
             // a per-frame string rebuild here irrelevant, same as the stat bars above.
             lastBuildReadoutText = sb.ToString();
-            survivalHud.SetBuildReadout(lastBuildReadoutText, canAfford);
+            survivalHud.SetBuildReadout(lastBuildReadoutText, canAfford && placementValid);
         }
 
         private void ClearBuildReadout()

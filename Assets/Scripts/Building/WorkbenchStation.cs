@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 using SheltreSim.Crafting;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
@@ -9,81 +8,35 @@ using UnityEngine;
 namespace SheltreSim.Building
 {
     /// <summary>
-    /// General-purpose crafting station: interacting with it crafts a single configured
-    /// output item from a configured list of resource costs, using the same
-    /// CraftingSystem.TryAfford/Spend seam BuildModeController uses for build pieces.
-    /// Unlike ResourceNode/LootContainer this is not single-use — it can be crafted from
-    /// repeatedly as long as the player can afford the cost each time.
+    /// Generic crafting station (Workbench, Stove, Forge, Chem Lab, Electronics Bench). Interacting opens
+    /// CraftingUI filtered to this station's recipes. Attached to the piece prefab, so every placed copy works.
     /// </summary>
     public class WorkbenchStation : MonoBehaviour, IInteractable
     {
-        public List<CraftingCost> craftingCost = new List<CraftingCost>();
-        public ResourceDefinition output;
-        public int outputAmount = 1;
+        public StationKind kind = StationKind.Workbench;
 
-        public string InteractPrompt
-        {
-            get
-            {
-                if (output == null)
-                {
-                    return "Workbench (not configured)";
-                }
+        // Legacy single-recipe fields (pre-M21). Unused now; kept so older setup tools and scenes still compile and load.
+        [HideInInspector] public List<CraftingCost> craftingCost = new List<CraftingCost>();
+        [HideInInspector] public ResourceDefinition output;
+        [HideInInspector] public int outputAmount = 1;
 
-                if (craftingCost == null || craftingCost.Count == 0)
-                {
-                    return $"Press E to craft {output.displayName}";
-                }
-
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < craftingCost.Count; i++)
-                {
-                    CraftingCost line = craftingCost[i];
-                    if (line == null || line.resource == null)
-                    {
-                        continue;
-                    }
-
-                    if (sb.Length > 0)
-                    {
-                        sb.Append(", ");
-                    }
-
-                    sb.Append(line.amount).Append(' ').Append(line.resource.displayName);
-                }
-
-                return $"Press E to craft {output.displayName} ({sb})";
-            }
-        }
+        public string InteractPrompt => $"Press E to use the {RecipeBook.StationName(kind)}";
 
         public void Interact(GameObject interactor)
         {
-            Inventory inv = interactor.GetComponent<Inventory>();
-            if (inv == null)
+            if (interactor == null) return;
+            CraftingUI ui = CraftingUI.Find();
+            if (ui == null)
             {
-                inv = interactor.GetComponentInParent<Inventory>();
-            }
-
-            if (inv == null)
-            {
-                Debug.LogError($"'{interactor.name}' has no Inventory component — cannot craft.");
+                Debug.LogError($"No CraftingUI in the scene — '{name}' cannot open.");
                 return;
             }
-
-            if (output == null || outputAmount <= 0 || string.IsNullOrWhiteSpace(output.id))
+            if (ui.inventory == null)
             {
-                Debug.LogError($"WorkbenchStation on '{name}' has no output resource assigned.");
-                return;
+                Inventory inv = interactor.GetComponentInParent<Inventory>();
+                if (inv != null) ui.inventory = inv;
             }
-
-            if (!CraftingSystem.TrySpend(inv, craftingCost))
-            {
-                GameMessageBus.Post($"Cannot afford to craft {output.displayName}.");
-                return;
-            }
-
-            inv.Add(output.id, outputAmount);
-            GameMessageBus.Post($"Crafted {outputAmount} {output.displayName}.");
+            ui.Open(kind);
         }
     }
 }

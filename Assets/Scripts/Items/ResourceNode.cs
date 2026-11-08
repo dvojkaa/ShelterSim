@@ -20,6 +20,11 @@ namespace SheltreSim.Items
         /// </summary>
         [Min(0.1f)] public float regrowSeconds = 180f;
 
+        /// <summary>M21: optional secondary drop (e.g. coal from rock nodes, plant fiber from bushes), rolled once per harvest.</summary>
+        public string bonusId = "";
+        [Range(0f, 1f)] public float bonusChance = 0f;
+        private System.Random bonusRandom;
+
         private int startingCharges;
         private bool depleted;
         private float regrowTimer;
@@ -118,9 +123,26 @@ namespace SheltreSim.Items
                 return;
             }
 
-            inv.Add(resourceType.id, quantityPerHarvest);
+            // M21: the best owned axe/pickaxe adds to every harvest. Bare hands still work (bonus 0).
+            SheltreSim.Crafting.PlayerGear gear = SheltreSim.Crafting.PlayerGear.Ensure(inv.gameObject);
+            int toolBonus = gear != null ? gear.ToolBonus(resourceType.id) : 0;
+            int harvested = quantityPerHarvest + toolBonus;
+            inv.Add(resourceType.id, harvested);
+            string extra = toolBonus > 0 ? $" ({gear.BestToolName(resourceType.id)} +{toolBonus})" : "";
+            if (!string.IsNullOrEmpty(bonusId) && bonusChance > 0f)
+            {
+                // Runtime-only roll: it never touches world layout, so a private Random (not UnityEngine.Random) is enough.
+                if (bonusRandom == null) bonusRandom = new System.Random(unchecked(System.Environment.TickCount * 7919 + (int)(transform.position.x * 131f)));
+                SheltreSim.Items.ResourceDefinition bonusDef = SheltreSim.Crafting.ItemCatalog.Def(bonusId);
+                if (bonusDef != null && bonusRandom.NextDouble() < bonusChance)
+                {
+                    inv.Add(bonusId, 1);
+                    extra += $" +1 {bonusDef.displayName}";
+                }
+            }
             remainingCharges--;
-            GameMessageBus.Post($"Gathered {quantityPerHarvest} {resourceType.displayName}.");
+            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.GameAudio.GatherKeyFor(resourceType.id), transform.position, 0.9f, 25f);
+            GameMessageBus.Post($"Gathered {harvested} {resourceType.displayName}{extra}.");
 
             if (remainingCharges <= 0)
             {

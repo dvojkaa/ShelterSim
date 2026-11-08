@@ -57,6 +57,7 @@ namespace SheltreSim.Interaction
             }
 
             RestoreState(true);
+            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.DoorBash, passageCenter, 1f, 45f);
             GameMessageBus.Post("A raider forced the door open!");
         }
 
@@ -85,11 +86,13 @@ namespace SheltreSim.Interaction
             Initialize();
             if (isOpen && DoorwayOccupied())
             {
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiDeny, 0.35f);
                 GameMessageBus.Post("The doorway is blocked. Move clear before closing it.");
                 return;
             }
 
             RestoreState(!isOpen);
+            SheltreSim.Audio.GameAudio.PlayAt(isOpen ? SheltreSim.Audio.Sfx.DoorOpen : SheltreSim.Audio.Sfx.DoorClose, passageCenter, 0.85f, 28f, 0.03f);
         }
 
         private bool DoorwayOccupied()

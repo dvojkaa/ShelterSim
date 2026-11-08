@@ -110,6 +110,7 @@ namespace SheltreSim.UI
             Navigation navigation = button.navigation;
             navigation.mode = Navigation.Mode.None;
             button.navigation = navigation;
+            button.onClick.AddListener(SheltreSim.Audio.GameAudio.UiClick);
             button.onClick.AddListener(onClick);
             Label(image.transform, "Label", label, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, size - new Vector2(12f, 4f), 20, alignment: TextAnchor.MiddleCenter);

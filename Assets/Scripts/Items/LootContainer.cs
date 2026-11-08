@@ -65,6 +65,8 @@ namespace SheltreSim.Items
             if (!hasLoot || entries == null || entries.Count == 0)
             {
                 searched = true;
+                SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, transform.position, 0.85f, 20f);
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.LootEmpty, 0.4f, 0f, 0.5f);
                 GameMessageBus.Post("Searched — found nothing.");
                 return;
             }
@@ -100,6 +102,8 @@ namespace SheltreSim.Items
                 found.Append(entry.amount).Append(' ').Append(entry.resource.displayName);
             }
 
+            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, transform.position, 0.85f, 20f);
+            SheltreSim.Audio.GameAudio.Play2D(found.Length > 0 ? SheltreSim.Audio.Sfx.LootFound : SheltreSim.Audio.Sfx.LootEmpty, 0.55f, 0f, 0.5f);
             GameMessageBus.Post(found.Length > 0 ? $"Found {found}." : "Searched — found nothing.");
         }
     }

@@ -385,3 +385,72 @@ None of that is a real play session, so check:
 
 To rebuild one asset: `ArtSource/build.sh ArtSource/assets/<id>.py`, then re-run the setup chain.
 Blender lives at `/mnt/Apps/blender-5.2.3-linux-x64/blender`; adjust `ArtSource/build.sh` elsewhere.
+
+## Follow-up: uncapped movement
+
+Player and raider controllers now disable Unity's minimum movement cutoff at runtime, including
+respawned raiders. The high-FPS freeze noted in the historical M16 results is fixed. The latest
+Linux build passed headless standalone smoke checks, including this controller setting and death /
+load recovery. For a manual regression, disable vSync, uncap FPS and confirm walking and raider
+chasing continue; then restore normal graphics settings. No new rendered art capture was made.
+
+One batch entry point now rebuilds, verifies and builds Linux:
+`SheltreSim.EditorTools.ReleaseVerification.RebuildVerifyAndBuildLinux`.
+
+## Latest agent follow-up checks
+
+The updated Linux build passed the expanded standalone smoke test, including resource/collector
+partial timers, individual crate states and corruption recovery across another save. Independent
+code review found no blocking issues; no new rendered UI capture was made this round.
+
+- Build near an edge, too far away, and against an obstacle: read the placement reason and check
+  owned/required counts update immediately after spending. Snap onto a slightly different-height
+  support surface and confirm the piece rests on that support.
+- Open inventory for longer than a message's normal lifetime; close it and confirm the message
+  is still readable. Check all two-line controls and multi-line recipes at 720p and 1080p.
+- Chase a visible player outdoors across the bunker door's extended plane, beside the bunker:
+  the raider should take the clear direct route. Verify ordinary bunker-door entry still works.
+- Raider hits should display actual health lost. Check the feed remains useful with several attackers.
+
+## M18–M19 final handoff
+
+See `GPT_REPORT.md` for completed features and exact verification logs. The updated Linux player
+passed smoke, world-streaming and expedition probes (exit0). Shared scene/art/audio/settings work
+was preserved; if Editor scene lacks the new console, run **Setup M19 Expeditions** after M18.
+The bunker console sits near(-2.35,0.65,1.7). Recover Expedition Parts from landmarks and discover
+1/2/3 sites to unlock insulated clothing, efficient rations and trail training.
+
+Human checks remaining: six landmark silhouettes/interiors; rivers/lakes/bridge crossings; patrol
+pacing and wildlife appearance; upgrade UI; visual/audio weather presentation owned by Claude.
+For older saves outside the bunker check player/build-piece height against newly carved valleys.
+No terrain migration or swimming is implemented. `--expedition-probe` runs the new finite gameplay
+regressions without touching the normal save slot. New world/expedition state is saved in formatv4.
+
+## M20 audio: what a human should check
+
+Automated checks prove sounds fire at the right moments and that the mix doesn't clip. Only you can tell how they sound.
+
+- [ ] Overall level: is wind, footstep and hit balance right? Pause menu has Master, Music and Effects.
+- [ ] Bunker hum at spawn: pleasant background, or annoying after five minutes?
+- [ ] Raider shouts, growls and cries, and the player's hurt grunt: synthetic voices, the most likely to sound silly.
+- [ ] Footsteps: dirt outside, concrete in the bunker. Do they match your pace, walking and sprinting?
+- [ ] Walk into the bunker and a ruin: the wind should go dull. Check a narrow street doesn't falsely do this.
+- [ ] Be chased: tension music comes in, then fades after you escape. A patrol that hasn't noticed you must not trigger it.
+- [ ] Press the apocalypse console: siren, then the quake when the ground shakes.
+- [ ] Wait for rain and for night, then check thunder and crickets. Rain isn't visible yet, only audible.
+- [ ] Die, restart, and load a save: nothing should keep playing from before, and no raider should cry out on load.
+
+## M20-M21 human checklist
+
+Play `Builds/Linux/SheltreSim.x86_64`. To work in the Editor, first run Tools > SheltreSim > START GAME: it rebuilds the scene and generates the item assets.
+
+- [ ] Spawn at the laptop. Does the lot look like the edge of a town? Are the streets and houses believable?
+- [ ] Walk around town before buying: no crates, raiders, animals or anything to gather.
+- [ ] Laptop: buy goods, start stages. Can you overspend so the bunker can't be finished? (It shouldn't be possible.)
+- [ ] After stage 3, walk down the stairs and through the blast door. Does it feel right? Is it too dark?
+- [ ] Finish stage 4. Sirens, 45 s, then flash. Try being caught outside as well as underground.
+- [ ] Ruined world: smoke, wrecks, loot, raiders, animals.
+- [ ] C: hand crafting. Build each station (B) and use it (E). Equip a weapon and armor from I.
+- [ ] Hunt a deer. Plant seeds in a farm plot. Save and load in both phases.
+- [ ] Weather: wait for rain, fog and night. Does rain stay out from under roofs?
+- [ ] Balance: are prices and recipe costs fair? How long does reaching the radio beacon feel?

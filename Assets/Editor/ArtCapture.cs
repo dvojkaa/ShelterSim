@@ -30,11 +30,9 @@ namespace SheltreSim.EditorTools
             outDir = Path.GetFullPath("ArtSource/previews");
             Directory.CreateDirectory(outDir);
 
-            Shot("bunker_spawn", new Vector3(0f, 1.6f, 1.5f), new Vector3(0f, 1.3f, -3f));
-            Shot("bunker_button", new Vector3(0.2f, 1.6f, 0.6f), new Vector3(2.3f, 1.2f, 2.8f));
-            Shot("bunker_furniture", new Vector3(0.5f, 1.6f, 2.2f), new Vector3(0f, 0.7f, -2.5f));
-            Shot("outside_door", new Vector3(0f, 1.6f, -9f), new Vector3(0f, 1.5f, -3f));
-            Shot("outdoor_field", new Vector3(0f, 1.6f, -4f), new Vector3(2f, 0.6f, -25f));
+            Shot("bunker_inside", new Vector3(77f, 1.6f, -221f), new Vector3(68f, 0.8f, -214f));
+            Shot("bunker_door", new Vector3(72f, 1.6f, -216f), new Vector3(72f, 1.3f, -224f));
+            Shot("site", new Vector3(60f, 7.6f, -243f), new Vector3(72f, 7f, -231f));
 
             Near<ResourceNode>("tree", n => n.transform.Find("Trunk") != null, 7f, 2f);
             Near<ResourceNode>("log", n => n.resourceType != null && n.resourceType.id == "wood" && n.transform.Find("Trunk") == null, 5f, 1.3f);
@@ -104,8 +102,7 @@ namespace SheltreSim.EditorTools
             {
                 Quaternion closed = hinge.transform.localRotation;
                 hinge.transform.localRotation = closed * Quaternion.Euler(0f, 90f, 0f);
-                Shot("door_open_inside", new Vector3(0.4f, 1.6f, 0.2f), new Vector3(0f, 1.2f, -3f));
-                Shot("door_open_outside", new Vector3(1.5f, 1.6f, -7f), new Vector3(0f, 1.2f, -3f));
+                Shot("door_open_inside", new Vector3(72.4f, 1.6f, -219f), new Vector3(72f, 1.2f, -224f));
                 hinge.transform.localRotation = closed;
             }
 

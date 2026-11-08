@@ -32,14 +32,21 @@ namespace SheltreSim.EditorTools
             var hud = UnityEngine.Object.FindFirstObjectByType<SurvivalHUD>();
             Require(hud != null, "Survival HUD exists");
             var build = save.buildController;
-            Require(build.survivalHud == hud && build.availablePieces.Count == 7,
-                "Build menu has seven pieces and HUD wiring");
+            Require(build.survivalHud == hud && build.availablePieces.Count >= 12,
+                "Build menu has the full set of pieces and HUD wiring");
             Require(build.availablePieces.All(p => p != null && p.prefab != null && !string.IsNullOrEmpty(p.id)) &&
                 build.availablePieces.Select(p => p.id).Distinct().Count() == build.availablePieces.Count,
                 "Build definitions have valid, distinct IDs and prefabs");
-            Require(UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.GameOverScreen>() != null &&
-                UnityEngine.Object.FindFirstObjectByType<SheltreSim.Enemies.EnemySpawner>() != null,
-                "Death screen and enemy respawner exist");
+            Require(UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.GameOverScreen>() != null,
+                "Death screen exists");
+            var home = UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.HomeBase>();
+            Require(home != null && home.gameState != null && home.inventory != null && home.stageVisuals.Length == SheltreSim.Core.HomeBase.Stages.Length &&
+                home.entranceCover != null && home.annexPlug != null && home.annexRoom != null, "Home site wired");
+            Require(UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.SiteTerminal>() != null, "Site terminal exists");
+            Require(GameObject.Find("OutdoorArea") == null, "The old starting region is gone");
+            var proceduralWorld = UnityEngine.Object.FindFirstObjectByType<SheltreSim.World.ProceduralWorld>();
+            Require(proceduralWorld != null && proceduralWorld.assets != null && proceduralWorld.assets.biomeMaterials.Length == 6,
+                "Procedural world and six biome materials are wired");
             VerifyEconomy();
             VerifyWorldGeometry();
             Debug.Log("[ReleaseVerification] All construction and economy checks passed. Interactive gameplay still needs a playtest.");
@@ -48,15 +55,11 @@ namespace SheltreSim.EditorTools
         private static void VerifyWorldGeometry()
         {
             Physics.SyncTransforms();
-            var crates = UnityEngine.Object.FindObjectsByType<LootContainer>(FindObjectsSortMode.None);
-            Require(crates.Length > 0, "Scavenging map contains loot crates");
-            foreach (var crate in crates)
-            {
-                foreach (var hit in Physics.OverlapSphere(crate.transform.position, 0.05f,
-                             ~0, QueryTriggerInteraction.Ignore))
-                    Require(hit.transform.IsChildOf(crate.transform), $"Loot crate {crate.transform.parent.name} is not buried in {hit.name}");
-            }
-            Debug.Log($"[ReleaseVerification] Verified {crates.Length} loot crates against actual world colliders.");
+            Require(UnityEngine.Object.FindObjectsByType<LootContainer>(FindObjectsSortMode.None).Length == 0,
+                "Nothing to loot exists in the scene before the apocalypse");
+            var player = GameObject.Find("Player");
+            foreach (var hit in Physics.OverlapCapsule(player.transform.position + Vector3.up * 0.5f, player.transform.position + Vector3.up * 1.4f, 0.3f, ~0, QueryTriggerInteraction.Ignore))
+                Require(hit.transform.IsChildOf(player.transform), $"Player does not spawn inside {hit.name}");
         }
 
         private static void VerifyEconomy()
@@ -95,6 +98,12 @@ namespace SheltreSim.EditorTools
         {
             BatchSetupAll.RunAll();
             VerifyCurrentGame();
+        }
+
+        public static void RebuildVerifyAndBuildLinux()
+        {
+            RebuildAndVerify();
+            BuildLinuxPlayer();
         }
 
         [MenuItem("Tools/SheltreSim/Build Linux Player")]

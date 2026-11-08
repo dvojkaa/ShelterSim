@@ -114,13 +114,13 @@ namespace SheltreSim.Survival
             for (int i = 0; i < feedLabels.Length; i++)
             {
                 feedLabels[i] = GameUI.Label(canvas.transform, "MessageFeedLine" + i, string.Empty,
-                    Vector2.zero, Vector2.zero, new Vector2(24f, 72f + i * 50f), new Vector2(780f, 46f), 19);
+                    Vector2.zero, Vector2.zero, new Vector2(24f, 96f + i * 50f), new Vector2(780f, 46f), 19);
                 AddShadow(feedLabels[i]);
             }
             Transform controlsCard = GameUI.Panel(canvas.transform, "Controls", new Vector2(0.5f, 0f),
-                new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 38f), GameUI.PanelColor).transform;
+                new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 64f), GameUI.PanelColor).transform;
             controlsLabel = GameUI.Label(controlsCard, "ControlsLabel", string.Empty, Center, Center,
-                Vector2.zero, new Vector2(1124f, 30f), 18, GameUI.Muted, TextAnchor.MiddleCenter);
+                Vector2.zero, new Vector2(1124f, 56f), 18, GameUI.Muted, TextAnchor.MiddleCenter);
         }
 
         private void OnEnable() => GameMessageBus.OnMessage += ShowMessage;
@@ -138,8 +138,7 @@ namespace SheltreSim.Survival
                 buildController = stats.GetComponentInChildren<BuildModeController>();
                 previousHealth = stats.health;
             }
-            ApocalypseTrigger landmark = Object.FindFirstObjectByType<ApocalypseTrigger>();
-            if (landmark != null) homeAnchor = landmark.transform;
+            if (HomeBase.Active != null) homeAnchor = HomeBase.Active.transform;
         }
 
         private static RectTransform CreateBar(Transform parent, string name, float y, Color color, out Text label)
@@ -166,9 +165,14 @@ namespace SheltreSim.Survival
 
         private void LateUpdate()
         {
-            UpdateMessageFeed();
             bool dead = stats != null && stats.IsDead;
             canvas.enabled = !ModalUI.IsOpen && !dead;
+            // Inventory actions post feedback behind a modal. Keep it readable on return.
+            if (!canvas.enabled)
+            {
+                foreach (FeedEntry entry in feedEntries) entry.expireTime += Time.unscaledDeltaTime;
+            }
+            UpdateMessageFeed();
             if (stats == null) return;
 
             UpdateBar(healthFill, healthLabel, "HEALTH", stats.health, stats.maxHealth);
@@ -185,8 +189,8 @@ namespace SheltreSim.Survival
             foreach (Image bar in crosshairBars) bar.color = string.IsNullOrEmpty(interactPrompt) ? Color.white : GameUI.Accent;
             buildReadoutLabel.text = building ? buildReadout : string.Empty;
             controlsLabel.text = building
-                ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   B or Esc: finish   /   Green: ready   /   Yellow: need supplies"
-                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: melee   /   I or Tab: inventory   /   B: build   /   F5: save   /   Esc: menu";
+                ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
+                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: melee\nI or Tab: inventory   /   C: craft   /   B: build   /   F5: save   /   F9: load   /   M: map   /   Esc: menu";
 
             if (Time.unscaledTime >= nextGuidanceUpdate)
             {
@@ -218,8 +222,9 @@ namespace SheltreSim.Survival
             {
                 phaseLabel.text = "EMERGENCY ALERT";
                 phaseLabel.color = GameUI.Danger;
-                phaseDetailLabel.text = "Stay in the shelter. The world is changing.";
-                objectiveLabel.text = $"Survival begins in {Mathf.CeilToInt(gameState.ApocalypseSecondsRemaining)}...\nFood and water will start draining.\nKeep supplies ready in your inventory.";
+                bool underground = SheltreSim.World.WorldLayout.UndergroundAmount(stats.transform.position + Vector3.up) > 0.5f;
+                phaseDetailLabel.text = underground ? "You are underground. Wait it out." : "GET DOWN THE STAIRS. The blast will burn you.";
+                objectiveLabel.text = $"Impact in {Mathf.CeilToInt(gameState.ApocalypseSecondsRemaining)} s\nAfter it, food and water will start draining.";
                 return;
             }
 
@@ -229,12 +234,24 @@ namespace SheltreSim.Survival
             int waterCount = inventory != null ? inventory.GetCount("water") : 0;
             if (phase == GamePhase.Building)
             {
-                phaseLabel.text = "PREPARATION";
-                phaseDetailLabel.text = "Food and water are stable. Raiders can still hurt you outside.";
-                objectiveLabel.text = (collector ? "[x] Water Collector built\n" : "[ ] Build a Water Collector (B)\n") +
-                    (foodCount > 0 ? "[x] Food stocked\n" : "[ ] Gather berries outside (E)\n") +
-                    (waterCount > 0 ? "[x] Water stocked\n" : "[ ] Loot or collect water (E)\n") +
-                    "Ready? Use the red bunker console.";
+                HomeBase home = HomeBase.Active;
+                phaseLabel.text = home != null ? $"SAVINGS  ${home.Money:N0}" : "PREPARATION";
+                if (home == null)
+                {
+                    phaseDetailLabel.text = string.Empty;
+                    objectiveLabel.text = string.Empty;
+                }
+                else if (home.IsBuilding)
+                {
+                    phaseDetailLabel.text = "A normal day. Nobody knows what is coming.";
+                    objectiveLabel.text = $"Crew at work: {HomeBase.Stages[home.CompletedStages].name}\n{home.BuildFraction * 100f:0}% done";
+                }
+                else
+                {
+                    HomeBase.Stage next = HomeBase.Stages[home.CompletedStages];
+                    phaseDetailLabel.text = "A normal day. Nobody knows what is coming.";
+                    objectiveLabel.text = $"Bunker {home.CompletedStages}/{HomeBase.Stages.Length} done.\nNext: {next.name}, ${next.price:N0}.\nUse the laptop at the site (E).";
+                }
             }
             else
             {
@@ -269,15 +286,15 @@ namespace SheltreSim.Survival
             Vector3 direction = homeAnchor.position - stats.transform.position;
             direction.y = 0f;
             float distance = direction.magnitude;
-            if (distance < 7f)
+            if (distance < 40f)
             {
-                homeLabel.text = "HOME SHELTER";
+                homeLabel.text = SheltreSim.World.WeatherPresentation.ClockText;
                 return;
             }
             float angle = Vector3.SignedAngle(stats.transform.forward, direction, Vector3.up);
             string bearing = Mathf.Abs(angle) < 25f ? "AHEAD"
                 : Mathf.Abs(angle) > 150f ? "BEHIND" : angle > 0f ? "RIGHT" : "LEFT";
-            homeLabel.text = $"HOME  /  {distance:0} m  /  {bearing}";
+            homeLabel.text = $"{SheltreSim.World.WeatherPresentation.ClockText}   /   HOME {distance:0} m {bearing}";
         }
 
         public void SetInteractPrompt(string text) => interactPrompt = text ?? string.Empty;
