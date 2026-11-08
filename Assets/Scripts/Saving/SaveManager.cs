@@ -1,52 +1,50 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using SheltreSim.Building;
+using SheltreSim.Core;
+using SheltreSim.Enemies;
+using SheltreSim.Interaction;
+using SheltreSim.Items;
+using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Object = UnityEngine.Object;
 
 namespace SheltreSim.Saving
 {
+    /// <summary>Versioned single-slot saves with a recoverable previous copy.</summary>
     public class SaveManager : MonoBehaviour
     {
         public SheltreSim.Player.FirstPersonController player;
         public SheltreSim.Survival.SurvivalStats stats;
-        public SheltreSim.Building.BuildModeController buildController;
-
-        /// <summary>
-        /// Optional — M4's outdoor-area setup tool wires this in if it has run; save/load
-        /// still works for player/stats/pieces without it, inventory is just skipped.
-        /// </summary>
-        public SheltreSim.Items.Inventory inventory;
-
-        /// <summary>
-        /// Optional — M8's setup tool wires this in once melee combat exists. Only needed so
-        /// a looted weapon upgrade (M10) survives a save/load round trip; save/load works
-        /// without it, the damage bonus is just not persisted.
-        /// </summary>
+        public BuildModeController buildController;
+        public Inventory inventory;
         public SheltreSim.Combat.MeleeAttacker meleeAttacker;
-
-        /// <summary>
-        /// Optional — needed so GameStateManager.CurrentPhase (Building/Apocalypse/Survival)
-        /// survives a save/load round trip; save/load works without it, the phase is just not
-        /// persisted (reload always lands back in Building, the pre-existing behaviour).
-        /// </summary>
-        public SheltreSim.Core.GameStateManager gameStateManager;
+        public GameStateManager gameStateManager;
 
         private const string SaveFileName = "savegame.json";
-
+        private const int MaximumEntries = 10000;
+        private const long MaximumSaveBytes = 10 * 1024 * 1024;
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+        public bool HasSave => File.Exists(SavePath) || File.Exists(SavePath + ".bak");
 
         private SaveInputActions input;
+        private EnemySpawner enemySpawner;
+        private float initialAttackDamage = -1f;
 
         private void Awake()
         {
             input = new SaveInputActions();
+            ResolveReferences();
         }
 
         private void OnEnable()
         {
-            input.Enable();
             input.SaveGame.performed += OnSaveRequested;
             input.LoadGame.performed += OnLoadRequested;
+            input.Enable();
         }
 
         private void OnDisable()
@@ -54,65 +52,191 @@ namespace SheltreSim.Saving
             input.SaveGame.performed -= OnSaveRequested;
             input.LoadGame.performed -= OnLoadRequested;
             input.Disable();
-            input.Dispose();
         }
 
-        private void OnSaveRequested(InputAction.CallbackContext context)
+        private void OnDestroy() => input?.Dispose();
+        private void OnSaveRequested(InputAction.CallbackContext context) => TrySave();
+        private void OnLoadRequested(InputAction.CallbackContext context) => TryLoad();
+
+        public bool TrySave() => TrySaveToPath(SavePath);
+        public bool TryLoad() => TryLoadFromPath(SavePath);
+
+        private void ResolveReferences()
         {
-            if (player == null || stats == null)
+            if (player == null) player = Object.FindFirstObjectByType<SheltreSim.Player.FirstPersonController>();
+            if (stats == null && player != null) stats = player.GetComponent<SheltreSim.Survival.SurvivalStats>();
+            if (inventory == null && player != null) inventory = player.GetComponent<Inventory>();
+            if (meleeAttacker == null && player != null) meleeAttacker = player.GetComponent<SheltreSim.Combat.MeleeAttacker>();
+            if (buildController == null) buildController = Object.FindFirstObjectByType<BuildModeController>();
+            if (gameStateManager == null) gameStateManager = Object.FindFirstObjectByType<GameStateManager>();
+            if (enemySpawner == null) enemySpawner = Object.FindFirstObjectByType<EnemySpawner>();
+            if (initialAttackDamage <= 0f && meleeAttacker != null) initialAttackDamage = meleeAttacker.attackDamage;
+        }
+
+        private bool HasRequiredReferences()
+        {
+            ResolveReferences();
+            if (player != null && stats != null && buildController != null)
             {
-                Debug.LogError($"{nameof(SaveManager)}: player and stats must both be assigned.");
-                return;
+                return true;
+            }
+            GameMessageBus.Post("Save/load is unavailable: the player or building system is missing.");
+            return false;
+        }
+
+        // Kept separate from the default slot so integration verification can use a temporary
+        // file without reading or overwriting the player's actual saved game.
+        private bool TrySaveToPath(string path)
+        {
+            if (!HasRequiredReferences()) return false;
+            if (stats.IsDead || stats.health <= 0f)
+            {
+                GameMessageBus.Post("Cannot save after death. Load your last save or restart.");
+                return false;
             }
 
+            string temporaryPath = path + ".tmp";
+            try
+            {
+                SaveData data = CaptureSnapshot();
+                ValidateSnapshot(data, BuildDefinitions());
+                string json = JsonUtility.ToJson(data, true);
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+                using (FileStream stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write))
+                {
+                    byte[] bytes = Encoding.UTF8.GetBytes(json);
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush(true);
+                }
+
+                // Replace only after the complete JSON is on disk. An interrupted write must
+                // leave the last successful save recoverable rather than truncating it.
+                if (File.Exists(path))
+                {
+                    File.Replace(temporaryPath, path, path + ".bak");
+                }
+                else
+                {
+                    File.Move(temporaryPath, path);
+                }
+
+                GameMessageBus.Post("Game saved.");
+                Debug.Log($"Saved game to {path}");
+                return true;
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning($"Save failed: {error.Message}");
+                GameMessageBus.Post("Could not save the game. Your previous save has been kept.");
+                return false;
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        private bool TryLoadFromPath(string path)
+        {
+            if (!HasRequiredReferences()) return false;
+            if (!File.Exists(path) && !File.Exists(path + ".bak"))
+            {
+                GameMessageBus.Post("No saved game yet. Press F5 to save.");
+                return false;
+            }
+
+            GameObject stagedPieces = null;
+            try
+            {
+                Dictionary<string, BuildPieceDefinition> definitions = BuildDefinitions();
+                bool recoveredBackup = false;
+                if (!TryReadSnapshot(path, definitions, out SaveData data, out string mainError))
+                {
+                    if (!TryReadSnapshot(path + ".bak", definitions, out data, out string backupError))
+                    {
+                        Debug.LogWarning($"Load rejected: {mainError} Backup: {backupError}");
+                        GameMessageBus.Post("Could not load the save. Your current game has been kept.");
+                        return false;
+                    }
+                    recoveredBackup = true;
+                    Debug.LogWarning($"Using the previous save because the newest save could not load: {mainError}");
+                }
+
+                // Resolve every prefab and prepare its replacement while inactive BEFORE
+                // changing the current world. Missing content or bad JSON cannot erase it.
+                stagedPieces = PreparePieces(data, definitions);
+                ModalUI.DismissCurrent();
+                buildController.ExitBuildMode();
+                ApplySnapshot(data, stagedPieces);
+                GameMessageBus.Post(recoveredBackup ? "Recovered the previous saved game." : "Game loaded.");
+                Debug.Log($"Loaded game from {path} ({data.placedPieces.Count} pieces restored).");
+                return true;
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning($"Load failed: {error.Message}");
+                GameMessageBus.Post("Could not finish loading the game.");
+                return false;
+            }
+            finally
+            {
+                if (stagedPieces != null) Destroy(stagedPieces);
+            }
+        }
+
+        private SaveData CaptureSnapshot()
+        {
             SaveData data = new SaveData
             {
+                version = SaveData.CurrentVersion,
+                sceneName = player.gameObject.scene.name,
                 playerPosition = player.transform.position,
                 playerYaw = player.transform.eulerAngles.y,
+                playerPitch = player.CameraPitch,
                 hunger = stats.hunger,
                 thirst = stats.thirst,
                 health = stats.health,
                 attackDamage = meleeAttacker != null ? meleeAttacker.attackDamage : -1f,
-                gamePhase = gameStateManager != null
-                    ? (int)gameStateManager.CurrentPhase
-                    : (int)SheltreSim.Core.GamePhase.Building,
+                gamePhase = gameStateManager != null ? (int)gameStateManager.CurrentPhase
+                    : (int)(stats.decayPaused ? GamePhase.Building : GamePhase.Survival),
+                placedPieces = new List<SaveData.PlacedPieceData>(),
+                inventory = new List<SaveData.InventoryEntry>(),
+                nodeStates = new List<SaveData.NodeState>(),
+                crateStates = new List<SaveData.CrateState>(),
+                doorStates = new List<SaveData.DoorState>(),
+                raiderStates = enemySpawner != null ? enemySpawner.CaptureState() : null,
             };
 
-            foreach (PlacedPiece p in PlacedPieceRegistry.All)
+            foreach (PlacedPiece piece in PlacedPieceRegistry.All)
             {
-                SaveData.PlacedPieceData pieceData = new SaveData.PlacedPieceData
+                if (piece.gameObject.scene != player.gameObject.scene) continue;
+                WaterCollectorPiece collector = piece.GetComponent<WaterCollectorPiece>();
+                data.placedPieces.Add(new SaveData.PlacedPieceData
                 {
-                    pieceId = p.pieceId,
-                    position = p.transform.position,
-                    rotation = p.transform.rotation,
-                };
-
-                SheltreSim.Building.WaterCollectorPiece collector = p.GetComponent<SheltreSim.Building.WaterCollectorPiece>();
-                if (collector != null)
-                {
-                    pieceData.waterStored = collector.Stored;
-                }
-
-                data.placedPieces.Add(pieceData);
+                    pieceId = piece.pieceId,
+                    position = piece.transform.position,
+                    rotation = piece.transform.rotation,
+                    waterStored = collector != null ? collector.Stored : -1,
+                    collectionElapsed = collector != null ? collector.CollectionElapsed : 0f,
+                });
             }
 
-            // Resource nodes/loot crates are static scene objects, not PlacedPieces — matched
-            // back up on load by hierarchy-path id rather than destroyed/re-Instantiated.
-            // FindObjectsInactive.Include matters here in case any node is still fully
-            // inactive from before the regrow-timer change (or a half-applied scene edit).
-            foreach (SheltreSim.Items.ResourceNode node in Object.FindObjectsByType<SheltreSim.Items.ResourceNode>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (ResourceNode node in SceneObjects<ResourceNode>())
             {
                 data.nodeStates.Add(new SaveData.NodeState
                 {
                     id = ComputeStableId(node.transform),
                     remainingCharges = node.remainingCharges,
                     depleted = node.IsDepleted,
+                    regrowthElapsed = node.RegrowthElapsed,
                 });
             }
-
-            foreach (SheltreSim.Items.LootContainer crate in Object.FindObjectsByType<SheltreSim.Items.LootContainer>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (LootContainer crate in SceneObjects<LootContainer>())
             {
                 data.crateStates.Add(new SaveData.CrateState
                 {
@@ -120,170 +244,298 @@ namespace SheltreSim.Saving
                     searched = crate.Searched,
                 });
             }
-
+            foreach (InteractableDoor door in SceneObjects<InteractableDoor>())
+            {
+                data.doorStates.Add(new SaveData.DoorState
+                {
+                    id = ComputeStableId(door.transform),
+                    open = door.IsOpen,
+                });
+            }
             if (inventory != null)
             {
                 foreach (KeyValuePair<string, int> entry in inventory.GetAllCounts())
                 {
-                    data.inventory.Add(new SaveData.InventoryEntry
-                    {
-                        resourceId = entry.Key,
-                        count = entry.Value,
-                    });
+                    data.inventory.Add(new SaveData.InventoryEntry { resourceId = entry.Key, count = entry.Value });
                 }
             }
-
-            string json = JsonUtility.ToJson(data, true);
-            File.WriteAllText(SavePath, json);
-
-            Debug.Log($"Saved game to {SavePath}");
+            return data;
         }
 
-        private void OnLoadRequested(InputAction.CallbackContext context)
+        private Dictionary<string, BuildPieceDefinition> BuildDefinitions()
         {
-            if (player == null || stats == null || buildController == null)
+            Dictionary<string, BuildPieceDefinition> definitions = new Dictionary<string, BuildPieceDefinition>();
+            Require(buildController.availablePieces != null, "No build piece definitions are available.");
+            foreach (BuildPieceDefinition definition in buildController.availablePieces)
             {
-                Debug.LogError($"{nameof(SaveManager)}: player, stats, and buildController must all be assigned.");
-                return;
+                if (definition == null || string.IsNullOrEmpty(definition.id)) continue;
+                Require(!definitions.ContainsKey(definition.id), $"Duplicate build piece id '{definition.id}'.");
+                definitions.Add(definition.id, definition);
+            }
+            return definitions;
+        }
+
+        private static bool TryReadSnapshot(string path, Dictionary<string, BuildPieceDefinition> definitions,
+            out SaveData data, out string error)
+        {
+            data = null;
+            try
+            {
+                Require(File.Exists(path), "The file is missing.");
+                Require(new FileInfo(path).Length <= MaximumSaveBytes, "The save file is too large.");
+                string json = File.ReadAllText(path);
+                Require(!string.IsNullOrWhiteSpace(json) && json.TrimStart().StartsWith("{"),
+                    "The save is not a JSON object.");
+                data = new SaveData();
+                // FromJsonOverwrite preserves the explicit missing-field sentinels above.
+                // FromJson's behavior for absent fields must not decide migration defaults.
+                JsonUtility.FromJsonOverwrite(json, data);
+                ValidateSnapshot(data, definitions);
+                error = null;
+                return true;
+            }
+            catch (Exception failure)
+            {
+                data = null;
+                error = failure.Message;
+                return false;
+            }
+        }
+
+        private static void ValidateSnapshot(SaveData data, Dictionary<string, BuildPieceDefinition> definitions)
+        {
+            Require(data != null && (data.version == 0 || data.version == SaveData.CurrentVersion),
+                "This save format is unsupported.");
+            Require(Finite(data.playerPosition) && Finite(data.playerYaw) && Finite(data.playerPitch),
+                "The saved player position is invalid.");
+            Require(Finite(data.hunger) && Finite(data.thirst) && Finite(data.health)
+                && data.hunger >= 0f && data.thirst >= 0f && data.health >= 0f, "The saved vitals are invalid.");
+            Require(Finite(data.attackDamage) && (data.attackDamage == -1f || data.attackDamage > 0f),
+                "The saved weapon damage is invalid.");
+            Require(data.gamePhase >= (int)GamePhase.Building && data.gamePhase <= (int)GamePhase.Survival,
+                "The saved game phase is invalid.");
+            Require(data.placedPieces != null && data.placedPieces.Count <= MaximumEntries,
+                "The saved build pieces are missing or too numerous.");
+
+            foreach (SaveData.PlacedPieceData piece in data.placedPieces)
+            {
+                Require(piece != null && !string.IsNullOrEmpty(piece.pieceId)
+                    && definitions.TryGetValue(piece.pieceId, out _), "A saved build piece is unknown.");
+                BuildPieceDefinition definition = definitions[piece.pieceId];
+                Require(definition.prefab != null && definition.prefab.activeSelf,
+                    $"The prefab for '{piece.pieceId}' is missing or inactive.");
+                PlacedPiece tag = definition.prefab.GetComponent<PlacedPiece>();
+                Require(tag != null && tag.enabled && tag.pieceId == piece.pieceId,
+                    $"The prefab for '{piece.pieceId}' cannot be saved reliably.");
+                Require(Finite(piece.position) && ValidRotation(piece.rotation), "A build piece has an invalid transform.");
+                Require(piece.waterStored >= -1 && Finite(piece.collectionElapsed) && piece.collectionElapsed >= 0f,
+                    "A water collector has invalid saved progress.");
             }
 
-            if (!File.Exists(SavePath))
+            if (data.version == SaveData.CurrentVersion)
             {
-                Debug.LogWarning($"No save file at {SavePath}.");
-                return;
+                Require(!string.IsNullOrEmpty(data.sceneName) && data.inventory != null
+                    && data.nodeStates != null && data.crateStates != null && data.doorStates != null,
+                    "The save is incomplete.");
             }
 
-            SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
+            ValidateEntries(data.inventory, entry => entry.resourceId, entry => entry.count >= 0, true);
+            ValidateEntries(data.nodeStates, entry => entry.id,
+                entry => entry.remainingCharges >= 0 && Finite(entry.regrowthElapsed) && entry.regrowthElapsed >= 0f,
+                data.version > 0);
+            ValidateEntries(data.crateStates, entry => entry.id, entry => true, data.version > 0);
+            ValidateEntries(data.doorStates, entry => entry.id, entry => true, true);
+            ValidateEntries(data.raiderStates, entry => entry.id,
+                entry => Finite(entry.position) && ValidRotation(entry.rotation)
+                    && Finite(entry.health) && entry.health >= 0f
+                    && Finite(entry.respawnRemaining) && entry.respawnRemaining >= 0f, true);
+        }
 
-            // Teleporting a CharacterController by writing transform.position while the
-            // controller is enabled is unreliable — the controller keeps its own cached
-            // position and can stomp the write on its next Move(). Switching it off around
-            // the assignment is the standard idiom and has no other side effects.
-            CharacterController characterController = player.GetComponent<CharacterController>();
-            if (characterController != null)
+        private static void ValidateEntries<T>(List<T> entries, Func<T, string> id, Func<T, bool> valid,
+            bool requireUnique) where T : class
+        {
+            if (entries == null) return;
+            Require(entries.Count <= MaximumEntries, "The save contains too many entries.");
+            HashSet<string> ids = new HashSet<string>();
+            foreach (T entry in entries)
             {
-                characterController.enabled = false;
+                Require(entry != null && !string.IsNullOrEmpty(id(entry)) && valid(entry), "A saved entry is invalid.");
+                Require(!requireUnique || ids.Add(id(entry)), "The save contains a duplicate identifier.");
             }
+        }
 
-            player.transform.SetPositionAndRotation(data.playerPosition, Quaternion.Euler(0f, data.playerYaw, 0f));
-
-            if (characterController != null)
+        private GameObject PreparePieces(SaveData data, Dictionary<string, BuildPieceDefinition> definitions)
+        {
+            Require(string.IsNullOrEmpty(data.sceneName) || data.sceneName == player.gameObject.scene.name,
+                "The save belongs to a different scene.");
+            GameObject staging = new GameObject("SaveLoad_Staging");
+            staging.SetActive(false);
+            try
             {
-                characterController.enabled = true;
-            }
-
-            // Not three field assignments: RestoreVitals also un-does a prior death, so that
-            // loading a save taken while alive actually gives control back instead of leaving
-            // a frozen player staring at a full health bar.
-            stats.RestoreVitals(data.hunger, data.thirst, data.health);
-
-            // Non-positive means the save predates this field (see SaveData.attackDamage) —
-            // keep whatever damage the live component already has rather than zeroing it.
-            if (meleeAttacker != null && data.attackDamage > 0f)
-            {
-                meleeAttacker.attackDamage = data.attackDamage;
-            }
-
-            // Snapshot first — destroying a piece triggers OnDisable -> Unregister,
-            // which would mutate PlacedPieceRegistry.All while we're iterating it.
-            List<PlacedPiece> existing = new List<PlacedPiece>(PlacedPieceRegistry.All);
-            foreach (PlacedPiece p in existing)
-            {
-                Destroy(p.gameObject);
-            }
-
-            foreach (SaveData.PlacedPieceData entry in data.placedPieces)
-            {
-                var definition = buildController.availablePieces.Find(d => d.id == entry.pieceId);
-                if (definition == null)
+                foreach (SaveData.PlacedPieceData piece in data.placedPieces)
                 {
-                    Debug.LogWarning($"No BuildPieceDefinition with id '{entry.pieceId}' — skipping saved piece.");
-                    continue;
-                }
-
-                GameObject instance = Instantiate(definition.prefab, entry.position, entry.rotation);
-
-                // Non-negative means this entry actually had a Water Collector (see
-                // SaveData.PlacedPieceData.waterStored) — negative means either no collector,
-                // or a save predating this field, either way leave the fresh instance alone.
-                if (entry.waterStored >= 0)
-                {
-                    SheltreSim.Building.WaterCollectorPiece collector = instance.GetComponent<SheltreSim.Building.WaterCollectorPiece>();
-                    if (collector != null)
+                    GameObject instance = Instantiate(definitions[piece.pieceId].prefab,
+                        piece.position, piece.rotation, staging.transform);
+                    WaterCollectorPiece collector = instance.GetComponent<WaterCollectorPiece>();
+                    if (collector != null && piece.waterStored >= 0)
                     {
-                        collector.SetStored(entry.waterStored);
+                        collector.RestoreState(piece.waterStored, piece.collectionElapsed);
                     }
                 }
+                return staging;
             }
-
-            // Resource nodes/loot crates are static scene objects that were never destroyed
-            // above — match each saved entry back to its live instance by hierarchy-path id.
-            Dictionary<string, SheltreSim.Items.ResourceNode> nodesById = new Dictionary<string, SheltreSim.Items.ResourceNode>();
-            foreach (SheltreSim.Items.ResourceNode node in Object.FindObjectsByType<SheltreSim.Items.ResourceNode>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            catch
             {
-                nodesById[ComputeStableId(node.transform)] = node;
+                Destroy(staging);
+                throw;
             }
+        }
 
-            foreach (SaveData.NodeState state in data.nodeStates)
+        private void ApplySnapshot(SaveData data, GameObject staging)
+        {
+            List<PlacedPiece> previous = new List<PlacedPiece>(PlacedPieceRegistry.All);
+            foreach (PlacedPiece piece in previous)
             {
-                if (nodesById.TryGetValue(state.id, out SheltreSim.Items.ResourceNode node))
-                {
-                    node.RestoreState(state.remainingCharges, state.depleted);
-                }
+                if (piece.gameObject.scene != player.gameObject.scene) continue;
+                // Destroy is deferred until the end of the frame. Disable first so colliders,
+                // behavior and registry entries disappear before the replacement becomes live.
+                piece.gameObject.SetActive(false);
+                Destroy(piece.gameObject);
             }
-
-            Dictionary<string, SheltreSim.Items.LootContainer> cratesById = new Dictionary<string, SheltreSim.Items.LootContainer>();
-            foreach (SheltreSim.Items.LootContainer crate in Object.FindObjectsByType<SheltreSim.Items.LootContainer>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            while (staging.transform.childCount > 0)
             {
-                cratesById[ComputeStableId(crate.transform)] = crate;
+                staging.transform.GetChild(0).SetParent(null, true);
             }
 
-            foreach (SaveData.CrateState state in data.crateStates)
-            {
-                if (cratesById.TryGetValue(state.id, out SheltreSim.Items.LootContainer crate))
-                {
-                    crate.RestoreSearchedState(state.searched);
-                }
-            }
-
-            // Bypasses TriggerApocalypse/ApocalypseSequence entirely — a loaded Survival-phase
-            // save must not re-play the siren/shake sequence or re-pause decay via coroutine.
-            if (gameStateManager != null)
-            {
-                gameStateManager.RestorePhase((SheltreSim.Core.GamePhase)data.gamePhase);
-            }
-
-            if (inventory != null)
+            RestoreWorldObjects(data);
+            if (inventory != null && data.inventory != null)
             {
                 inventory.Clear();
-                foreach (SaveData.InventoryEntry entry in data.inventory)
-                {
-                    inventory.SetCount(entry.resourceId, entry.count);
-                }
+                foreach (SaveData.InventoryEntry entry in data.inventory) inventory.SetCount(entry.resourceId, entry.count);
+            }
+            if (meleeAttacker != null)
+            {
+                // An older save without damage must restore the starting value, not keep an
+                // upgrade obtained later in this session while handing its item back.
+                meleeAttacker.attackDamage = data.attackDamage > 0f ? data.attackDamage : initialAttackDamage;
+            }
+            if (enemySpawner != null && data.raiderStates != null) enemySpawner.RestoreState(data.raiderStates);
+            if (gameStateManager != null) gameStateManager.RestorePhase((GamePhase)data.gamePhase);
+            else stats.decayPaused = data.gamePhase == (int)GamePhase.Building;
+
+            CharacterController controller = player.GetComponent<CharacterController>();
+            bool controllerWasEnabled = controller != null && controller.enabled;
+            if (controllerWasEnabled) controller.enabled = false;
+            try
+            {
+                player.transform.SetPositionAndRotation(data.playerPosition, Quaternion.Euler(0f, data.playerYaw, 0f));
+                player.RestoreView(data.playerPitch);
+            }
+            finally
+            {
+                if (controllerWasEnabled) controller.enabled = true;
+            }
+            stats.RestoreVitals(data.hunger, data.thirst, data.health);
+            Physics.SyncTransforms();
+        }
+
+        private void RestoreWorldObjects(SaveData data)
+        {
+            bool legacy = data.version == 0;
+            if (data.nodeStates != null)
+            {
+                Dictionary<string, ResourceNode> nodes = new Dictionary<string, ResourceNode>();
+                foreach (ResourceNode node in SceneObjects<ResourceNode>())
+                    nodes[legacy ? LegacyId(node.transform) : ComputeStableId(node.transform)] = node;
+                foreach (SaveData.NodeState state in data.nodeStates)
+                    if (nodes.TryGetValue(state.id, out ResourceNode node))
+                        node.RestoreState(state.remainingCharges, state.depleted, state.regrowthElapsed);
             }
 
-            Debug.Log($"Loaded game from {SavePath} ({data.placedPieces.Count} pieces restored).");
+            if (data.crateStates != null)
+            {
+                Dictionary<string, bool> searched = new Dictionary<string, bool>();
+                bool ambiguousLegacyCrates = false;
+                foreach (SaveData.CrateState state in data.crateStates)
+                {
+                    if (legacy && searched.TryGetValue(state.id, out bool previous))
+                    {
+                        searched[state.id] = previous || state.searched;
+                        ambiguousLegacyCrates = true;
+                    }
+                    else searched[state.id] = state.searched;
+                }
+                foreach (LootContainer crate in SceneObjects<LootContainer>())
+                    if (searched.TryGetValue(legacy ? LegacyId(crate.transform) : ComputeStableId(crate.transform), out bool value))
+                        crate.RestoreSearchedState(value);
+                if (ambiguousLegacyCrates)
+                    Debug.LogWarning("This older save shared IDs between nearby crates. Ambiguous groups keep any searched state; new saves track every crate separately.");
+            }
+
+            if (data.doorStates != null)
+            {
+                Dictionary<string, InteractableDoor> doors = new Dictionary<string, InteractableDoor>();
+                foreach (InteractableDoor door in SceneObjects<InteractableDoor>())
+                    doors[ComputeStableId(door.transform)] = door;
+                foreach (SaveData.DoorState state in data.doorStates)
+                    if (doors.TryGetValue(state.id, out InteractableDoor door)) door.RestoreState(state.open);
+            }
+        }
+
+        private IEnumerable<T> SceneObjects<T>() where T : Component
+        {
+            foreach (T component in Object.FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (component.gameObject.scene == player.gameObject.scene) yield return component;
         }
 
         /// <summary>
-        /// Computes a stable id for a static scene object (ResourceNode/LootContainer) from its
-        /// hierarchy path, e.g. "OutdoorArea/ExpandedWasteland/Buildings/Building_3/LootCrate".
-        /// These objects are baked into the scene at editor-tool run time with the same seeded,
-        /// deterministic construction every run — never instantiated at runtime — so the path
-        /// from scene root to the object is stable across saves without needing a GUID/registry.
+        /// Names alone collide for sibling LootCrates. Escaped names plus the ordinal among
+        /// equally named siblings stay unique without depending on unrelated spawned objects.
+        /// Scene construction is deterministic; these objects are never moved in the hierarchy.
         /// </summary>
-        private static string ComputeStableId(Transform t)
+        public static string ComputeStableId(Transform target)
         {
-            var sb = new System.Text.StringBuilder(t.name);
-            Transform current = t.parent;
-            while (current != null)
+            if (target == null) return string.Empty;
+            List<string> segments = new List<string>();
+            for (Transform current = target; current != null; current = current.parent)
             {
-                sb.Insert(0, "/").Insert(0, current.name);
-                current = current.parent;
+                int ordinal = 0;
+                if (current.parent != null)
+                {
+                    for (int i = 0; i < current.GetSiblingIndex(); i++)
+                        if (current.parent.GetChild(i).name == current.name) ordinal++;
+                }
+                else
+                {
+                    foreach (GameObject root in current.gameObject.scene.GetRootGameObjects())
+                        if (root.name == current.name && root.transform.GetSiblingIndex() < current.GetSiblingIndex()) ordinal++;
+                }
+                segments.Add(Uri.EscapeDataString(current.name) + "[" + ordinal + "]");
             }
-            return sb.ToString();
+            segments.Reverse();
+            return string.Join("/", segments);
+        }
+
+        private static string LegacyId(Transform target)
+        {
+            string path = target.name;
+            while (target.parent != null)
+            {
+                target = target.parent;
+                path = target.name + "/" + path;
+            }
+            return path;
+        }
+
+        private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+        private static bool Finite(Vector3 value) => Finite(value.x) && Finite(value.y) && Finite(value.z);
+        private static bool ValidRotation(Quaternion value) => Finite(value.x) && Finite(value.y)
+            && Finite(value.z) && Finite(value.w)
+            && value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w > 0.0001f;
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidDataException(message);
         }
     }
 }

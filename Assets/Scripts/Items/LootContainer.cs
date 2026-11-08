@@ -52,16 +52,19 @@ namespace SheltreSim.Items
 
         public void Interact(GameObject interactor)
         {
+            if (interactor == null)
+            {
+                return;
+            }
             if (searched)
             {
                 GameMessageBus.Post("Already searched — nothing left.");
                 return;
             }
 
-            searched = true;
-
             if (!hasLoot || entries == null || entries.Count == 0)
             {
+                searched = true;
                 GameMessageBus.Post("Searched — found nothing.");
                 return;
             }
@@ -78,11 +81,12 @@ namespace SheltreSim.Items
                 return;
             }
 
+            searched = true;
             StringBuilder found = new StringBuilder();
             for (int i = 0; i < entries.Count; i++)
             {
                 LootEntry entry = entries[i];
-                if (entry.resource == null || entry.amount <= 0)
+                if (entry.resource == null || string.IsNullOrEmpty(entry.resource.id) || entry.amount <= 0)
                 {
                     continue;
                 }

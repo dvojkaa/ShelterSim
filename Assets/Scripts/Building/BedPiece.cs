@@ -24,13 +24,20 @@ namespace SheltreSim.Building
         public float healAmount = 40f;
         public float simulatedRestSeconds = 60f;
 
+        private float nextDangerCheck;
+        private bool dangerNearby;
+
         public string InteractPrompt => IsRaiderNearby()
             ? "Can't sleep — a raider is nearby"
             : "Press E to sleep";
 
         public void Interact(GameObject interactor)
         {
-            if (IsRaiderNearby())
+            if (interactor == null)
+            {
+                return;
+            }
+            if (IsRaiderNearby(true))
             {
                 GameMessageBus.Post("Can't sleep — a raider is nearby.");
                 return;
@@ -48,33 +55,58 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (stats.IsDead)
+            if (stats.IsDead || stats.health <= 0f)
             {
                 return;
             }
 
-            stats.Heal(healAmount);
+            if (stats.health >= stats.maxHealth)
+            {
+                GameMessageBus.Post("You are already fully rested.");
+                return;
+            }
 
-            float hungerCost = stats.hungerDecayPerSecond * simulatedRestSeconds;
-            float thirstCost = stats.thirstDecayPerSecond * simulatedRestSeconds;
+            float restSeconds = Mathf.Max(0f, simulatedRestSeconds);
+            float hungerCost = Mathf.Max(0f, stats.hungerDecayPerSecond) * restSeconds;
+            float thirstCost = Mathf.Max(0f, stats.thirstDecayPerSecond) * restSeconds;
+            if (stats.hunger <= hungerCost || stats.thirst <= thirstCost)
+            {
+                GameMessageBus.Post($"Eat and drink before resting (needs more than {hungerCost:F0} hunger and {thirstCost:F0} thirst).");
+                return;
+            }
+
+            float previousHealth = stats.health;
+            stats.Heal(healAmount);
+            if (stats.health <= previousHealth)
+            {
+                return;
+            }
             stats.hunger = Mathf.Clamp(stats.hunger - hungerCost, 0f, stats.maxHunger);
             stats.thirst = Mathf.Clamp(stats.thirst - thirstCost, 0f, stats.maxThirst);
 
-            GameMessageBus.Post($"Slept and recovered {healAmount} health (-{hungerCost:F0} hunger, -{thirstCost:F0} thirst).");
+            GameMessageBus.Post($"Rested and recovered {stats.health - previousHealth:F0} health (-{hungerCost:F0} hunger, -{thirstCost:F0} thirst).");
         }
 
-        private bool IsRaiderNearby()
+        private bool IsRaiderNearby(bool refresh = false)
         {
+            if (!refresh && Time.time < nextDangerCheck)
+            {
+                return dangerNearby;
+            }
+            nextDangerCheck = Time.time + 0.5f;
+            dangerNearby = false;
+            float radiusSquared = Mathf.Max(0f, dangerCheckRadius) * Mathf.Max(0f, dangerCheckRadius);
             SheltreSim.Enemies.EnemyAI[] enemies = Object.FindObjectsByType<SheltreSim.Enemies.EnemyAI>(FindObjectsSortMode.None);
             for (int i = 0; i < enemies.Length; i++)
             {
-                if (enemies[i] == null)
+                if (enemies[i] == null || !enemies[i].isActiveAndEnabled || enemies[i].health <= 0f)
                 {
                     continue;
                 }
 
-                if (Vector3.Distance(enemies[i].transform.position, transform.position) <= dangerCheckRadius)
+                if ((enemies[i].transform.position - transform.position).sqrMagnitude <= radiusSquared)
                 {
+                    dangerNearby = true;
                     return true;
                 }
             }

@@ -14,6 +14,7 @@ namespace SheltreSim.Building
     {
         public Camera raycastCamera;
         public LayerMask groundMask = ~0;
+        public float placementRange = 12f;
         public LayerMask obstructionMask = ~0;
         public List<BuildPieceDefinition> availablePieces = new List<BuildPieceDefinition>();
 
@@ -85,8 +86,18 @@ namespace SheltreSim.Building
             input.RotatePiece.performed -= OnRotatePiece;
             input.PlacePiece.performed -= OnPlacePiece;
             input.Disable();
-            input.Dispose();
+            ExitBuildMode();
         }
+
+        public void ExitBuildMode()
+        {
+            isBuildModeActive = false;
+            DestroyGhost();
+            ClearBuildReadout();
+        }
+
+        private bool CanBuild => Time.timeScale > 0f &&
+            !(GetComponentInParent<SheltreSim.Survival.SurvivalStats>()?.IsDead ?? false);
 
         private void OnToggleBuildMode(UnityEngine.InputSystem.InputAction.CallbackContext context)
         {
@@ -95,7 +106,7 @@ namespace SheltreSim.Building
             // pause panel would float a ghost over it and turn the Resume click into a piece
             // placement. Blocking entry here is enough to keep the two modes mutually
             // exclusive: PauseMenu already refuses to open while build mode is active.
-            if (Time.timeScale == 0f)
+            if (!CanBuild)
             {
                 return;
             }
@@ -120,14 +131,13 @@ namespace SheltreSim.Building
                 return;
             }
 
-            DestroyGhost();
-            isBuildModeActive = false;
+            ExitBuildMode();
             lastCancelFrame = Time.frameCount;
         }
 
         private void OnRotatePiece(UnityEngine.InputSystem.InputAction.CallbackContext context)
         {
-            if (!isBuildModeActive)
+            if (!isBuildModeActive || !CanBuild)
             {
                 return;
             }
@@ -137,7 +147,14 @@ namespace SheltreSim.Building
 
         private void OnPlacePiece(UnityEngine.InputSystem.InputAction.CallbackContext context)
         {
-            if (!isBuildModeActive || !placementValid || currentGhost == null)
+            if (!CanBuild || !isBuildModeActive)
+            {
+                return;
+            }
+
+            // Input callbacks run before Update: validate the current view, never last frame's ghost.
+            RefreshPlacement();
+            if (!placementValid || currentGhost == null)
             {
                 return;
             }
@@ -148,22 +165,32 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (!SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost))
+            if (!SheltreSim.Crafting.CraftingSystem.TrySpend(inventory, piece.craftingCost))
             {
-                Debug.Log($"Cannot afford '{piece.displayName}'.");
+                SheltreSim.UI.GameMessageBus.Post($"Cannot afford '{piece.displayName}'.");
                 return;
             }
 
-            SheltreSim.Crafting.CraftingSystem.Spend(inventory, piece.craftingCost);
 
             Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
-            Debug.Log($"Placed '{piece.displayName}' at {currentGhost.transform.position}.");
+            SheltreSim.UI.GameMessageBus.Post($"Placed '{piece.displayName}' at {currentGhost.transform.position}.");
         }
 
         private void Update()
         {
-            HandleCycleInput();
+            if (!CanBuild)
+            {
+                ExitBuildMode();
+                return;
+            }
 
+            HandleCycleInput();
+            RefreshPlacement();
+        }
+
+        private void RefreshPlacement()
+        {
+            placementValid = false;
             if (!isBuildModeActive)
             {
                 DestroyGhost();
@@ -184,6 +211,12 @@ namespace SheltreSim.Building
             BuildPieceDefinition activePiece = GetActivePiece();
             UpdateBuildReadout(activePiece);
 
+            if (activePiece == null)
+            {
+                DestroyGhost();
+                return;
+            }
+
             if (activePiece.prefab == null)
             {
                 if (!loggedMissingPrefab)
@@ -194,7 +227,17 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (!Physics.Raycast(raycastCamera.transform.position, raycastCamera.transform.forward, out RaycastHit hit, 100f, groundMask))
+            if (!Physics.Raycast(raycastCamera.transform.position, raycastCamera.transform.forward, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore) || hit.normal.y < 0.7f)
+            {
+                DestroyGhost();
+                return;
+            }
+
+            // Snapping can move the preview beyond the supporting surface's edge.
+            Vector3 support = BuildGrid.SnapPosition(hit.point);
+            support.y = hit.point.y + 0.1f;
+            if (!Physics.Raycast(support, Vector3.down, out RaycastHit supportHit, 0.2f,
+                    groundMask, QueryTriggerInteraction.Ignore) || supportHit.normal.y < 0.7f)
             {
                 DestroyGhost();
                 return;
@@ -227,9 +270,10 @@ namespace SheltreSim.Building
                 currentGhost.transform.position,
                 halfExtents,
                 currentGhost.transform.rotation,
-                obstructionMask);
+                obstructionMask, QueryTriggerInteraction.Ignore);
 
-            TintGhost(placementValid ? Color.green : Color.red);
+            bool affordable = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
+            TintGhost(!placementValid ? Color.red : affordable ? Color.green : Color.yellow);
         }
 
         private void HandleCycleInput()
@@ -281,7 +325,7 @@ namespace SheltreSim.Building
                 for (int i = 0; i < piece.craftingCost.Count; i++)
                 {
                     var line = piece.craftingCost[i];
-                    if (line.resource == null)
+                    if (line == null || line.resource == null)
                     {
                         continue;
                     }
@@ -319,6 +363,7 @@ namespace SheltreSim.Building
                 return null;
             }
 
+            currentPieceIndex = Mathf.Clamp(currentPieceIndex, 0, availablePieces.Count - 1);
             return availablePieces[currentPieceIndex];
         }
 
@@ -349,6 +394,13 @@ namespace SheltreSim.Building
                 ghostPlacedPiece.enabled = false;
             }
 
+            // Functional furniture must never collect water, heal, or subscribe as gameplay
+            // while it is merely a preview. Keep only its renderers alive.
+            foreach (MonoBehaviour behavior in currentGhost.GetComponentsInChildren<MonoBehaviour>())
+            {
+                behavior.enabled = false;
+            }
+
             currentGhostPiece = piece;
         }
 
@@ -377,8 +429,10 @@ namespace SheltreSim.Building
 
         private void DestroyGhost()
         {
+            placementValid = false;
             if (currentGhost != null)
             {
+                currentGhost.SetActive(false);
                 Destroy(currentGhost);
                 currentGhost = null;
                 currentGhostPiece = null;
@@ -387,6 +441,7 @@ namespace SheltreSim.Building
 
         private void OnDestroy()
         {
+            input?.Dispose();
             DestroyGhost();
         }
     }

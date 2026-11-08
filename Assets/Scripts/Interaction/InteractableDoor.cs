@@ -1,28 +1,54 @@
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Interaction
 {
     public class InteractableDoor : MonoBehaviour, IInteractable
     {
-        private static readonly Vector3 ClosedRotation = Vector3.zero;
-        private static readonly Vector3 OpenRotation = new Vector3(0f, 90f, 0f);
-
         public Transform doorVisual;
 
         private bool isOpen;
-        private BoxCollider fallbackCollider;
+        private bool initialized;
+        private BoxCollider doorCollider;
+        private Quaternion closedRotation;
+        private Vector3 passageCenter;
+        private Vector3 passageNormal;
+        private Vector3 closedHalfExtents;
+        private Quaternion closedColliderRotation;
 
         public string InteractPrompt => isOpen ? "Press E to close" : "Press E to open";
 
         public bool IsOpen => isOpen;
 
-        /// <summary>
-        /// Opens the door without going through player Interact() — used by a chasing
-        /// <see cref="SheltreSim.Enemies.EnemyAI"/> to break into the bunker. A closed door
-        /// was previously only ever toggled by the player pressing E, so "hide inside and
-        /// close the door" was an absolute safe-room with no in-game way for a raider to
-        /// follow through it. No-ops if already open.
-        /// </summary>
+        // These describe the doorway, not the leaf after it has swung to one side.
+        public Vector3 PassageCenter { get { Initialize(); return passageCenter; } }
+        public Vector3 PassageNormal { get { Initialize(); return passageNormal; } }
+
+        private void Awake() => Initialize();
+
+        private void Initialize()
+        {
+            if (initialized)
+            {
+                return;
+            }
+
+            initialized = true;
+            doorCollider = GetComponent<BoxCollider>();
+            closedRotation = doorVisual != null ? doorVisual.localRotation : Quaternion.identity;
+            passageCenter = doorCollider != null
+                ? transform.TransformPoint(doorCollider.center)
+                : transform.position;
+            passageNormal = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            closedColliderRotation = transform.rotation;
+            if (doorCollider != null)
+            {
+                Vector3 scale = transform.lossyScale;
+                scale = new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+                closedHalfExtents = Vector3.Scale(doorCollider.size * 0.5f, scale);
+            }
+        }
+
         public void ForceOpen()
         {
             if (isOpen)
@@ -30,43 +56,59 @@ namespace SheltreSim.Interaction
                 return;
             }
 
-            isOpen = true;
-
-            if (doorVisual != null)
-            {
-                doorVisual.localRotation = Quaternion.Euler(OpenRotation);
-            }
-            else if (fallbackCollider != null)
-            {
-                fallbackCollider.enabled = false;
-            }
-
-            Debug.Log($"{name} was forced open!");
+            RestoreState(true);
+            GameMessageBus.Post("A raider forced the door open!");
         }
 
-        private void Awake()
+        /// <summary>Restores a saved pose without replaying interaction feedback.</summary>
+        public void RestoreState(bool open)
         {
-            if (doorVisual == null)
+            Initialize();
+            isOpen = open;
+            if (doorVisual != null)
             {
-                fallbackCollider = GetComponent<BoxCollider>();
-                Debug.LogWarning($"{name}: no doorVisual assigned, falling back to toggling BoxCollider (test-mode only)", this);
+                doorVisual.localRotation = closedRotation * Quaternion.Euler(0f, open ? 90f : 0f, 0f);
+            }
+            else if (doorCollider != null)
+            {
+                doorCollider.enabled = !open;
             }
         }
 
         public void Interact(GameObject interactor)
         {
-            isOpen = !isOpen;
-
-            if (doorVisual != null)
+            if (Time.timeScale <= 0f)
             {
-                doorVisual.localRotation = Quaternion.Euler(isOpen ? OpenRotation : ClosedRotation);
-            }
-            else if (fallbackCollider != null)
-            {
-                fallbackCollider.enabled = !isOpen;
+                return;
             }
 
-            Debug.Log($"Door is now {(isOpen ? "open" : "closed")}");
+            Initialize();
+            if (isOpen && DoorwayOccupied())
+            {
+                GameMessageBus.Post("The doorway is blocked. Move clear before closing it.");
+                return;
+            }
+
+            RestoreState(!isOpen);
+        }
+
+        private bool DoorwayOccupied()
+        {
+            if (doorCollider == null)
+            {
+                return false;
+            }
+
+            Collider[] overlaps = Physics.OverlapBox(passageCenter, closedHalfExtents,
+                closedColliderRotation, ~0, QueryTriggerInteraction.Ignore);
+            foreach (Collider other in overlaps)
+            {
+                if (other.GetComponentInParent<CharacterController>() != null)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

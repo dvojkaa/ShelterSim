@@ -11,14 +11,15 @@ namespace SheltreSim.Items
         /// log is the only player-visible feedback for now.</summary>
         public void Add(string resourceId, int amount)
         {
-            int newTotal = GetCount(resourceId) + amount;
+            if (string.IsNullOrWhiteSpace(resourceId) || amount <= 0) return;
+            int newTotal = (int)System.Math.Min(int.MaxValue, (long)GetCount(resourceId) + amount);
             counts[resourceId] = newTotal;
             Debug.Log($"+{amount} {resourceId} (total: {newTotal})");
         }
 
         public int GetCount(string resourceId)
         {
-            return counts.TryGetValue(resourceId, out int count) ? count : 0;
+            return resourceId != null && counts.TryGetValue(resourceId, out int count) ? count : 0;
         }
 
         public IReadOnlyDictionary<string, int> GetAllCounts()
@@ -30,6 +31,7 @@ namespace SheltreSim.Items
         /// Bypasses the Add log since this isn't a "the player gained something" event.</summary>
         public void SetCount(string resourceId, int amount)
         {
+            if (string.IsNullOrWhiteSpace(resourceId)) return;
             counts[resourceId] = Mathf.Max(0, amount);
         }
 
@@ -46,7 +48,7 @@ namespace SheltreSim.Items
         /// </summary>
         public bool TryConsume(string resourceId, int amount)
         {
-            if (GetCount(resourceId) < amount)
+            if (string.IsNullOrWhiteSpace(resourceId) || amount <= 0 || GetCount(resourceId) < amount)
             {
                 return false;
             }

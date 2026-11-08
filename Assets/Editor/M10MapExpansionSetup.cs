@@ -188,10 +188,32 @@ namespace SheltreSim.EditorTools
                 BuildBuildingShell(buildingRoot.transform, width, depth, wallColor, rnd);
 
                 int lootCount = rnd.Next(1, 4); // 1-3 inclusive
+                var lootPositions = new List<Vector2>();
                 for (int j = 0; j < lootCount; j++)
                 {
                     float localX = ((float)rnd.NextDouble() * 2f - 1f) * Mathf.Max(0.1f, width / 2f - 0.6f);
                     float localZ = ((float)rnd.NextDouble() * 2f - 1f) * Mathf.Max(0.1f, depth / 2f - 0.6f);
+                    // Preserve the random draw sequence while keeping door approaches and
+                    // other crates clear. A fixed scan repairs a rejected candidate locally.
+                    Vector2 candidate = new Vector2(localX, localZ);
+                    if (!LootPositionClear(candidate, depth, lootPositions))
+                    {
+                        bool found = false;
+                        for (float z = -depth / 2f + 0.6f; z <= depth / 2f - 0.6f && !found; z += 0.65f)
+                        {
+                            for (float x = -width / 2f + 0.6f; x <= width / 2f - 0.6f; x += 0.65f)
+                            {
+                                candidate = new Vector2(x, z);
+                                if (!LootPositionClear(candidate, depth, lootPositions)) continue;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) throw new System.InvalidOperationException("No clear interior loot position.");
+                    }
+                    lootPositions.Add(candidate);
+                    localX = candidate.x;
+                    localZ = candidate.y;
                     CreateLootSpawn(buildingRoot.transform, new Vector3(localX, LootCrateCenterY, localZ));
                     lootSpawnCount++;
                 }
@@ -200,6 +222,15 @@ namespace SheltreSim.EditorTools
             }
 
             return built;
+        }
+
+        private static bool LootPositionClear(Vector2 point, float depth, List<Vector2> occupied)
+        {
+            if (Mathf.Abs(point.x) < BuildingDoorGap / 2f + 0.35f && point.y < -depth / 2f + 1.5f)
+                return false;
+            foreach (Vector2 other in occupied)
+                if ((point - other).sqrMagnitude < 0.65f * 0.65f) return false;
+            return true;
         }
 
         private static void BuildBuildingShell(Transform buildingRoot, float width, float depth, Color wallColor, System.Random rnd)

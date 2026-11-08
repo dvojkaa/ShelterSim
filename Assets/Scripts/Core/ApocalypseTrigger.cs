@@ -8,8 +8,8 @@ namespace SheltreSim.Core
 
         public string InteractPrompt =>
             gameStateManager != null && gameStateManager.CurrentPhase == GamePhase.Building
-                ? "Press E to trigger the apocalypse (point of no return)"
-                : "Already triggered.";
+                ? "E  Begin apocalypse  /  prepare supplies first"
+                : "Emergency console  /  apocalypse already begun";
 
         public void Interact(GameObject interactor)
         {

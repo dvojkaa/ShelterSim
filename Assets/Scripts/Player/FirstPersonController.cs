@@ -28,6 +28,18 @@ namespace SheltreSim.Player
         private Vector3 verticalVelocity;
         private float pitch;
 
+        public float CameraPitch => pitch;
+
+        public void RestoreView(float cameraPitch)
+        {
+            pitch = Mathf.Clamp(cameraPitch, cameraPitchMin, cameraPitchMax);
+            verticalVelocity = Vector3.zero;
+            if (cameraPivot != null)
+            {
+                cameraPivot.localEulerAngles = new Vector3(pitch, 0f, 0f);
+            }
+        }
+
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
@@ -69,7 +81,7 @@ namespace SheltreSim.Player
             // that touches timeScale). Movement is already dead at deltaTime 0, but look is
             // driven by raw mouse delta and is NOT — without this the player's view spins
             // around behind the pause panel while they move the mouse to click Resume.
-            if (Time.timeScale == 0f)
+            if (Time.timeScale == 0f || !controller.enabled)
             {
                 return;
             }
@@ -99,7 +111,7 @@ namespace SheltreSim.Player
 
         private void HandleMove()
         {
-            Vector2 moveInput = input.Move.ReadValue<Vector2>();
+            Vector2 moveInput = Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f);
             bool sprinting = input.Sprint.IsPressed();
             float speed = sprinting ? sprintSpeed : walkSpeed;
 

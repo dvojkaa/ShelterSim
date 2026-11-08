@@ -7,11 +7,18 @@ namespace SheltreSim.Saving
     {
         private static readonly List<PlacedPiece> all = new List<PlacedPiece>();
 
-        public static IReadOnlyList<PlacedPiece> All => all;
+        public static IReadOnlyList<PlacedPiece> All
+        {
+            get
+            {
+                all.RemoveAll(piece => piece == null || !piece.isActiveAndEnabled);
+                return all;
+            }
+        }
 
         public static void Register(PlacedPiece piece)
         {
-            if (!all.Contains(piece))
+            if (piece != null && piece.isActiveAndEnabled && !all.Contains(piece))
             {
                 all.Add(piece);
             }

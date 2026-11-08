@@ -1,62 +1,48 @@
 using System.Collections.Generic;
 using SheltreSim.Items;
-using UnityEngine;
 
 namespace SheltreSim.Crafting
 {
-    /// <summary>
-    /// Replaces the M2 ResourceStub now that a real Inventory exists (M4). The single
-    /// integration seam for "can we afford this, and if so take the materials" — route
-    /// every build-piece affordability check through here rather than growing ad-hoc
-    /// inventory math elsewhere.
-    /// </summary>
+    /// <summary>Shared affordability and atomic spending for construction and stations.</summary>
     public static class CraftingSystem
     {
         public static bool TryAfford(Inventory inventory, IReadOnlyList<CraftingCost> cost)
         {
-            if (inventory == null)
-            {
-                Debug.LogError("CraftingSystem.TryAfford called with a null Inventory.");
-                return false;
-            }
-
-            foreach (CraftingCost line in cost)
-            {
-                if (line.resource == null)
-                {
-                    continue;
-                }
-
-                if (inventory.GetCount(line.resource.id) < line.amount)
-                {
-                    return false;
-                }
-            }
-
+            if (inventory == null || !TryGetTotals(cost, out var totals)) return false;
+            foreach (var line in totals)
+                if (inventory.GetCount(line.Key) < line.Value) return false;
             return true;
         }
 
-        /// <summary>
-        /// Deducts the recipe's cost. Caller must have already confirmed <see cref="TryAfford"/>
-        /// — this does not re-check, it just subtracts (clamped to 0 by Inventory.SetCount).
-        /// </summary>
+        public static bool TrySpend(Inventory inventory, IReadOnlyList<CraftingCost> cost)
+        {
+            if (inventory == null || !TryGetTotals(cost, out var totals)) return false;
+            foreach (var line in totals)
+                if (inventory.GetCount(line.Key) < line.Value) return false;
+            foreach (var line in totals)
+                inventory.SetCount(line.Key, inventory.GetCount(line.Key) - line.Value);
+            return true;
+        }
+
         public static void Spend(Inventory inventory, IReadOnlyList<CraftingCost> cost)
         {
-            if (inventory == null)
-            {
-                Debug.LogError("CraftingSystem.Spend called with a null Inventory.");
-                return;
-            }
+            TrySpend(inventory, cost);
+        }
 
-            foreach (CraftingCost line in cost)
+        private static bool TryGetTotals(IReadOnlyList<CraftingCost> cost, out Dictionary<string, int> totals)
+        {
+            totals = new Dictionary<string, int>();
+            if (cost == null) return true;
+            foreach (var line in cost)
             {
-                if (line.resource == null)
-                {
-                    continue;
-                }
-
-                inventory.SetCount(line.resource.id, inventory.GetCount(line.resource.id) - line.amount);
+                if (line == null || line.resource == null) continue;
+                if (line.amount < 0 || string.IsNullOrWhiteSpace(line.resource.id)) return false;
+                totals.TryGetValue(line.resource.id, out int previous);
+                long total = (long)previous + line.amount;
+                if (total > int.MaxValue) return false;
+                totals[line.resource.id] = (int)total;
             }
+            return true;
         }
     }
 }

@@ -70,19 +70,18 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (output == null)
+            if (output == null || outputAmount <= 0 || string.IsNullOrWhiteSpace(output.id))
             {
                 Debug.LogError($"WorkbenchStation on '{name}' has no output resource assigned.");
                 return;
             }
 
-            if (!CraftingSystem.TryAfford(inv, craftingCost))
+            if (!CraftingSystem.TrySpend(inv, craftingCost))
             {
                 GameMessageBus.Post($"Cannot afford to craft {output.displayName}.");
                 return;
             }
 
-            CraftingSystem.Spend(inv, craftingCost);
             inv.Add(output.id, outputAmount);
             GameMessageBus.Post($"Crafted {outputAmount} {output.displayName}.");
         }

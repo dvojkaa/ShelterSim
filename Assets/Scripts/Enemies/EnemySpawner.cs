@@ -1,154 +1,234 @@
-using System.Collections;
 using System.Collections.Generic;
+using SheltreSim.Player;
+using SheltreSim.Survival;
 using UnityEngine;
 
 namespace SheltreSim.Enemies
 {
     /// <summary>
-    /// Opus-model review: raiders are <c>Destroy()</c>d on death with no spawner, so killing
-    /// every raider once leaves the world permanently pressure-free. This tracks every raider
-    /// present when the scene starts and, whenever one dies, rebuilds a fresh one at the same
-    /// spot after <see cref="respawnDelaySeconds"/> — long enough that killing a raider is real
-    /// relief, not instant replacement — and immediately re-subscribes the new raider's own
-    /// <see cref="EnemyAI.OnDeath"/> to the same handler, which is what keeps the cycle going
-    /// indefinitely instead of being a one-shot "respawns once then stops."
-    ///
-    /// Deliberately a runtime MonoBehaviour under Assets/Scripts, NOT Assets/Editor: it has to
-    /// exist in Play Mode and in a real build, where the Assets/Editor assembly (which holds
-    /// M6EnemySetup, the editor-time raider builder) does not exist at all. Referencing
-    /// SheltreSim.EditorTools from here would compile fine in the Editor (both assemblies are
-    /// loaded there) but break a real build, and would also be a wrong-direction dependency this
-    /// project's folder structure deliberately avoids. So the raider-construction steps
-    /// (capsule primitive, swap CapsuleCollider for CharacterController, add EnemyAI, tint body
-    /// + cosmetic Head/WeaponProp children) are duplicated here rather than shared — it is a
-    /// small amount of logic and not worth a cross-assembly dependency. Keep the colors and
-    /// child-object shapes here in sync with M6EnemySetup's if those ever change; EnemyAI's own
-    /// hit-flash revert colors also hardcode these same three constants, so there are now three
-    /// copies of this palette by design (see EnemyAI's doc comment on BodyColor/HeadColor/
-    /// WeaponColor for why hardcoding was preferred to a shared read-back).
+    /// Keeps one spawn slot for each original scene raider. Inactive templates preserve the
+    /// actual art, controller dimensions and tuning instead of rebuilding a different enemy.
     /// </summary>
     public class EnemySpawner : MonoBehaviour
     {
         public float respawnDelaySeconds = 90f;
+        public float minimumPlayerDistance = 12f;
 
-        private static readonly Color BodyColor = new Color(0.35f, 0.12f, 0.1f);
-        private static readonly Color HeadColor = new Color(0.55f, 0.42f, 0.35f);
-        private static readonly Color WeaponColor = new Color(0.2f, 0.19f, 0.18f);
-
-        /// <summary>
-        /// One slot per raider present at Start - position/parent recorded once and reused
-        /// forever, since every respawn should reappear exactly where the original raider was.
-        /// </summary>
-        private readonly List<(Vector3 position, Transform parent)> slots = new List<(Vector3 position, Transform parent)>();
-
-        /// <summary>
-        /// Maps each currently-alive raider instance to the slot it occupies, so the death
-        /// handler (which only gets handed the dying EnemyAI, not a slot index) knows which
-        /// slot to respawn into. Updated every time a raider - original or respawned - is
-        /// created for a slot.
-        /// </summary>
-        private readonly Dictionary<EnemyAI, int> slotByRaider = new Dictionary<EnemyAI, int>();
-
-        private void Start()
+        [System.Serializable]
+        public class RaiderState
         {
-            EnemyAI[] existingRaiders = Object.FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
-            foreach (EnemyAI raider in existingRaiders)
-            {
-                int slotIndex = slots.Count;
-                slots.Add((raider.transform.position, raider.transform.parent));
-                TrackRaider(raider, slotIndex);
-            }
-
-            Debug.Log($"{nameof(EnemySpawner)} tracking {slots.Count} raider(s) - each respawns {respawnDelaySeconds}s after death.");
+            public string id;
+            public Vector3 position;
+            public Quaternion rotation;
+            public float health;
+            public float respawnRemaining;
         }
 
-        private void TrackRaider(EnemyAI raider, int slotIndex)
+        private sealed class SpawnSlot
         {
-            slotByRaider[raider] = slotIndex;
+            public string id;
+            public Vector3 position;
+            public Quaternion rotation;
+            public Transform parent;
+            public EnemyAI template;
+            public EnemyAI current;
+            public float respawnRemaining;
+        }
+
+        private readonly List<SpawnSlot> slots = new List<SpawnSlot>();
+        private readonly Dictionary<EnemyAI, SpawnSlot> slotByRaider = new Dictionary<EnemyAI, SpawnSlot>();
+        private bool initialized;
+        private Transform templateRoot;
+        private Transform playerTransform;
+        private SurvivalStats playerStats;
+
+        private void Start() => Initialize();
+
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+
+            FirstPersonController player = Object.FindFirstObjectByType<FirstPersonController>(FindObjectsInactive.Include);
+            if (player != null)
+            {
+                playerTransform = player.transform;
+                playerStats = player.GetComponent<SurvivalStats>();
+            }
+
+            EnemyAI[] originals = Object.FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
+            GameObject templates = new GameObject("RaiderTemplates");
+            templates.transform.SetParent(transform, false);
+            templates.SetActive(false);
+            templateRoot = templates.transform;
+
+            foreach (EnemyAI raider in originals)
+            {
+                if (raider.gameObject.scene != gameObject.scene || !raider.isActiveAndEnabled || raider.IsDead) continue;
+                SpawnSlot slot = new SpawnSlot
+                {
+                    id = StableId(raider.transform),
+                    position = raider.transform.position,
+                    rotation = raider.transform.rotation,
+                    parent = raider.transform.parent
+                };
+                // The parent is inactive before cloning, so the template never runs Awake,
+                // Start, input, physics or any other gameplay behavior.
+                slot.template = Instantiate(raider, templateRoot, false);
+                slot.template.name = raider.name;
+                slot.template.gameObject.SetActive(false);
+                slots.Add(slot);
+                TrackRaider(raider, slot);
+            }
+        }
+
+        private static string StableId(Transform target)
+        {
+            string path = target.name + "[" + target.GetSiblingIndex() + "]";
+            while (target.parent != null)
+            {
+                target = target.parent;
+                path = target.name + "[" + target.GetSiblingIndex() + "]/" + path;
+            }
+            return path;
+        }
+
+        private void TrackRaider(EnemyAI raider, SpawnSlot slot)
+        {
+            slot.current = raider;
+            slotByRaider[raider] = slot;
             raider.OnDeath += HandleRaiderDeath;
         }
 
         private void HandleRaiderDeath(EnemyAI raider)
         {
-            if (!slotByRaider.TryGetValue(raider, out int slotIndex))
-            {
-                // Not a raider this spawner is tracking (shouldn't happen - every raider in the
-                // scene is picked up at Start) - nothing to respawn.
-                return;
-            }
-
+            if (!slotByRaider.TryGetValue(raider, out SpawnSlot slot)) return;
             slotByRaider.Remove(raider);
             raider.OnDeath -= HandleRaiderDeath;
-            StartCoroutine(RespawnAfterDelay(slotIndex));
+            slot.current = null;
+            slot.respawnRemaining = Mathf.Max(0.1f, respawnDelaySeconds);
         }
 
-        private IEnumerator RespawnAfterDelay(int slotIndex)
+        private void Update()
         {
-            yield return new WaitForSeconds(respawnDelaySeconds);
-
-            (Vector3 position, Transform parent) slot = slots[slotIndex];
-            EnemyAI freshRaider = SpawnRaider($"Raider_Respawn_{slotIndex}", slot.position, slot.parent);
-
-            // Immediately re-subscribe the NEW raider's own OnDeath to this same handler for the
-            // same slot - this is what makes the cycle self-sustaining indefinitely rather than
-            // a one-shot respawn.
-            TrackRaider(freshRaider, slotIndex);
-        }
-
-        /// <summary>
-        /// Runtime duplicate of M6EnemySetup.SpawnEnemy + AddVisualDetail - see the class doc
-        /// comment for why this can't just call that editor-only method instead.
-        /// </summary>
-        private static EnemyAI SpawnRaider(string raiderName, Vector3 position, Transform parent)
-        {
-            GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            enemy.name = raiderName;
-            if (parent != null)
+            if (Time.timeScale <= 0f || (playerStats != null && (playerStats.IsDead || playerStats.health <= 0f))) return;
+            foreach (SpawnSlot slot in slots)
             {
-                enemy.transform.SetParent(parent, false);
+                if (slot.current != null) continue;
+                slot.respawnRemaining = Mathf.Max(0f, slot.respawnRemaining - Time.deltaTime);
+                if (slot.respawnRemaining > 0f) continue;
+                if (!SpawnIsClear(slot))
+                {
+                    // A built wall or a player camping the old spawn postpones it; never
+                    // materialize a raider in someone's body or in a newly placed building.
+                    slot.respawnRemaining = 1f;
+                    continue;
+                }
+                SpawnRaider(slot, slot.position, slot.rotation, slot.template.maxHealth);
             }
-            enemy.transform.position = position;
-            ApplyColor(enemy, BodyColor);
-
-            // Same CharacterController swap M6EnemySetup does - CharacterController is itself a
-            // Collider subclass, so it satisfies both physics collision and MeleeAttacker's
-            // SphereCastAll hit detection without the CapsuleCollider CreatePrimitive adds.
-            Destroy(enemy.GetComponent<CapsuleCollider>());
-            enemy.AddComponent<CharacterController>();
-            EnemyAI enemyAi = enemy.AddComponent<EnemyAI>();
-
-            AddVisualDetail(enemy.transform);
-
-            return enemyAi;
         }
 
-        private static void AddVisualDetail(Transform enemy)
+        private bool SpawnIsClear(SpawnSlot slot)
         {
-            GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            head.name = "Head";
-            head.transform.SetParent(enemy, false);
-            head.transform.localPosition = new Vector3(0f, 0.82f, 0f);
-            head.transform.localScale = new Vector3(0.42f, 0.42f, 0.42f);
-            Destroy(head.GetComponent<Collider>());
-            ApplyColor(head, HeadColor);
-
-            GameObject weapon = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            weapon.name = "WeaponProp";
-            weapon.transform.SetParent(enemy, false);
-            weapon.transform.localPosition = new Vector3(0.32f, 0.05f, 0.25f);
-            weapon.transform.localRotation = Quaternion.Euler(35f, 0f, 15f);
-            weapon.transform.localScale = new Vector3(0.08f, 0.08f, 0.65f);
-            Destroy(weapon.GetComponent<Collider>());
-            ApplyColor(weapon, WeaponColor);
-        }
-
-        private static void ApplyColor(GameObject target, Color color)
-        {
-            MeshRenderer meshRenderer = target.GetComponent<MeshRenderer>();
-            if (meshRenderer != null)
+            if (playerTransform != null &&
+                Vector3.ProjectOnPlane(playerTransform.position - slot.position, Vector3.up).sqrMagnitude <
+                minimumPlayerDistance * minimumPlayerDistance)
             {
-                meshRenderer.material.color = color;
+                return false;
             }
+            CharacterController capsule = slot.template.GetComponent<CharacterController>();
+            Vector3 scale = slot.template.transform.localScale;
+            if (slot.parent != null) scale = Vector3.Scale(scale, slot.parent.lossyScale);
+            float radius = capsule.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+            float halfHeight = Mathf.Max(radius, capsule.height * Mathf.Abs(scale.y) * 0.5f);
+            Vector3 center = slot.position + slot.rotation * Vector3.Scale(capsule.center, scale);
+            Vector3 end = Vector3.up * (halfHeight - radius);
+            // A small inset excludes exact floor tangency, which counts as overlap in PhysX.
+            return !Physics.CheckCapsule(center - end, center + end, Mathf.Max(0.01f, radius - 0.02f),
+                ~0, QueryTriggerInteraction.Ignore);
+        }
+
+        private void SpawnRaider(SpawnSlot slot, Vector3 position, Quaternion rotation, float health)
+        {
+            EnemyAI fresh = Instantiate(slot.template, slot.parent, false);
+            fresh.name = slot.template.name;
+            fresh.transform.SetPositionAndRotation(position, rotation);
+            fresh.gameObject.SetActive(true);
+            fresh.RestoreState(position, rotation, health);
+            TrackRaider(fresh, slot);
+            slot.respawnRemaining = 0f;
+        }
+
+        public List<RaiderState> CaptureState()
+        {
+            Initialize();
+            List<RaiderState> states = new List<RaiderState>(slots.Count);
+            foreach (SpawnSlot slot in slots)
+            {
+                bool alive = slot.current != null && !slot.current.IsDead;
+                states.Add(new RaiderState
+                {
+                    id = slot.id,
+                    position = alive ? slot.current.transform.position : slot.position,
+                    rotation = alive ? slot.current.transform.rotation : slot.rotation,
+                    health = alive ? slot.current.health : 0f,
+                    respawnRemaining = alive ? 0f : slot.respawnRemaining
+                });
+            }
+            return states;
+        }
+
+        public void RestoreState(List<RaiderState> states)
+        {
+            if (states == null) return; // Old saves contain no raider snapshot.
+            Initialize();
+            foreach (RaiderState saved in states)
+            {
+                if (saved == null) continue;
+                SpawnSlot slot = slots.Find(candidate => candidate.id == saved.id);
+                if (slot == null) continue;
+                if (saved.health > 0f)
+                {
+                    float health = Mathf.Clamp(saved.health, 0.01f, Mathf.Max(1f, slot.template.maxHealth));
+                    if (slot.current == null || slot.current.IsDead)
+                    {
+                        RemoveCurrent(slot);
+                        SpawnRaider(slot, saved.position, saved.rotation, health);
+                    }
+                    else
+                    {
+                        slot.current.RestoreState(saved.position, saved.rotation, health);
+                    }
+                    slot.respawnRemaining = 0f;
+                }
+                else
+                {
+                    RemoveCurrent(slot);
+                    slot.respawnRemaining = Mathf.Clamp(saved.respawnRemaining, 0f, Mathf.Max(1f, respawnDelaySeconds));
+                }
+            }
+        }
+
+        private void RemoveCurrent(SpawnSlot slot)
+        {
+            if (slot.current == null) return;
+            slot.current.OnDeath -= HandleRaiderDeath;
+            slotByRaider.Remove(slot.current);
+            // Destroy is deferred: deactivate now so load never leaves a duplicate collider
+            // active for the remainder of this frame.
+            slot.current.gameObject.SetActive(false);
+            Destroy(slot.current.gameObject);
+            slot.current = null;
+        }
+
+        private void OnDestroy()
+        {
+            foreach (KeyValuePair<EnemyAI, SpawnSlot> pair in slotByRaider)
+            {
+                if (pair.Key != null) pair.Key.OnDeath -= HandleRaiderDeath;
+            }
+            slotByRaider.Clear();
+            if (templateRoot != null) Destroy(templateRoot.gameObject);
         }
     }
 }

@@ -1,4 +1,8 @@
 using System.Collections.Generic;
+using SheltreSim.Building;
+using SheltreSim.Core;
+using SheltreSim.Items;
+using SheltreSim.Saving;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,375 +13,312 @@ namespace SheltreSim.Survival
     {
         public SurvivalStats stats;
 
-        private Image healthFill;
-        private Image hungerFill;
-        private Image thirstFill;
-
+        private Canvas canvas;
+        private RectTransform healthFill;
+        private RectTransform hungerFill;
+        private RectTransform thirstFill;
         private Text healthLabel;
         private Text hungerLabel;
         private Text thirstLabel;
-
+        private Text warningLabel;
+        private Text phaseLabel;
+        private Text phaseDetailLabel;
+        private Text objectiveLabel;
+        private Text homeLabel;
+        private Text controlsLabel;
         private Text interactPromptLabel;
         private Text buildReadoutLabel;
-
-        private const int MessageFeedLines = 3;
-        private const float MessageLifetimeSeconds = 4f;
+        private Image damageFlash;
+        private GameObject crosshair;
+        private Image[] crosshairBars;
+        private GameStateManager gameState;
+        private Inventory inventory;
+        private BuildModeController buildController;
+        private Transform homeAnchor;
+        private string interactPrompt = string.Empty;
+        private string buildReadout = string.Empty;
+        private float previousHealth = -1f;
+        private float flashAmount;
+        private float nextGuidanceUpdate;
+        private const int MessageFeedLines = 4;
+        private const float MessageLifetimeSeconds = 6f;
+        private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
+        private static readonly Vector2 TopRight = Vector2.one;
+        private static readonly Vector2 Center = new Vector2(0.5f, 0.5f);
 
         private class FeedEntry
         {
             public string text;
+            public int count = 1;
             public float expireTime;
         }
 
         private readonly List<FeedEntry> feedEntries = new List<FeedEntry>();
         private Text[] feedLabels;
 
-        private bool loggedMissingStats;
-
         private void Awake()
         {
-            // Awake() runs twice across this component's real lifetime: once when an editor
-            // tool adds it (AddComponent triggers Awake immediately in-editor, and that canvas
-            // gets saved into the scene), and again when Play Mode actually starts (a fresh
-            // scene load re-runs every component's Awake). Without this guard, that leaves two
-            // "HUD_Canvas" objects stacked on screen — the edit-time one frozen forever at its
-            // initial fillAmount, on top of (or behind) the live one this Update() actually
-            // drives, reading as "the HUD bars never move."
-            Transform stale = transform.Find("HUD_Canvas");
-            if (stale != null)
-            {
-                DestroyImmediate(stale.gameObject);
-            }
+            // A passive HUD has no GraphicRaycaster. All its graphics also ignore raycasts,
+            // so prompts can never swallow an inventory or menu button click.
+            canvas = GameUI.CreateCanvas(transform, "HUD_Canvas", 0, false);
+            damageFlash = GameUI.Panel(canvas.transform, "DamageFlash", Vector2.zero, Vector2.zero,
+                Vector2.zero, Vector2.zero, Color.clear);
+            damageFlash.rectTransform.anchorMax = Vector2.one;
+            damageFlash.rectTransform.offsetMin = damageFlash.rectTransform.offsetMax = Vector2.zero;
 
-            GameObject canvasObject = new GameObject("HUD_Canvas", typeof(RectTransform));
-            canvasObject.transform.SetParent(transform, false);
+            Transform vitalCard = GameUI.Panel(canvas.transform, "Vitals", TopLeft, TopLeft,
+                new Vector2(24f, -24f), new Vector2(300f, 218f), GameUI.PanelColor).transform;
+            GameUI.Label(vitalCard, "Title", "SHELTER STATUS", TopLeft, TopLeft,
+                new Vector2(18f, -14f), new Vector2(264f, 28f), 19, GameUI.Accent, bold: true);
+            healthFill = CreateBar(vitalCard, "Health", 54f, new Color(0.78f, 0.29f, 0.25f), out healthLabel);
+            hungerFill = CreateBar(vitalCard, "Food", 106f, new Color(0.81f, 0.61f, 0.27f), out hungerLabel);
+            thirstFill = CreateBar(vitalCard, "Water", 158f, new Color(0.31f, 0.67f, 0.86f), out thirstLabel);
+            warningLabel = GameUI.Label(canvas.transform, "VitalWarning", string.Empty, TopLeft, TopLeft,
+                new Vector2(24f, -254f), new Vector2(310f, 90f), 20, GameUI.Warning, bold: true);
 
-            Canvas canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            Transform objectiveCard = GameUI.Panel(canvas.transform, "Objective", TopRight, TopRight,
+                new Vector2(-24f, -24f), new Vector2(380f, 242f), GameUI.PanelColor).transform;
+            phaseLabel = GameUI.Label(objectiveCard, "Phase", string.Empty, TopLeft, TopLeft,
+                new Vector2(18f, -14f), new Vector2(344f, 32f), 23, GameUI.Accent, bold: true);
+            phaseDetailLabel = GameUI.Label(objectiveCard, "PhaseDetails", string.Empty, TopLeft, TopLeft,
+                new Vector2(18f, -55f), new Vector2(344f, 42f), 16, GameUI.Muted);
+            objectiveLabel = GameUI.Label(objectiveCard, "NextStep", string.Empty, TopLeft, TopLeft,
+                new Vector2(18f, -108f), new Vector2(344f, 118f), 19);
 
-            CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
+            homeLabel = GameUI.Label(canvas.transform, "HomeBearing", string.Empty, new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(520f, 32f), 20,
+                GameUI.Accent, TextAnchor.MiddleCenter, true);
+            AddShadow(homeLabel);
+            buildReadoutLabel = GameUI.Label(canvas.transform, "BuildReadout", string.Empty, new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(560f, 128f), 21,
+                alignment: TextAnchor.UpperCenter, bold: true);
+            AddShadow(buildReadoutLabel);
 
-            // Deliberately NO GraphicRaycaster and no EventSystem: this HUD is a passive
-            // readout, nothing on it is clickable. It used to have one harmlessly, because
-            // every graphic on it lived in the top-left corner where nothing else does. The
-            // crosshair / interact prompt / message feed added in M12 are the first HUD
-            // graphics in the MIDDLE of the screen, and Unity's Images default to
-            // raycastTarget = true — so with a raycaster still attached, the 600x32 invisible
-            // prompt label sat right on top of InventoryUI's Eat/Equip buttons (that panel is
-            // centred and both canvases are sortingOrder 0, where the winner between two root
-            // overlay canvases is incidental). That is this project's recurring "a UI control
-            // that compiles fine but can't actually be clicked" bug, one canvas removed.
-            // raycastTarget is also cleared on every graphic below, so re-adding a raycaster
-            // here later still can't swallow a click.
-            healthFill = CreateBar(canvasObject.transform, "HealthBar", -20f, new Color(0.8f, 0.1f, 0.1f), out healthLabel);
-            hungerFill = CreateBar(canvasObject.transform, "HungerBar", -54f, new Color(0.6f, 0.4f, 0.1f), out hungerLabel);
-            thirstFill = CreateBar(canvasObject.transform, "ThirstBar", -88f, new Color(0.2f, 0.5f, 0.9f), out thirstLabel);
-
-            CreateCrosshair(canvasObject.transform);
-            interactPromptLabel = CreatePromptLabel(canvasObject.transform);
-            feedLabels = CreateMessageFeed(canvasObject.transform);
-            buildReadoutLabel = CreateBuildReadoutLabel(canvasObject.transform);
-
-            // GameMessageBus is the single call site gameplay scripts use instead of a bare
-            // Debug.Log for one-off player feedback ("Found 3 Wood", "Hit Raider_1 for 20
-            // damage") - it still logs to the Console internally, this just also surfaces it
-            // here. Subscribed in Awake / unsubscribed in OnDestroy (NOT OnDisable) - this
-            // project has a documented trap where unsubscribing in OnDisable breaks components
-            // that get disabled and later re-enabled, since there is nothing left to re-sub.
-            GameMessageBus.OnMessage += ShowMessage;
-        }
-
-        private void OnDestroy()
-        {
-            GameMessageBus.OnMessage -= ShowMessage;
-        }
-
-        private static void CreateCrosshair(Transform parent)
-        {
-            // Small centered cross made of two thin bars rather than a single dot - more
-            // legible against varied backgrounds, still a trivial primitive (no sprite assets
-            // exist in this project; a null-sprite Image renders as a plain solid rectangle).
-            GameObject crosshair = new GameObject("Crosshair", typeof(RectTransform));
-            crosshair.transform.SetParent(parent, false);
-
+            crosshair = new GameObject("Crosshair", typeof(RectTransform));
+            crosshair.transform.SetParent(canvas.transform, false);
             RectTransform crosshairRect = crosshair.GetComponent<RectTransform>();
-            crosshairRect.anchorMin = new Vector2(0.5f, 0.5f);
-            crosshairRect.anchorMax = new Vector2(0.5f, 0.5f);
-            crosshairRect.pivot = new Vector2(0.5f, 0.5f);
+            crosshairRect.anchorMin = crosshairRect.anchorMax = Center;
             crosshairRect.anchoredPosition = Vector2.zero;
             crosshairRect.sizeDelta = Vector2.zero;
-
-            CreateCrosshairBar(crosshair.transform, new Vector2(12f, 2f));
-            CreateCrosshairBar(crosshair.transform, new Vector2(2f, 12f));
-        }
-
-        private static void CreateCrosshairBar(Transform parent, Vector2 size)
-        {
-            GameObject bar = new GameObject("CrosshairBar", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            bar.transform.SetParent(parent, false);
-
-            RectTransform rect = bar.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = size;
-
-            Image image = bar.GetComponent<Image>();
-            image.color = new Color(1f, 1f, 1f, 0.85f);
-            image.raycastTarget = false;
-        }
-
-        private static Text CreatePromptLabel(Transform parent)
-        {
-            // Sits just below the crosshair - this is the primary readout for interaction
-            // prompts ("Press E to open", "Press E to search"), replacing the Console log as
-            // the thing a player actually looks at while playing.
-            GameObject promptObject = new GameObject("InteractPrompt", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            promptObject.transform.SetParent(parent, false);
-
-            RectTransform rect = promptObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -36f);
-            rect.sizeDelta = new Vector2(600f, 32f);
-
-            Text label = promptObject.GetComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 20;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-            label.text = string.Empty;
-            label.raycastTarget = false;
-
-            return label;
-        }
-
-        private static Text CreateBuildReadoutLabel(Transform parent)
-        {
-            // Top-center — Opus-review suggestion: cycling build pieces (mouse wheel) gave no
-            // feedback at all before this, so you picked a piece blind and only learned you
-            // couldn't afford it after clicking to place. Shows the selected piece's name and
-            // cost, colored green/afford or red/can't, via the same CraftingSystem.TryAfford
-            // check InventoryUI's Recipes list already uses — kept blank outside build mode.
-            GameObject readoutObject = new GameObject("BuildReadout", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            readoutObject.transform.SetParent(parent, false);
-
-            RectTransform rect = readoutObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -20f);
-            rect.sizeDelta = new Vector2(700f, 32f);
-
-            Text label = readoutObject.GetComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 20;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-            label.text = string.Empty;
-            label.raycastTarget = false;
-
-            return label;
-        }
-
-        private static Text[] CreateMessageFeed(Transform parent)
-        {
-            // Last few one-off events ("Found 3 Wood, 2 Water", "Hit Raider_1 for 20 damage"),
-            // bottom-left, newest on the bottom line, each line independently expiring after a
-            // few seconds.
-            Text[] labels = new Text[MessageFeedLines];
-            for (int i = 0; i < MessageFeedLines; i++)
+            crosshairBars = new[]
             {
-                GameObject lineObject = new GameObject("MessageFeedLine" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-                lineObject.transform.SetParent(parent, false);
+                GameUI.Panel(crosshair.transform, "Horizontal", Center, Center, Vector2.zero, new Vector2(12f, 2f), Color.white),
+                GameUI.Panel(crosshair.transform, "Vertical", Center, Center, Vector2.zero, new Vector2(2f, 12f), Color.white)
+            };
+            interactPromptLabel = GameUI.Label(canvas.transform, "InteractPrompt", string.Empty, Center,
+                new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(900f, 74f), 21,
+                alignment: TextAnchor.UpperCenter, bold: true);
+            AddShadow(interactPromptLabel);
 
-                RectTransform rect = lineObject.GetComponent<RectTransform>();
-                rect.anchorMin = new Vector2(0f, 0f);
-                rect.anchorMax = new Vector2(0f, 0f);
-                rect.pivot = new Vector2(0f, 0f);
-                rect.anchoredPosition = new Vector2(20f, 20f + i * 26f);
-                rect.sizeDelta = new Vector2(500f, 24f);
-
-                Text label = lineObject.GetComponent<Text>();
-                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                label.fontSize = 16;
-                label.alignment = TextAnchor.LowerLeft;
-                label.color = Color.white;
-                label.text = string.Empty;
-                label.raycastTarget = false;
-
-                labels[i] = label;
+            feedLabels = new Text[MessageFeedLines];
+            for (int i = 0; i < feedLabels.Length; i++)
+            {
+                feedLabels[i] = GameUI.Label(canvas.transform, "MessageFeedLine" + i, string.Empty,
+                    Vector2.zero, Vector2.zero, new Vector2(24f, 72f + i * 50f), new Vector2(780f, 46f), 19);
+                AddShadow(feedLabels[i]);
             }
-
-            return labels;
+            Transform controlsCard = GameUI.Panel(canvas.transform, "Controls", new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 38f), GameUI.PanelColor).transform;
+            controlsLabel = GameUI.Label(controlsCard, "ControlsLabel", string.Empty, Center, Center,
+                Vector2.zero, new Vector2(1124f, 30f), 18, GameUI.Muted, TextAnchor.MiddleCenter);
         }
 
-        private static Image CreateBar(Transform parent, string name, float yOffset, Color fillColor, out Text label)
+        private void OnEnable() => GameMessageBus.OnMessage += ShowMessage;
+        private void OnDisable() => GameMessageBus.OnMessage -= ShowMessage;
+
+        private void Start()
         {
-            // No sprite assets exist in this project (low-poly/primitive style per design notes) —
-            // Image with sprite == null renders as a plain solid color via Unity's default texture,
-            // which is fine and intentional here.
-            GameObject background = new GameObject(name + "_BG", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            background.transform.SetParent(parent, false);
-
-            RectTransform bgRect = background.GetComponent<RectTransform>();
-            bgRect.anchorMin = new Vector2(0f, 1f);
-            bgRect.anchorMax = new Vector2(0f, 1f);
-            bgRect.pivot = new Vector2(0f, 1f);
-            bgRect.anchoredPosition = new Vector2(20f, yOffset);
-            bgRect.sizeDelta = new Vector2(200f, 24f);
-
-            Image bgImage = background.GetComponent<Image>();
-            bgImage.type = Image.Type.Simple;
-            bgImage.color = new Color(0.15f, 0.15f, 0.15f, 0.85f);
-            bgImage.raycastTarget = false;
-
-            GameObject fill = new GameObject(name + "_Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            fill.transform.SetParent(background.transform, false);
-
-            RectTransform fillRect = fill.GetComponent<RectTransform>();
-            fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = Vector2.one;
-            fillRect.pivot = new Vector2(0f, 1f);
-            fillRect.anchoredPosition = Vector2.zero;
-            fillRect.sizeDelta = Vector2.zero;
-
-            Image fillImage = fill.GetComponent<Image>();
-            fillImage.type = Image.Type.Filled;
-            fillImage.fillMethod = Image.FillMethod.Horizontal;
-            fillImage.fillOrigin = (int)Image.OriginHorizontal.Left;
-            fillImage.color = fillColor;
-            fillImage.fillAmount = 1f;
-            fillImage.raycastTarget = false;
-
-            // Label sits on top of the bar (same rect as the background), showing the name
-            // and live numeric value in one Text — e.g. "Health 72/100". Plain legacy Text,
-            // not TextMeshPro — this project doesn't have the TMP package installed.
-            GameObject labelObject = new GameObject(name + "_Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            labelObject.transform.SetParent(background.transform, false);
-
-            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-            labelRect.anchorMin = Vector2.zero;
-            labelRect.anchorMax = Vector2.one;
-            labelRect.pivot = new Vector2(0f, 1f);
-            labelRect.anchoredPosition = Vector2.zero;
-            labelRect.sizeDelta = Vector2.zero;
-
-            label = labelObject.GetComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 14;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-            label.text = name;
-            label.raycastTarget = false;
-
-            return fillImage;
+            // Runtime discovery keeps existing scenes compatible; editor-generated references
+            // are optional and no new scene rebuild is required for these readouts.
+            if (stats == null) stats = Object.FindFirstObjectByType<SurvivalStats>();
+            gameState = Object.FindFirstObjectByType<GameStateManager>();
+            if (stats != null)
+            {
+                inventory = stats.GetComponent<Inventory>();
+                buildController = stats.GetComponentInChildren<BuildModeController>();
+                previousHealth = stats.health;
+            }
+            ApocalypseTrigger landmark = Object.FindFirstObjectByType<ApocalypseTrigger>();
+            if (landmark != null) homeAnchor = landmark.transform;
         }
 
-        private void Update()
+        private static RectTransform CreateBar(Transform parent, string name, float y, Color color, out Text label)
         {
-            // Runs regardless of whether stats is assigned - the prompt/message feed are
-            // independent of survival stats and shouldn't freeze just because that reference
-            // is missing.
+            label = GameUI.Label(parent, name + "Label", name, TopLeft, TopLeft,
+                new Vector2(18f, -y), new Vector2(264f, 25f), 19);
+            Image background = GameUI.Panel(parent, name + "Background", TopLeft, TopLeft,
+                new Vector2(18f, -(y + 30f)), new Vector2(264f, 8f), new Color(0.16f, 0.21f, 0.22f));
+            Image fill = GameUI.Panel(background.transform, name + "Fill", Vector2.zero, Vector2.zero,
+                Vector2.zero, Vector2.zero, color);
+            fill.rectTransform.anchorMax = Vector2.one;
+            fill.rectTransform.offsetMin = fill.rectTransform.offsetMax = Vector2.zero;
+            // Width via anchors also works with a null sprite; Image.Filled requires a sprite
+            // in Unity's mesh generation path and cannot reliably draw primitive stat bars.
+            return fill.rectTransform;
+        }
+
+        private static void AddShadow(Text label)
+        {
+            Shadow shadow = label.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.9f);
+            shadow.effectDistance = new Vector2(1f, -1f);
+        }
+
+        private void LateUpdate()
+        {
             UpdateMessageFeed();
+            bool dead = stats != null && stats.IsDead;
+            canvas.enabled = !ModalUI.IsOpen && !dead;
+            if (stats == null) return;
 
-            if (stats == null)
+            UpdateBar(healthFill, healthLabel, "HEALTH", stats.health, stats.maxHealth);
+            UpdateBar(hungerFill, hungerLabel, "FOOD", stats.hunger, stats.maxHunger);
+            UpdateBar(thirstFill, thirstLabel, "WATER", stats.thirst, stats.maxThirst);
+            if (previousHealth >= 0f && stats.health < previousHealth - 0.1f) flashAmount = 0.18f;
+            previousHealth = stats.health;
+            flashAmount = Mathf.MoveTowards(flashAmount, 0f, Time.unscaledDeltaTime * 0.35f);
+            damageFlash.color = new Color(0.8f, 0.1f, 0.05f, flashAmount);
+
+            bool building = buildController != null && buildController.IsBuildModeActive;
+            interactPromptLabel.text = building ? string.Empty : interactPrompt;
+            crosshair.SetActive(!building);
+            foreach (Image bar in crosshairBars) bar.color = string.IsNullOrEmpty(interactPrompt) ? Color.white : GameUI.Accent;
+            buildReadoutLabel.text = building ? buildReadout : string.Empty;
+            controlsLabel.text = building
+                ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   B or Esc: finish   /   Green: ready   /   Yellow: need supplies"
+                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: melee   /   I or Tab: inventory   /   B: build   /   F5: save   /   Esc: menu";
+
+            if (Time.unscaledTime >= nextGuidanceUpdate)
             {
-                if (!loggedMissingStats)
-                {
-                    Debug.LogError($"{nameof(SurvivalHUD)} on '{name}' has no stats assigned.");
-                    loggedMissingStats = true;
-                }
-                return;
+                UpdateGuidance();
+                nextGuidanceUpdate = Time.unscaledTime + 0.25f;
             }
-
-            healthFill.fillAmount = Mathf.Clamp01(stats.health / stats.maxHealth);
-            hungerFill.fillAmount = Mathf.Clamp01(stats.hunger / stats.maxHunger);
-            thirstFill.fillAmount = Mathf.Clamp01(stats.thirst / stats.maxThirst);
-
-            healthLabel.text = $"Health {stats.health:F0}/{stats.maxHealth:F0}";
-            hungerLabel.text = $"Hunger {stats.hunger:F0}/{stats.maxHunger:F0}";
-            thirstLabel.text = $"Thirst {stats.thirst:F0}/{stats.maxThirst:F0}";
+            UpdateHomeBearing();
         }
 
-        /// <summary>
-        /// Updates the on-screen interaction prompt - the primary readout for "Press E to
-        /// open" / "Press E to search" style text, called every frame by PlayerInteractor
-        /// (including with an empty/null string to clear it when nothing is focused).
-        /// </summary>
-        public void SetInteractPrompt(string text)
+        private static void UpdateBar(RectTransform fill, Text label, string name, float value, float max)
         {
-            if (interactPromptLabel == null)
+            float fraction = max > 0f ? Mathf.Clamp01(value / max) : 0f;
+            fill.anchorMax = new Vector2(fraction, 1f);
+            label.text = $"{name}    {Mathf.CeilToInt(value)} / {Mathf.CeilToInt(max)}";
+            label.color = fraction <= 0.2f ? GameUI.Warning : Color.white;
+        }
+
+        private void UpdateGuidance()
+        {
+            float food = stats.maxHunger > 0f ? stats.hunger / stats.maxHunger : 0f;
+            float water = stats.maxThirst > 0f ? stats.thirst / stats.maxThirst : 0f;
+            float health = stats.maxHealth > 0f ? stats.health / stats.maxHealth : 0f;
+            warningLabel.text = health <= 0.25f ? "LOW HEALTH\nUse first aid or rest at a bed."
+                : water <= 0.2f ? "LOW WATER\nDrink supplies from I or Tab."
+                : food <= 0.2f ? "LOW FOOD\nEat supplies from I or Tab." : string.Empty;
+
+            GamePhase phase = gameState != null ? gameState.CurrentPhase : GamePhase.Survival;
+            if (phase == GamePhase.Apocalypse)
             {
+                phaseLabel.text = "EMERGENCY ALERT";
+                phaseLabel.color = GameUI.Danger;
+                phaseDetailLabel.text = "Stay in the shelter. The world is changing.";
+                objectiveLabel.text = $"Survival begins in {Mathf.CeilToInt(gameState.ApocalypseSecondsRemaining)}...\nFood and water will start draining.\nKeep supplies ready in your inventory.";
                 return;
             }
 
-            interactPromptLabel.text = text ?? string.Empty;
+            phaseLabel.color = GameUI.Accent;
+            bool collector = HasWaterCollector();
+            int foodCount = inventory != null ? inventory.GetCount("food_berries") : 0;
+            int waterCount = inventory != null ? inventory.GetCount("water") : 0;
+            if (phase == GamePhase.Building)
+            {
+                phaseLabel.text = "PREPARATION";
+                phaseDetailLabel.text = "Food and water are stable. Raiders can still hurt you outside.";
+                objectiveLabel.text = (collector ? "[x] Water Collector built\n" : "[ ] Build a Water Collector (B)\n") +
+                    (foodCount > 0 ? "[x] Food stocked\n" : "[ ] Gather berries outside (E)\n") +
+                    (waterCount > 0 ? "[x] Water stocked\n" : "[ ] Loot or collect water (E)\n") +
+                    "Ready? Use the red bunker console.";
+            }
+            else
+            {
+                phaseLabel.text = "SURVIVAL";
+                phaseDetailLabel.text = "Scavenge, return home, recover. Save your progress with F5.";
+                objectiveLabel.text = water <= 0.35f
+                    ? (waterCount > 0 ? "Open I or Tab and drink water.\n" : "Collect water at home or search crates.\n") + "An empty water bar costs health."
+                    : food <= 0.35f
+                        ? (foodCount > 0 ? "Open I or Tab and eat food.\n" : "Find berries outside or search crates.\n") + "An empty food bar costs health."
+                        : health <= 0.6f ? "Recover before the next supply run.\nUse first aid in your inventory, or rest at a bed away from raiders."
+                        : !collector ? "Build a Water Collector for a supply at home.\nGather Scrap Metal, then press B."
+                        : "Keep food and water stocked.\nUse the Workbench to craft a blade, then equip it from your inventory.";
+            }
         }
 
-        /// <summary>
-        /// Build-mode piece readout: pass null/empty to clear it (called when leaving build
-        /// mode or cycling with no pieces available). <paramref name="canAfford"/> colors the
-        /// text green/white-ish or red, mirroring InventoryUI's Recipes list coloring.
-        /// </summary>
+        private static bool HasWaterCollector()
+        {
+            foreach (PlacedPiece piece in PlacedPieceRegistry.All)
+            {
+                if (piece != null && piece.isActiveAndEnabled && piece.pieceId == "water_collector") return true;
+            }
+            return false;
+        }
+
+        private void UpdateHomeBearing()
+        {
+            if (homeAnchor == null || stats == null)
+            {
+                homeLabel.text = string.Empty;
+                return;
+            }
+            Vector3 direction = homeAnchor.position - stats.transform.position;
+            direction.y = 0f;
+            float distance = direction.magnitude;
+            if (distance < 7f)
+            {
+                homeLabel.text = "HOME SHELTER";
+                return;
+            }
+            float angle = Vector3.SignedAngle(stats.transform.forward, direction, Vector3.up);
+            string bearing = Mathf.Abs(angle) < 25f ? "AHEAD"
+                : Mathf.Abs(angle) > 150f ? "BEHIND" : angle > 0f ? "RIGHT" : "LEFT";
+            homeLabel.text = $"HOME  /  {distance:0} m  /  {bearing}";
+        }
+
+        public void SetInteractPrompt(string text) => interactPrompt = text ?? string.Empty;
+
         public void SetBuildReadout(string text, bool canAfford)
         {
-            if (buildReadoutLabel == null)
-            {
-                return;
-            }
-
-            buildReadoutLabel.text = text ?? string.Empty;
-            buildReadoutLabel.color = string.IsNullOrEmpty(text)
-                ? Color.white
-                : (canAfford ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.5f, 0.5f));
+            buildReadout = text ?? string.Empty;
+            if (buildReadoutLabel != null) buildReadoutLabel.color = canAfford ? GameUI.Accent : GameUI.Warning;
         }
 
-        /// <summary>
-        /// Pushes a one-off message ("Found 3 Wood, 2 Water", "Hit Raider_1 for 20 damage")
-        /// onto the small on-screen feed. Each line expires independently a few seconds after
-        /// it was shown, consumed in Update() rather than via a per-message Coroutine so the
-        /// feed survives this component being disabled/re-enabled without dangling routines.
-        /// </summary>
         public void ShowMessage(string text)
         {
-            if (string.IsNullOrEmpty(text) || feedEntries == null)
+            if (string.IsNullOrWhiteSpace(text)) return;
+            FeedEntry last = feedEntries.Count > 0 ? feedEntries[feedEntries.Count - 1] : null;
+            if (last != null && last.text == text)
             {
+                last.count++;
+                last.expireTime = Time.unscaledTime + MessageLifetimeSeconds;
                 return;
             }
-
-            feedEntries.Add(new FeedEntry { text = text, expireTime = Time.time + MessageLifetimeSeconds });
-            while (feedEntries.Count > MessageFeedLines)
-            {
-                feedEntries.RemoveAt(0);
-            }
+            feedEntries.Add(new FeedEntry { text = text, expireTime = Time.unscaledTime + MessageLifetimeSeconds });
+            while (feedEntries.Count > MessageFeedLines) feedEntries.RemoveAt(0);
         }
 
         private void UpdateMessageFeed()
         {
-            if (feedLabels == null)
-            {
-                return;
-            }
-
             for (int i = feedEntries.Count - 1; i >= 0; i--)
             {
-                if (Time.time >= feedEntries[i].expireTime)
-                {
-                    feedEntries.RemoveAt(i);
-                }
+                if (Time.unscaledTime >= feedEntries[i].expireTime) feedEntries.RemoveAt(i);
             }
-
-            // Newest message on the bottom line (index 0, lowest on screen), older ones stacked
-            // above it, blank once the list runs out.
             for (int i = 0; i < feedLabels.Length; i++)
             {
                 int entryIndex = feedEntries.Count - 1 - i;
-                feedLabels[i].text = entryIndex >= 0 ? feedEntries[entryIndex].text : string.Empty;
+                if (entryIndex < 0)
+                {
+                    feedLabels[i].text = string.Empty;
+                    continue;
+                }
+                FeedEntry entry = feedEntries[entryIndex];
+                feedLabels[i].text = entry.text + (entry.count > 1 ? $"  (x{entry.count})" : string.Empty);
+                feedLabels[i].color = new Color(1f, 1f, 1f, Mathf.Clamp01(entry.expireTime - Time.unscaledTime));
             }
         }
     }

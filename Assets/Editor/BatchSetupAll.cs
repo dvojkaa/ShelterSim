@@ -92,6 +92,11 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M15 bed...");
             M15BedSetup.SetupBed();
 
+            // Must stay last: everything above decides positions and colliders, some of it by
+            // reading renderer bounds, and this only swaps what they look like.
+            Debug.Log("[BatchSetupAll] Applying M16 art pass...");
+            M16ArtPass.ApplyArt();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }

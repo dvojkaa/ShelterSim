@@ -70,14 +70,40 @@ namespace SheltreSim.Survival
                 return;
             }
 
-            hunger = Mathf.Clamp(hunger - hungerDecayPerSecond * Time.deltaTime, 0f, maxHunger);
-            thirst = Mathf.Clamp(thirst - thirstDecayPerSecond * Time.deltaTime, 0f, maxThirst);
+            AdvanceNeeds(Time.deltaTime);
+        }
 
-            if (hunger <= 0f || thirst <= 0f)
+        private void AdvanceNeeds(float seconds)
+        {
+            if (seconds <= 0f)
             {
-                health = Mathf.Clamp(health - healthDecayWhenStarving * Time.deltaTime, 0f, maxHealth);
+                return;
             }
 
+            float hungerRate = Mathf.Max(0f, hungerDecayPerSecond);
+            float thirstRate = Mathf.Max(0f, thirstDecayPerSecond);
+            float untilHungry = hunger <= 0f ? 0f
+                : hungerRate > 0f ? hunger / hungerRate : float.PositiveInfinity;
+            float untilThirsty = thirst <= 0f ? 0f
+                : thirstRate > 0f ? thirst / thirstRate : float.PositiveInfinity;
+
+            hunger = Mathf.Clamp(hunger - hungerRate * seconds, 0f, maxHunger);
+            thirst = Mathf.Clamp(thirst - thirstRate * seconds, 0f, maxThirst);
+            // Only the part of this frame spent at zero needs damages health. This also
+            // keeps a slow frame from charging a whole frame of starvation prematurely.
+            float starvingSeconds = Mathf.Max(0f, seconds - Mathf.Min(untilHungry, untilThirsty));
+            TakeDamage(Mathf.Max(0f, healthDecayWhenStarving) * starvingSeconds);
+        }
+
+        /// <summary>Applies damage and resolves death in the same call as a lethal hit.</summary>
+        public void TakeDamage(float amount)
+        {
+            if (IsDead || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount))
+            {
+                return;
+            }
+
+            health = Mathf.Clamp(health - amount, 0f, maxHealth);
             if (health <= 0f)
             {
                 Die();
@@ -101,6 +127,10 @@ namespace SheltreSim.Survival
         /// </summary>
         private void Die()
         {
+            if (IsDead)
+            {
+                return;
+            }
             IsDead = true;
             Debug.Log("Player has died.");
             SetPlayerControlEnabled(false);
@@ -122,9 +152,20 @@ namespace SheltreSim.Survival
             thirst = Mathf.Clamp(restoredThirst, 0f, maxThirst);
             health = Mathf.Clamp(restoredHealth, 0f, maxHealth);
 
-            if (IsDead && health > 0f)
+            if (health <= 0f)
             {
-                IsDead = false;
+                Die();
+                // An already-dead snapshot still needs its panel after the load operation
+                // dismissed the previous modal.
+                gameOverScreen?.Show();
+                return;
+            }
+
+            bool wasDead = IsDead;
+            IsDead = false;
+            gameOverScreen?.Hide();
+            if (wasDead)
+            {
                 SetPlayerControlEnabled(true);
                 Debug.Log("Player revived by load.");
             }
@@ -139,7 +180,7 @@ namespace SheltreSim.Survival
         /// </summary>
         public void Eat(float amount)
         {
-            if (IsDead)
+            if (IsDead || health <= 0f || !IsPositiveFinite(amount))
             {
                 return;
             }
@@ -150,7 +191,7 @@ namespace SheltreSim.Survival
         /// <summary>M10 — same shape as <see cref="Eat"/>, for drinkable resources.</summary>
         public void Drink(float amount)
         {
-            if (IsDead)
+            if (IsDead || health <= 0f || !IsPositiveFinite(amount))
             {
                 return;
             }
@@ -161,12 +202,17 @@ namespace SheltreSim.Survival
         /// <summary>M10 — same shape as <see cref="Eat"/>, for medicine resources.</summary>
         public void Heal(float amount)
         {
-            if (IsDead)
+            if (IsDead || health <= 0f || !IsPositiveFinite(amount))
             {
                 return;
             }
 
             health = Mathf.Clamp(health + amount, 0f, maxHealth);
+        }
+
+        private static bool IsPositiveFinite(float value)
+        {
+            return value > 0f && !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         private void SetPlayerControlEnabled(bool value)

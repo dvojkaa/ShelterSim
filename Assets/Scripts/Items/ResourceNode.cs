@@ -1,4 +1,5 @@
 using SheltreSim.Interaction;
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Items
@@ -17,11 +18,16 @@ namespace SheltreSim.Items
         /// disables only the visuals/collider (see Deplete/Regrow below) so this timer keeps
         /// ticking while depleted.
         /// </summary>
-        public float regrowSeconds = 180f;
+        [Min(0.1f)] public float regrowSeconds = 180f;
 
         private int startingCharges;
         private bool depleted;
         private float regrowTimer;
+        private bool initialized;
+        private Renderer[] renderers;
+        private Collider[] colliders;
+        private bool[] rendererEnabled;
+        private bool[] colliderEnabled;
 
         public string InteractPrompt => remainingCharges > 0
             ? $"Press E to gather {(resourceType != null ? resourceType.displayName : "resource")} ({remainingCharges} left)"
@@ -29,12 +35,42 @@ namespace SheltreSim.Items
 
         /// <summary>Exposed for SaveManager, which persists this alongside remainingCharges.</summary>
         public bool IsDepleted => depleted;
+        public float RegrowthElapsed => depleted ? regrowTimer : 0f;
 
         private void Awake()
         {
-            // Cache the inspector/editor-tool-assigned starting value so Regrow() can restore
-            // to it later, since remainingCharges itself gets mutated down to 0 by gathering.
-            startingCharges = remainingCharges;
+            if (initialized)
+            {
+                return;
+            }
+            EnsureInitialized();
+            if (remainingCharges <= 0)
+            {
+                Deplete();
+            }
+        }
+
+        private void EnsureInitialized()
+        {
+            if (initialized)
+            {
+                return;
+            }
+
+            initialized = true;
+            startingCharges = Mathf.Max(1, remainingCharges);
+            renderers = GetComponentsInChildren<Renderer>(true);
+            colliders = GetComponentsInChildren<Collider>(true);
+            rendererEnabled = new bool[renderers.Length];
+            colliderEnabled = new bool[colliders.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                rendererEnabled[i] = renderers[i].enabled;
+            }
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                colliderEnabled[i] = colliders[i].enabled;
+            }
         }
 
         private void Update()
@@ -45,7 +81,7 @@ namespace SheltreSim.Items
             }
 
             regrowTimer += Time.deltaTime;
-            if (regrowTimer >= regrowSeconds)
+            if (regrowTimer >= Mathf.Max(0.1f, regrowSeconds))
             {
                 Regrow();
             }
@@ -53,13 +89,18 @@ namespace SheltreSim.Items
 
         public void Interact(GameObject interactor)
         {
-            if (remainingCharges <= 0)
+            if (interactor == null)
             {
-                Debug.Log("This resource node is depleted.");
                 return;
             }
 
-            if (resourceType == null)
+            if (remainingCharges <= 0)
+            {
+                GameMessageBus.Post("This resource node is depleted.");
+                return;
+            }
+
+            if (resourceType == null || string.IsNullOrEmpty(resourceType.id) || quantityPerHarvest <= 0)
             {
                 Debug.LogError($"ResourceNode on '{name}' has no resourceType assigned.");
                 return;
@@ -79,6 +120,7 @@ namespace SheltreSim.Items
 
             inv.Add(resourceType.id, quantityPerHarvest);
             remainingCharges--;
+            GameMessageBus.Post($"Gathered {quantityPerHarvest} {resourceType.displayName}.");
 
             if (remainingCharges <= 0)
             {
@@ -102,20 +144,27 @@ namespace SheltreSim.Items
         }
 
         /// <summary>
-        /// Enables/disables every child Renderer and this node's own Collider(s), so a
+        /// Enables/disables every child Renderer and Collider, so a
         /// depleted node is invisible and non-interactable while the GameObject itself stays
         /// active (needed so Update() keeps ticking the regrow timer).
         /// </summary>
         private void SetVisible(bool visible)
         {
-            foreach (Renderer r in GetComponentsInChildren<Renderer>())
+            EnsureInitialized();
+            for (int i = 0; i < renderers.Length; i++)
             {
-                r.enabled = visible;
+                if (renderers[i] != null)
+                {
+                    renderers[i].enabled = visible && rendererEnabled[i];
+                }
             }
 
-            foreach (Collider c in GetComponents<Collider>())
+            for (int i = 0; i < colliders.Length; i++)
             {
-                c.enabled = visible;
+                if (colliders[i] != null)
+                {
+                    colliders[i].enabled = visible && colliderEnabled[i];
+                }
             }
         }
 
@@ -123,12 +172,21 @@ namespace SheltreSim.Items
         /// Restores save-loaded state, bypassing the normal gather/regrow flow. Called by
         /// SaveManager after matching this instance to a saved entry via its hierarchy-path id.
         /// </summary>
-        public void RestoreState(int charges, bool isDepleted)
+        public void RestoreState(int charges, bool isDepleted, float regrowthElapsed = 0f)
         {
-            remainingCharges = charges;
-            depleted = isDepleted;
-            regrowTimer = 0f;
-            SetVisible(!isDepleted);
+            EnsureInitialized();
+            depleted = isDepleted || charges <= 0;
+            remainingCharges = depleted ? 0 : Mathf.Clamp(charges, 1, startingCharges);
+            regrowTimer = depleted && !float.IsNaN(regrowthElapsed) && !float.IsInfinity(regrowthElapsed)
+                ? Mathf.Clamp(regrowthElapsed, 0f, Mathf.Max(0.1f, regrowSeconds))
+                : 0f;
+            // Old depletion disabled the entire object. Reactivate it so its regrowth timer
+            // can run, after state has been assigned (Awake may run during SetActive).
+            if (!gameObject.activeSelf)
+            {
+                gameObject.SetActive(true);
+            }
+            SetVisible(!depleted);
         }
     }
 }

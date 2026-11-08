@@ -1,15 +1,14 @@
 using System.Collections;
+using SheltreSim.Enemies;
+using SheltreSim.Player;
+using SheltreSim.Survival;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace SheltreSim.Combat
 {
-    /// <summary>
-    /// Playtest feedback: "I want to attack, at least bash the enemies, with an animation."
-    /// Purely procedural swing (rotate a weapon prop forward and back) - no Animator/clips,
-    /// since this project has no character rig to animate.
-    /// </summary>
+    /// <summary>One melee weapon with a procedural swing and a forgiving forward sweep.</summary>
     public class MeleeAttacker : MonoBehaviour
     {
         public SheltreSim.Building.BuildModeController buildModeController;
@@ -23,24 +22,27 @@ namespace SheltreSim.Combat
         public float returnDuration = 0.15f;
 
         private MeleeInputActions input;
+        private SurvivalStats stats;
+        private FirstPersonController playerController;
+        private Transform playerRoot;
         private float lastAttackTime = float.NegativeInfinity;
         private Quaternion restRotation;
+        private Coroutine swingCoroutine;
 
-        /// <summary>
-        /// M10 — called by InventoryUI's Equip button after Inventory.TryConsume has already
-        /// removed the weapon item. Permanent, additive, and there's no un-equip — a weapon
-        /// pickup here is a consumable damage upgrade, not an inventory slot swap (no weapon
-        /// switching UI exists, and the viewmodel is a single fixed prop).
-        /// </summary>
         public void ApplyWeaponUpgrade(float bonusDamage)
         {
-            attackDamage += bonusDamage;
+            if (bonusDamage > 0f && !float.IsNaN(bonusDamage) && !float.IsInfinity(bonusDamage))
+            {
+                attackDamage += bonusDamage;
+            }
         }
 
         private void Awake()
         {
             input = new MeleeInputActions();
-
+            stats = GetComponentInParent<SurvivalStats>();
+            playerController = GetComponentInParent<FirstPersonController>();
+            playerRoot = playerController != null ? playerController.transform : transform.root;
             if (weaponVisual != null)
             {
                 restRotation = weaponVisual.localRotation;
@@ -49,137 +51,153 @@ namespace SheltreSim.Combat
 
         private void OnEnable()
         {
-            input.Enable();
             input.Attack.performed += OnAttackPerformed;
+            input.Enable();
         }
 
         private void OnDisable()
         {
-            input.Attack.performed -= OnAttackPerformed;
-            input.Disable();
-            input.Dispose();
+            if (input != null)
+            {
+                input.Attack.performed -= OnAttackPerformed;
+                input.Disable();
+            }
+            ResetSwing();
+        }
+
+        private void OnDestroy() => input?.Dispose();
+
+        private void Update()
+        {
+            if (swingCoroutine != null && ((stats != null && (stats.IsDead || stats.health <= 0f)) ||
+                (buildModeController != null && buildModeController.IsBuildModeActive)))
+            {
+                ResetSwing();
+            }
         }
 
         private void OnAttackPerformed(InputAction.CallbackContext context)
         {
-            if (buildModeController != null && buildModeController.IsBuildModeActive)
-            {
-                // Left-click already places a build piece in this mode - don't also attack.
-                return;
-            }
-
-            // Nothing consumes UI clicks away from gameplay input in this project (every map
-            // is hand-built and always listening), so without this the click that presses the
-            // pause menu's Resume button would also swing the weapon - and the swing coroutine
-            // would then sit frozen at timeScale 0 until the game resumed.
-            if (Time.timeScale == 0f)
-            {
-                return;
-            }
-
-            if (Time.time - lastAttackTime < attackCooldown)
+            if (!isActiveAndEnabled || Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked ||
+                (stats != null && (stats.IsDead || stats.health <= 0f)) ||
+                (playerController != null && !playerController.isActiveAndEnabled) ||
+                (buildModeController != null && buildModeController.IsBuildModeActive) ||
+                Time.time - lastAttackTime < Mathf.Max(0.05f, attackCooldown))
             {
                 return;
             }
 
             lastAttackTime = Time.time;
-
             Collider target = FindSwingTarget();
-            if (target != null)
+            EnemyAI enemy = target != null ? target.GetComponentInParent<EnemyAI>() : null;
+            if (enemy != null)
             {
-                SheltreSim.Enemies.EnemyAI enemy = target.GetComponent<SheltreSim.Enemies.EnemyAI>();
-                if (enemy == null)
-                {
-                    enemy = target.GetComponentInParent<SheltreSim.Enemies.EnemyAI>();
-                }
-
-                if (enemy != null)
-                {
-                    enemy.TakeDamage(attackDamage);
-                    GameMessageBus.Post($"Hit {enemy.name} for {attackDamage} damage.");
-                }
-                else
-                {
-                    GameMessageBus.Post("Swing missed - nothing to hit.");
-                }
+                enemy.TakeDamage(attackDamage);
+                GameMessageBus.Post(enemy.IsDead
+                    ? "Raider defeated."
+                    : $"Hit raider for {attackDamage:0} damage ({enemy.health:0} HP left).");
             }
             else
             {
-                GameMessageBus.Post("Swing missed - nothing in range.");
+                GameMessageBus.Post(target != null ? "Swing blocked." : "Swing missed — move closer and aim at the raider.");
             }
 
-            StartCoroutine(SwingWeapon());
+            ResetSwing();
+            swingCoroutine = StartCoroutine(SwingWeapon());
         }
 
         /// <summary>
-        /// Sweeps forward from the camera and returns the collider the swing connects with,
-        /// or null if it connects with nothing.
-        ///
-        /// Deliberately NOT the single-hit Physics.SphereCast: that overload drops every
-        /// collider the sphere already overlaps at the start of the sweep, so an enemy pressed
-        /// right up against you (enemy capsule radius 0.5 + player controller radius 0.35 means
-        /// contact at ~0.85m centre-to-centre, inside this cast's 0.5 + 0.5 = 1.0m overlap
-        /// threshold) is silently skipped — exactly when a melee swing most needs to land.
-        ///
-        /// SphereCastAll does return those overlaps, but it reports them with distance 0 and
-        /// point (0,0,0): there is no contact geometry for an overlap, so the numbers carry no
-        /// directional information at all. That means they cannot be fed into a plain
-        /// nearest-hit comparison, which is what the first version of this did — any collider
-        /// merely touching the sphere won at distance 0 and swallowed the swing. Since the
-        /// sphere has a 0.5m radius and the player can stand within 0.35m of a surface, that
-        /// included every wall, crate and bit of rubble the player happened to be standing
-        /// NEXT TO rather than facing: standing anywhere near bunker geometry made every swing
-        /// report "nothing to hit" regardless of what was actually in front of you.
-        ///
-        /// So the two cases are handled separately, which is what their different semantics
-        /// require:
-        ///  - distance 0 (already overlapping): only meaningful as "this thing is touching me".
-        ///    Used solely to find a point-blank enemy; overlapping scenery is ignored, because
-        ///    scenery you are standing against is not between you and anything.
-        ///  - distance > 0 (actually swept into): real, directional, ordered. Nearest wins, and
-        ///    if the nearest is scenery the swing is blocked — a wall genuinely between you and
-        ///    a raider reports a real distance (measured: 0.4 for a wall at 1.0m with a raider
-        ///    behind it at 0.805), so that behaviour is preserved.
-        /// Anything in the player's own hierarchy is dropped in both cases — the player's own
-        /// body does come back as a distance-0 hit (verified by probe, not assumed).
+        /// SphereCastAll preserves initial overlaps, which are essential at point-blank range.
+        /// Their distance/point carry no direction, so validate enemies against the view and a
+        /// separate sight ray. Nearby scenery beside the player cannot swallow the swing, and
+        /// an overlapping enemy behind a thin wall or behind the camera cannot be hit.
         /// </summary>
         private Collider FindSwingTarget()
         {
-            RaycastHit[] hits = Physics.SphereCastAll(transform.position, attackRadius, transform.forward, attackRange);
+            RaycastHit[] hits = Physics.SphereCastAll(transform.position, Mathf.Max(0.01f, attackRadius),
+                transform.forward, Mathf.Max(0f, attackRange), ~0, QueryTriggerInteraction.Ignore);
+            Collider nearestEnemy = null;
+            Collider nearestObstacle = null;
+            float enemyDistance = float.PositiveInfinity;
+            float obstacleDistance = float.PositiveInfinity;
 
-            Transform playerRoot = transform.root;
-            Collider pointBlankEnemy = null;
-            Collider nearestSwept = null;
-            float nearestDistance = float.PositiveInfinity;
-
-            foreach (RaycastHit candidate in hits)
+            foreach (RaycastHit hit in hits)
             {
-                if (candidate.collider.transform.root == playerRoot)
+                Collider candidate = hit.collider;
+                if (BelongsToPlayer(candidate))
                 {
-                    // The player's own CharacterController (and anything else parented under
-                    // the player rig) - never a valid melee target.
                     continue;
                 }
 
-                if (candidate.distance <= 0f)
+                EnemyAI enemy = candidate.GetComponentInParent<EnemyAI>();
+                if (enemy == null)
                 {
-                    if (pointBlankEnemy == null && candidate.collider.GetComponentInParent<SheltreSim.Enemies.EnemyAI>() != null)
+                    if (hit.distance > 0f && hit.distance < obstacleDistance)
                     {
-                        pointBlankEnemy = candidate.collider;
+                        obstacleDistance = hit.distance;
+                        nearestObstacle = candidate;
                     }
-
+                    continue;
+                }
+                if (!enemy.isActiveAndEnabled || enemy.IsDead)
+                {
                     continue;
                 }
 
-                if (candidate.distance < nearestDistance)
+                Vector3 offset = candidate.bounds.center - transform.position;
+                if (Vector3.Dot(offset.normalized, transform.forward) < 0.25f ||
+                    !HasClearStrike(candidate, enemy))
                 {
-                    nearestDistance = candidate.distance;
-                    nearestSwept = candidate.collider;
+                    continue;
+                }
+                if (offset.sqrMagnitude < enemyDistance)
+                {
+                    enemyDistance = offset.sqrMagnitude;
+                    nearestEnemy = candidate;
                 }
             }
 
-            // An enemy touching you is closer than anything the sweep can reach, so it wins.
-            return pointBlankEnemy != null ? pointBlankEnemy : nearestSwept;
+            return nearestEnemy != null ? nearestEnemy : nearestObstacle;
+        }
+
+        private bool HasClearStrike(Collider target, EnemyAI enemy)
+        {
+            Bounds bounds = target.bounds;
+            Vector3 point = bounds.center;
+            point.y = Mathf.Clamp(transform.position.y, bounds.min.y + 0.1f, bounds.max.y - 0.1f);
+            Vector3 direction = point - transform.position;
+            RaycastHit[] hits = Physics.RaycastAll(transform.position, direction.normalized,
+                direction.magnitude, ~0, QueryTriggerInteraction.Ignore);
+            Collider nearest = null;
+            float distance = float.PositiveInfinity;
+            foreach (RaycastHit hit in hits)
+            {
+                if (!BelongsToPlayer(hit.collider) && hit.distance < distance)
+                {
+                    nearest = hit.collider;
+                    distance = hit.distance;
+                }
+            }
+            return nearest == null || nearest.GetComponentInParent<EnemyAI>() == enemy;
+        }
+
+        private bool BelongsToPlayer(Collider candidate)
+        {
+            Transform root = playerRoot != null ? playerRoot : transform.root;
+            return candidate.transform == root || candidate.transform.IsChildOf(root);
+        }
+
+        private void ResetSwing()
+        {
+            if (swingCoroutine != null)
+            {
+                StopCoroutine(swingCoroutine);
+                swingCoroutine = null;
+            }
+            if (weaponVisual != null)
+            {
+                weaponVisual.localRotation = restRotation;
+            }
         }
 
         private IEnumerator SwingWeapon()
@@ -190,24 +208,20 @@ namespace SheltreSim.Combat
             }
 
             Quaternion swungRotation = restRotation * Quaternion.Euler(-60f, 0f, 0f);
-
-            float t = 0f;
-            while (t < swingDuration)
+            float outward = Mathf.Max(0.01f, swingDuration);
+            float inward = Mathf.Max(0.01f, returnDuration);
+            for (float elapsed = 0f; elapsed < outward; elapsed += Time.deltaTime)
             {
-                t += Time.deltaTime;
-                weaponVisual.localRotation = Quaternion.Slerp(restRotation, swungRotation, t / swingDuration);
+                weaponVisual.localRotation = Quaternion.Slerp(restRotation, swungRotation, elapsed / outward);
                 yield return null;
             }
-            weaponVisual.localRotation = swungRotation;
-
-            t = 0f;
-            while (t < returnDuration)
+            for (float elapsed = 0f; elapsed < inward; elapsed += Time.deltaTime)
             {
-                t += Time.deltaTime;
-                weaponVisual.localRotation = Quaternion.Slerp(swungRotation, restRotation, t / returnDuration);
+                weaponVisual.localRotation = Quaternion.Slerp(swungRotation, restRotation, elapsed / inward);
                 yield return null;
             }
             weaponVisual.localRotation = restRotation;
+            swingCoroutine = null;
         }
     }
 }

@@ -144,3 +144,12 @@ never rescinded, to keep building this way:
   the middle of the screen (crosshair, interact prompt) it sits on top of whatever modal panel
   shares that space — same `sortingOrder 0`, incidental winner. That is the same bug as M9's
   unclickable Eat button, one canvas over.
+- **Art goes through `ArtSource/` and `M16ArtPass`, never into the milestone builders.** M10/M12 derive
+  placement from seeded draws and renderer bounds, so a visual edit there moves the map. New asset:
+  add a script per `ArtSource/ASSET_SPEC.md`, map it in `M16ArtPass`. Only one process can hold the
+  Unity project, so art agents must run Blender only.
+- **You can see the game.** `-batchmode` without `-nographics` renders on the real GPU:
+  `-executeMethod SheltreSim.EditorTools.ArtCapture.RebuildVerifyAndCapture`, then read
+  `ArtSource/previews/ingame_*.png` at full size. Don't use `montage` sheets to judge gradients: it
+  bands them. This still isn't Play Mode, and the Play Mode hang lesson above stands. On this machine
+  the project is at `/home/dvojkaa/git/ShelterSim` and Unity under `/home/dvojkaa/Unity/Hub/Editor/`.

@@ -2,7 +2,7 @@
 
 Unity 6000.6.8f1 is already installed on this machine and the full project (scene,
 prefabs, generated assets) is committed and verified via headless batch mode — 0 compile
-errors, 0 exceptions, all milestones' setup tools (M1 through M10) run clean end to end.
+errors, 0 exceptions, all milestones' setup tools (M1 through M15) run clean end to end.
 What's **not** verified is actual Play Mode gameplay (movement feel, HUD rendering, a real
 save/load round-trip) — that needs a human. This file is for that pass.
 
@@ -10,7 +10,7 @@ save/load round-trip) — that needs a human. This file is for that pass.
 
 1. Open the project in Unity Hub (point it at this folder) or directly via:
    ```
-   /home/vojta/Unity/Hub/Editor/6000.6.8f1/Editor/Unity -projectpath /home/vojta/git/SheltreSim
+   /home/dvojkaa/Unity/Hub/Editor/6000.6.8f1/Editor/Unity -projectpath /home/dvojkaa/git/ShelterSim
    ```
 2. Wait for scripts to compile (Console should show 0 errors — if Unity prompts about the
    Input System backend, accept/restart).
@@ -25,8 +25,8 @@ save/load round-trip) — that needs a human. This file is for that pass.
    `Tools > SheltreSim > ...` still has each milestone's tool individually, or run the whole
    chain without Play via:
    ```
-   /home/vojta/Unity/Hub/Editor/6000.6.8f1/Editor/Unity -batchmode -nographics \
-     -projectPath /home/vojta/git/SheltreSim -executeMethod SheltreSim.EditorTools.BatchSetupAll.RunAll -quit
+   /home/dvojkaa/Unity/Hub/Editor/6000.6.8f1/Editor/Unity -batchmode -nographics \
+     -projectPath /home/dvojkaa/git/ShelterSim -executeMethod SheltreSim.EditorTools.BatchSetupAll.RunAll -quit
    ```
 
 ## Full playtest checklist (press Play and work through this)
@@ -44,9 +44,8 @@ save/load round-trip) — that needs a human. This file is for that pass.
   Crate, Water Collector, Generator. **R** rotates 90°.
 - Ghost tints green (clear) / red (overlapping something). Left-click places when green.
 - **Escape** exits build mode.
-- Of the 5 new pieces, Bed/Storage Crate/Generator are still placeable decoration only (no
-  sleeping, no real power generation). Workbench and Water Collector gained real function in
-  M11 — see that section below.
+- Bed heals at a food/water cost; Workbench crafts blades; Water Collector produces water.
+  Storage Crate and Generator remain decorative: no storage capacity or power system is designed.
 - Pieces now rest ON the surface you're aiming at rather than sinking half-way into it —
   the ghost is offset up by half its height. (An older note here warned that a placed Floor
   Tile sinks into the floor; that was fixed along with the "everything's always red" bug.)
@@ -109,11 +108,11 @@ save/load round-trip) — that needs a human. This file is for that pass.
   fixing it means re-rolling the loot seed and re-checking all 38 crate placements.
 
 **Apocalypse trigger & full loop (M7)**
-- A small red button-like cube ("ApocalypseButton") sits inside the bunker near the north wall.
+- A red button on a wall-mounted panel ("ApocalypseButton") sits inside the bunker near the north wall.
   Look at it, press **E** — Console logs "Sirens wail in the distance...", then ~2s later
   "The ground shakes. It's begun.", then ~1s later survival ticking starts for real (HUD bars
-  begin draining — faster than before a balance pass, expect hunger/thirst to empty within
-  ~60-90s and health to follow within another ~20s if you do nothing).
+  begin draining — thirst empties in about 4 minutes, hunger in 5.5 minutes,
+  with roughly 6 minutes total survival if you do nothing).
 - Pressing **E** on it again afterward should be a harmless no-op (logs "Already triggered"
   via the prompt, or a warning if interacted with anyway).
 - Let health reach 0 (wait it out, or let a raider finish you off) and confirm you actually
@@ -315,3 +314,74 @@ save/load round-trip) — that needs a human. This file is for that pass.
   apocalypse too (deliberate restraint, not a missed requirement).
 - Render pipeline ended up Built-in, not URP as originally planned — doesn't matter visually
   for grey-box primitives; code was made pipeline-agnostic rather than converting the project.
+
+## Latest regression and playtest pass
+
+Run `Tools > SheltreSim > Verify Current Game` for scene wiring, recipe accounting and physical
+loot-visibility checks. For a clean rebuild in a disposable project copy, batch method
+`SheltreSim.EditorTools.ReleaseVerification.RebuildAndVerify` runs the full construction chain
+and checks it. `SheltreSim.EditorTools.ReleaseVerification.BuildLinuxPlayer` builds the Linux
+player from the current scene. Scene regeneration overwrites generated content: preserve your
+hand edits or work in a copy first.
+
+The Linux executable accepts `-batchmode -nographics --smoke-test` for a finite runtime regression
+run using temporary save snapshots. Check for `[RuntimeSmokeTest] ALL CHECKS PASSED` and exit 0.
+This uses the standalone player; it does not force the Editor into headless Play Mode.
+
+Human checks after this pass:
+
+- Start a fresh session and follow the HUD guidance through gathering, building and apocalypse.
+- Pause, open inventory, die, load and restart in different orders. Exactly one modal should own
+  the cursor, and loading a live save should restore movement and hide the death screen.
+- Search two crates in the same ruin, save, search another, then load: each crate should restore
+  its own searched state. Repeat load twice and confirm furniture is not duplicated.
+- Save a nearly regrown node and partially filled collector; loading should preserve progress.
+- Try sleeping at full health, with insufficient food/water, and near a live raider. Rejected
+  rests must not spend resources or grant health.
+- Build near walls and surface edges; move the camera just before clicking. Red means blocked,
+  yellow means insufficient materials, green means clear and affordable. Ghost collectors must
+  never accumulate usable water.
+- Fight at point blank, with an enemy behind you, and with a wall between you. Provoke a raider
+  around a ruin and back to the bunker door. Confirm attacks do not pass through solid walls.
+- Kill a raider, stay near its spawn and wait: it must not materialize inside the player or a
+  newly built wall. When it returns, its appearance and combat settings should match.
+- Check HUD/inventory legibility at 1280×720 and 1920×1080 and confirm consumable buttons remain
+  reachable after scrolling. Check the standalone executable as well as Editor Play Mode.
+
+## M16 art pass: what a human should check
+
+Automated checks passed: scene colliders are compared before and after the art pass, the release
+checks ran, and the built Linux player passed its smoke test with and without graphics. Screenshots
+come from `SheltreSim.EditorTools.ArtCapture.RebuildVerifyAndCapture` (`-batchmode` WITHOUT
+`-nographics`, written to `ArtSource/previews/ingame_*.png`).
+
+`./Builds/Linux/SheltreSim.x86_64 -batchmode --art-probe <folder> -logFile <path>` (also without
+`-nographics`) checks the art in the running player and must log
+`[ArtRuntimeProbe] ALL CHECKS PASSED` and exit 0. It covers raiders walking with real AI movement,
+swinging legs, feet on the ground, damage flash, a killed raider respawning with the same look and
+behaviour, all five node types disappearing and returning, the door model swinging, and shaders
+surviving into the build (screenshots in `<folder>`). It caps itself at 60 fps: above about 2500 fps,
+which an uncapped batch run reaches, per-frame raider moves fall below
+`CharacterController.minMoveDistance` and are dropped, so raiders stand still. Normal launches use the
+Ultra quality level with vSync on.
+
+None of that is a real play session, so check:
+
+- Raiders walk with swinging legs and stop swinging when they stand still. Feet stay on the ground.
+- Hit a raider: it flashes white for a moment, then returns to its normal look.
+- Raider weapon stays in the hand during the attack swing.
+- First-person club looks right while idle and swinging, including next to a wall.
+- Harvest each node type to depletion: the whole model disappears, then returns on regrow.
+- Aim at the lower part of a scrap pile. Its collider is the old floating sphere (y 0.4-1.2), so a
+  ray at the very bottom can miss it. Report this if it feels wrong.
+- Build mode: all 7 pieces preview green/red/yellow, place at the expected height, and walls and
+  floors line up edge to edge. Bed, Workbench, Water Collector and Crate still work when placed.
+- Walk the ruins and around the cars: nothing visible should stop you, and nothing should stop you
+  where no model is. Trees keep their old wide collider, which is noticeably wider than the new
+  thinner trunk.
+- Frame rate on the far ruins with fog, and whether the fog distance feels right.
+- An old save should still load, since IDs are unchanged. Building_10's crate in its doorway is
+  still there (known from M12).
+
+To rebuild one asset: `ArtSource/build.sh ArtSource/assets/<id>.py`, then re-run the setup chain.
+Blender lives at `/mnt/Apps/blender-5.2.3-linux-x64/blender`; adjust `ArtSource/build.sh` elsewhere.

@@ -1,215 +1,140 @@
-using System;
+using SheltreSim.Saving;
+using SheltreSim.Survival;
+using SheltreSim.UI;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace SheltreSim.Core
 {
-    /// <summary>
-    /// Escape toggles a Resume/Quit panel when the player isn't in build mode (build mode
-    /// already owns Escape for CancelBuild — this defers to it rather than double-firing on
-    /// the same keypress). First interactive (clickable) UI in the project, so this is also
-    /// responsible for creating the scene's EventSystem if one doesn't exist yet — kept
-    /// self-sufficient (doesn't rely on a sibling editor tool to set that prerequisite up),
-    /// so this component works correctly however it gets added to a scene.
-    /// </summary>
     public class PauseMenu : MonoBehaviour
     {
         public SheltreSim.Building.BuildModeController buildModeController;
-
-        /// <summary>
-        /// M9 QC — wired by M8MenusSetup. The inventory panel became modal in M9 (it takes
-        /// the cursor and freezes time so its Eat button is clickable at all), so Escape has
-        /// to back out of it rather than open a second modal on top: otherwise Resume would
-        /// unfreeze time and re-lock the cursor while the inventory was still on screen.
-        /// </summary>
         public SheltreSim.Items.InventoryUI inventoryUi;
+        public bool IsOpen { get; private set; }
 
         private InputActionMap map;
         private InputAction togglePause;
         private GameObject panel;
-        private bool isOpen;
+        private SaveManager saveManager;
+        private SurvivalStats stats;
+        private Text statusLabel;
+        private Button saveButton;
+        private Button loadButton;
+        private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
 
         private void Awake()
         {
-            EnsureEventSystem();
             BuildUI();
-
             map = new InputActionMap("Pause");
-            // Keyboard-only, same deliberate choice SaveInputActions makes for F5/F9 — this is
-            // a meta/UI action, not core gameplay, so skipping a gamepad binding is acceptable.
             togglePause = map.AddAction("TogglePause", InputActionType.Button);
             togglePause.AddBinding("<Keyboard>/escape");
         }
 
         private void OnEnable()
         {
-            map.Enable();
             togglePause.performed += OnTogglePause;
+            GameMessageBus.OnMessage += OnMessage;
+            map.Enable();
         }
 
         private void OnDisable()
         {
             togglePause.performed -= OnTogglePause;
+            GameMessageBus.OnMessage -= OnMessage;
             map.Disable();
-            map.Dispose();
+            CloseIfOpen();
         }
+
+        private void OnDestroy() => map?.Dispose();
 
         private void OnTogglePause(InputAction.CallbackContext context)
         {
-            if (buildModeController != null &&
-                (buildModeController.IsBuildModeActive || buildModeController.ConsumedCancelThisFrame))
+            if (IsOpen)
             {
-                // Build mode's own Escape binding (CancelBuild) owns this keypress. The second
-                // test matters because both action maps get the same keypress in the same frame
-                // with no guaranteed callback order: if CancelBuild ran first, IsBuildModeActive
-                // is already false here and this menu would pop open on the very press that was
-                // meant to leave build mode. See BuildModeController.ConsumedCancelThisFrame.
+                CloseIfOpen();
                 return;
             }
-
+            // A build cancellation and this callback may arrive in either order.
+            if (buildModeController != null &&
+                (buildModeController.IsBuildModeActive || buildModeController.ConsumedCancelThisFrame)) return;
             if (inventoryUi != null && inventoryUi.IsOpen)
             {
-                // Inventory is the thing currently on screen and currently owning timeScale /
-                // the cursor. Escape closes it (and only it) — single owner at all times.
                 inventoryUi.CloseIfOpen();
                 return;
             }
+            if (ModalUI.IsOpen) return;
 
-            if (isOpen)
-            {
-                ClosePause();
-            }
-            else
-            {
-                OpenPause();
-            }
-        }
+            if (stats == null) stats = Object.FindFirstObjectByType<SurvivalStats>();
+            if (stats != null && stats.IsDead) return;
+            if (!ModalUI.TryOpen(this, CloseIfOpen)) return;
 
-        private void OpenPause()
-        {
-            isOpen = true;
+            IsOpen = true;
             panel.SetActive(true);
-            Time.timeScale = 0f;
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            if (saveManager == null) saveManager = Object.FindFirstObjectByType<SaveManager>();
+            RefreshSaveButtons();
+            statusLabel.text = saveManager != null && saveManager.HasSave
+                ? "A saved game is available. Loading replaces your current progress."
+                : "No saved game yet. Save here or press F5 during play.";
         }
 
-        private void ClosePause()
+        public void CloseIfOpen()
         {
-            isOpen = false;
+            if (!IsOpen) return;
+            IsOpen = false;
             panel.SetActive(false);
-            Time.timeScale = 1f;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            ModalUI.Close(this);
         }
 
-        private void EnsureEventSystem()
+        private void OnMessage(string message)
         {
-            if (UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null)
-            {
-                return;
-            }
+            if (!IsOpen) return;
+            statusLabel.text = message;
+            RefreshSaveButtons();
+        }
 
-            GameObject eventSystemObject = new GameObject("EventSystem");
-            eventSystemObject.AddComponent<EventSystem>();
-            eventSystemObject.AddComponent<InputSystemUIInputModule>();
+        private void RefreshSaveButtons()
+        {
+            saveButton.interactable = saveManager != null && (stats == null || !stats.IsDead);
+            loadButton.interactable = saveManager != null && saveManager.HasSave;
         }
 
         private void BuildUI()
         {
-            // Awake runs both when an editor tool adds this component (at edit-time, saved
-            // into the scene) and again when Play Mode actually starts (fresh scene load) -
-            // without this guard that leaves two stacked canvases, same issue SurvivalHUD and
-            // InventoryUI guard against elsewhere in this project.
-            Transform stale = transform.Find("PauseCanvas");
-            if (stale != null)
-            {
-                DestroyImmediate(stale.gameObject);
-            }
+            Canvas canvas = GameUI.CreateCanvas(transform, "PauseCanvas", 100, true);
+            panel = GameUI.Backdrop(canvas.transform, "PausePanel");
+            Transform card = GameUI.Panel(panel.transform, "Card", new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 680f), GameUI.PanelColor, true).transform;
+            GameUI.Label(card, "Title", "PAUSED", TopLeft, TopLeft, new Vector2(32f, -28f),
+                new Vector2(896f, 50f), 38, GameUI.Accent, bold: true);
+            GameUI.Label(card, "Subtitle", "Take a breath. The world is paused.", TopLeft, TopLeft,
+                new Vector2(32f, -88f), new Vector2(896f, 30f), 20, GameUI.Muted);
 
-            GameObject canvasObject = new GameObject("PauseCanvas", typeof(RectTransform));
-            canvasObject.transform.SetParent(transform, false);
+            GameUI.Button(card, "ResumeButton", "Resume  /  Esc", TopLeft, TopLeft,
+                new Vector2(32f, -150f), new Vector2(270f, 54f), CloseIfOpen, true);
+            saveButton = GameUI.Button(card, "SaveButton", "Save game  /  F5", TopLeft, TopLeft,
+                new Vector2(32f, -218f), new Vector2(270f, 54f), () => { saveManager?.TrySave(); });
+            loadButton = GameUI.Button(card, "LoadButton", "Load saved game  /  F9", TopLeft, TopLeft,
+                new Vector2(32f, -286f), new Vector2(270f, 54f), () => { saveManager?.TryLoad(); });
+            GameUI.Button(card, "QuitButton", "Quit", TopLeft, TopLeft,
+                new Vector2(32f, -354f), new Vector2(270f, 54f), QuitGame);
 
-            Canvas canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            // SurvivalHUD and InventoryUI each build their own independent overlay canvas and
-            // all three default to sortingOrder 0, where draw order between root canvases is
-            // incidental. This one is the modal, so pin it on top rather than leaving it to
-            // chance — the inventory panel in particular occupies the same centre of screen as
-            // the Resume/Quit buttons.
-            canvas.sortingOrder = 100;
-
-            CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-
-            canvasObject.AddComponent<GraphicRaycaster>();
-
-            panel = new GameObject("PausePanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            panel.transform.SetParent(canvasObject.transform, false);
-
-            RectTransform panelRect = panel.GetComponent<RectTransform>();
-            panelRect.anchorMin = Vector2.zero;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.offsetMin = Vector2.zero;
-            panelRect.offsetMax = Vector2.zero;
-
-            Image panelImage = panel.GetComponent<Image>();
-            panelImage.color = new Color(0f, 0f, 0f, 0.8f);
-
-            CreateLabel(panel.transform, "Title", "Paused", new Vector2(0f, 150f), 36);
-            CreateButton(panel.transform, "ResumeButton", "Resume", new Vector2(0f, 20f), ClosePause);
-            CreateButton(panel.transform, "QuitButton", "Quit", new Vector2(0f, -60f), QuitGame);
-
+            GameUI.Label(card, "ControlsHeading", "FIELD CONTROLS", TopLeft, TopLeft,
+                new Vector2(350f, -150f), new Vector2(560f, 30f), 21, GameUI.Accent, bold: true);
+            GameUI.Label(card, "Controls",
+                "WASD   Move     /     Mouse   Look\nSpace   Jump     /     Shift   Sprint\nE   Interact     /     Left click   Melee\nI or Tab   Inventory and supplies\nB   Build mode     /     Wheel   Choose piece\nR   Rotate     /     Left click   Place\nEscape   Leave build mode / close menu\nF5   Quick save     /     F9   Quick load",
+                TopLeft, TopLeft, new Vector2(350f, -196f), new Vector2(578f, 240f), 20);
+            statusLabel = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
+                new Vector2(32f, -462f), new Vector2(896f, 60f), 19, GameUI.Accent);
+            GameUI.Label(card, "Advice",
+                "Prepare supplies and a Water Collector before using the red bunker console.\nFood and water stay full during preparation; raiders can still hurt you.\nAfter the alarm, scavenge, return home, eat, drink and rest. Save regularly.",
+                TopLeft, TopLeft, new Vector2(32f, -554f), new Vector2(896f, 96f), 19, GameUI.Muted);
             panel.SetActive(false);
-        }
-
-        private static void CreateLabel(Transform parent, string name, string text, Vector2 anchoredPosition, int fontSize)
-        {
-            GameObject labelObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            labelObject.transform.SetParent(parent, false);
-
-            RectTransform rect = labelObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(400f, 60f);
-
-            Text label = labelObject.GetComponent<Text>();
-            label.text = text;
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = fontSize;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-        }
-
-        private static void CreateButton(Transform parent, string name, string label, Vector2 anchoredPosition, Action onClick)
-        {
-            GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-            buttonObject.transform.SetParent(parent, false);
-
-            RectTransform rect = buttonObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(220f, 50f);
-
-            Image buttonImage = buttonObject.GetComponent<Image>();
-            buttonImage.color = new Color(0.25f, 0.25f, 0.25f);
-
-            Button button = buttonObject.GetComponent<Button>();
-            button.onClick.AddListener(() => onClick());
-
-            CreateLabel(buttonObject.transform, name + "_Label", label, Vector2.zero, 20);
         }
 
         private static void QuitGame()
         {
+            ModalUI.DismissCurrent();
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else

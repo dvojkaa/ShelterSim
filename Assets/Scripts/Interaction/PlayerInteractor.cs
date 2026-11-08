@@ -22,6 +22,10 @@ namespace SheltreSim.Interaction
 
         public void Initialize(InputAction action)
         {
+            if (interactAction != null)
+            {
+                interactAction.performed -= OnInteractPerformed;
+            }
             interactAction = action;
             if (interactAction != null)
             {
@@ -37,11 +41,24 @@ namespace SheltreSim.Interaction
             }
         }
 
+        private void OnDisable()
+        {
+            focused = null;
+            lastLoggedPrompt = null;
+            survivalHud?.SetInteractPrompt(string.Empty);
+        }
+
         private void Update()
+        {
+            if (Time.timeScale == 0f) return;
+            RefreshFocus();
+        }
+
+        private void RefreshFocus()
         {
             IInteractable hitInteractable = null;
 
-            if (Physics.Raycast(transform.position, transform.forward, out RaycastHit hit, interactRange, interactableMask))
+            if (Physics.Raycast(transform.position, transform.forward, out RaycastHit hit, interactRange, interactableMask, QueryTriggerInteraction.Ignore))
             {
                 hitInteractable = hit.collider.GetComponent<IInteractable>();
                 if (hitInteractable == null)
@@ -90,11 +107,14 @@ namespace SheltreSim.Interaction
             // Collector, opens a door, or fires M7's one-way apocalypse trigger — aimed at
             // whatever the frozen view happened to be pointing at. Build mode is not gated
             // here: it doesn't touch timeScale and interacting during it was already possible.
-            if (Time.timeScale == 0f)
+            if (!isActiveAndEnabled || Time.timeScale == 0f)
             {
                 return;
             }
 
+            // Resolve again at keypress time: the previous frame's target may have moved,
+            // been depleted, or been replaced by loading a save.
+            RefreshFocus();
             focused?.Interact(gameObject);
         }
     }

@@ -4,7 +4,7 @@ A small first-person bunker-builder and survival game. Build out a bunker, trigg
 apocalypse when you're ready, then survive inside it while scavenging resources from the
 irradiated world outside — all before the raiders find you.
 
-Think *Fallout* scaled down to a weekend-sized project: grey-box visuals, build, scavenge,
+Think *Fallout* scaled down to a weekend-sized project: stylised low-poly visuals, build, scavenge,
 bash the occasional raider, and endure. The original outdoor area is still entirely hand-placed;
 M10 added a much larger scavenging zone beyond it that uses seeded (deterministic, reproducible)
 random placement for its buildings, cars, and loot — see Known limitations below for exactly
@@ -12,9 +12,9 @@ what "random" means here.
 
 ## Status
 
-**Prototype — the original 7 planned milestones plus three rounds of playtester-driven
-follow-up (M8-M10).** Built with heavy AI assistance (Claude), verified to compile and run
-cleanly via headless Unity batch-mode automation after every change. See
+**Playable prototype — M1–M15, followed by a gameplay and reliability pass.** Built with AI
+assistance. Construction checks and opt-in standalone regression tests complement human
+playtesting; passing compilation alone does not prove gameplay correctness. See
 [`DESIGN_NOTES.md`](DESIGN_NOTES.md) for the full build log and every design decision made
 along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone playtest checklist.
 
@@ -43,12 +43,14 @@ along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone playtest 
 | M8 | Pause menu, inventory screen ("I"), melee combat with a procedural weapon swing, and starting furniture in the bunker |
 | M9 | More resource variety (trees, stone, iron ore) and a food source (blueberry bushes) you can eat from the inventory screen to recover hunger, plus a read-only recipe/crafting list in that same screen. The inventory is a modal panel now — it frees the cursor and freezes the game while open, same as the pause menu |
 | M10 | A second, much larger wasteland zone (~24,000m², ~17x the original outdoor area) beyond the first, with 12 lootable building shells and 15 lootable cars scattered via seeded random placement. 38 loot crates roll (once, deterministically) into Wood/Scrap Metal/Stone/Iron Ore/Blueberries/Water/a First Aid Kit/a weapon upgrade, or nothing (see M12 — the empty-crate rate was cut right back in the loot rebalance). Water (drink) and First Aid Kits (heal) get their own inventory buttons alongside Eat; a weapon upgrade item permanently boosts melee damage when Equipped |
-| M11 | The Workbench and Water Collector build pieces actually do something now. Workbench: press E to craft a Makeshift Blade (2 Scrap Metal + 2 Wood) — the same weapon-upgrade item M10 made lootable. Water Collector: passively accumulates 1 Water every 30s (caps at 5), press E to collect |
+| M11 | The Workbench and Water Collector build pieces actually do something now. Workbench: press E to craft a Makeshift Blade (2 Scrap Metal + 2 Wood) — the same weapon-upgrade item M10 made lootable. Water Collector: passively accumulates 1 Water every 90s (caps at 5), press E to collect |
 | M12 | A one-click **▶ START GAME** menu item that builds everything and presses Play. Raiders now have real collision (they're blocked by walls/buildings/cars instead of walking through them) and will force open a closed bunker door and keep chasing rather than giving up partway home. Loot crates are more generous (85% chance of contents, 1-2 varied item stacks per hit instead of always one). The big M10 wasteland is no longer empty/pressure-free — trees, stone, iron ore, food bushes and 8 more raiders are scattered through it, so the whole map reads as one mixed environment instead of "nature zone, then city zone." Interaction prompts, loot/craft/combat results now show on screen (crosshair + prompt + message feed) instead of being Console-only |
 | M13-M15 | An Opus-model review's full suggestion list, implemented in one round: a "You Died" screen with a Restart button; survival decay retuned to ~6 minutes of do-nothing survival instead of ~79 seconds; a build-mode HUD readout showing the selected piece's cost and affordability; save/load now covers searched loot crates, depleted resource nodes (which also regrow over time instead of staying gone forever), a Water Collector's pending water, and the current game phase; raiders respawn 90s after dying and flash white when hit; the Bed now lets you sleep (heal, at the cost of some hunger/thirst, blocked if a raider's nearby). Plus a full visual pass — raiders, the player's weapon, trees/rocks/bushes/rubble, the bunker, ruined buildings, cars, all 7 build pieces, loot crates, and the apocalypse button all gained extra compound-primitive detail (still grey-box, just less flat) |
 
-All world objects are flat-colored primitives (still grey-box by design, just not all the same
-grey/white anymore) — generated entirely in code, no imported art assets.
+| M16 | Full art pass: 49 low-poly Blender models and 7 tiling textures replace the grey-box primitives in place: furniture, doors, trees, rocks, scrap, wrecked cars, ruins, raiders with a walk cycle, and both weapons, plus dusty sky, lighting and fog. Positions, colliders and save IDs are unchanged |
+
+Art is generated by code: Python scripts in `ArtSource/` run in headless Blender and export FBX
+models into `Assets/Art/`. See `ArtSource/ASSET_SPEC.md` for the spec and how to rebuild an asset.
 
 ## Controls
 
@@ -65,6 +67,9 @@ grey/white anymore) — generated entirely in code, no imported art assets.
 | Place piece | Left click |
 | Cancel build mode | Escape |
 | Save / Load | F5 / F9 |
+| Inventory / consumables / recipe reference | I |
+| Melee attack | Left click outside build mode |
+| Pause / resume | Escape outside build mode |
 
 ## Tech
 
@@ -77,9 +82,10 @@ grey/white anymore) — generated entirely in code, no imported art assets.
 
 Open the project in Unity Hub and press Play — the scene already has everything wired up. If
 you ever need to regenerate it from scratch, the fastest way is **`Tools > SheltreSim > ▶ START
-GAME (build everything + Play)`** — one click runs all 12 milestones' setup tools in order and
-drops you straight into Play mode, no need to click through them individually. Each milestone
-also still has its own menu item under `Tools > SheltreSim` if you want to run just one. See
+GAME (build everything + Play)`** — one click runs all milestones' setup tools in order and
+drops you straight into Play mode, no need to click through them individually. Use the full chain when regenerating: individual older setup tools can overwrite later
+features. `Tools > SheltreSim > Verify Current Game` checks wiring, economy, and loot geometry;
+`Build Linux Player` creates `Builds/Linux/SheltreSim.x86_64` from the current game scene. See
 [`SETUP.md`](SETUP.md) for the exact steps and a full playtest checklist.
 
 ## Known limitations
@@ -107,3 +113,31 @@ has resource nodes and raiders scattered through it alongside the buildings/cars
 its far end and getting back may still not be survivable on the current decay rates. All
 deliberate scope decisions for a first prototype, not oversights — see `DESIGN_NOTES.md` for the
 reasoning behind each one.
+
+## Reliability and usability pass
+
+Save/load distinguishes identically named crates, preserves partial resource/water timers,
+restores camera pitch, and safely recovers from death. Resting requires enough food and water;
+preview furniture cannot act as real furniture. Building checks the current target when clicked,
+uses a practical placement range, and shows yellow when a clear location is unaffordable.
+Recipes combine repeated material costs and spend atomically. Generated ruins keep loot clear
+of their entrance lanes without re-rolling the world seed.
+
+The standalone player supports an optional regression run:
+
+```sh
+./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --smoke-test -logFile /tmp/sheltersim-smoke.log
+```
+
+This runs the real scene lifecycle and checks save/load and death recovery using temporary
+snapshots, without modifying your normal save. It exits with status 0 on success. Normal launches
+skip this diagnostic entirely. See `SETUP.md` for the interactive checks that remain necessary.
+
+A second opt-in run checks the M16 art in the real player. It needs a GPU, so leave out `-nographics`:
+
+```sh
+./Builds/Linux/SheltreSim.x86_64 -batchmode --art-probe /tmp/sheltersim-art -logFile /tmp/sheltersim-art.log
+```
+
+It writes screenshots to the given folder, logs `[ArtRuntimeProbe] ALL CHECKS PASSED`, and exits with
+status 0 on success.

@@ -1,5 +1,6 @@
 using SheltreSim.Interaction;
 using SheltreSim.Items;
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Building
@@ -19,23 +20,33 @@ namespace SheltreSim.Building
         // covering ~280% of thirst drain instead of the intended "roughly covers it alone,
         // two is comfortable" — 90s/unit puts one collector's 35-thirst-per-90s at ~93% of the
         // new drain rate, keeping the same relative balance as before the rebalance.
-        public float secondsPerUnit = 90f;
-        public int maxStored = 5;
+        [Min(0.1f)] public float secondsPerUnit = 90f;
+        [Min(0)] public int maxStored = 5;
 
         private float timer;
         private int stored;
 
         public string InteractPrompt => stored > 0
             ? $"Press E to collect {stored} Water"
-            : "Collecting water... (none ready yet)";
+            : $"Collecting water... ({Mathf.CeilToInt(Mathf.Max(0f, Interval - timer))}s)";
 
         /// <summary>Exposed for SaveManager, which persists this as an extra field on the piece's PlacedPieceData.</summary>
         public int Stored => stored;
+        public float CollectionElapsed => timer;
+        private float Interval => Mathf.Max(0.1f, secondsPerUnit);
 
         /// <summary>Restores save-loaded state. Called by SaveManager right after this piece is re-Instantiated.</summary>
         public void SetStored(int value)
         {
-            stored = Mathf.Clamp(value, 0, maxStored);
+            RestoreState(value, 0f);
+        }
+
+        public void RestoreState(int value, float collectionElapsed)
+        {
+            stored = Mathf.Clamp(value, 0, Mathf.Max(0, maxStored));
+            timer = stored < maxStored && !float.IsNaN(collectionElapsed) && !float.IsInfinity(collectionElapsed)
+                ? Mathf.Clamp(collectionElapsed, 0f, Interval)
+                : 0f;
         }
 
         private void Update()
@@ -47,9 +58,9 @@ namespace SheltreSim.Building
 
             timer += Time.deltaTime;
 
-            while (timer >= secondsPerUnit && stored < maxStored)
+            while (timer >= Interval && stored < maxStored)
             {
-                timer -= secondsPerUnit;
+                timer -= Interval;
                 stored++;
             }
 
@@ -61,13 +72,17 @@ namespace SheltreSim.Building
 
         public void Interact(GameObject interactor)
         {
+            if (interactor == null)
+            {
+                return;
+            }
             if (stored <= 0)
             {
-                Debug.Log("Nothing collected yet.");
+                GameMessageBus.Post("No water is ready yet.");
                 return;
             }
 
-            if (waterResource == null)
+            if (waterResource == null || string.IsNullOrEmpty(waterResource.id))
             {
                 Debug.LogError($"WaterCollectorPiece on '{name}' has no waterResource assigned.");
                 return;
@@ -86,7 +101,7 @@ namespace SheltreSim.Building
             }
 
             inventory.Add(waterResource.id, stored);
-            Debug.Log($"Collected {stored} Water.");
+            GameMessageBus.Post($"Collected {stored} Water.");
             stored = 0;
         }
     }
