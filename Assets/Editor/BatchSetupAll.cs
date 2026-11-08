@@ -11,6 +11,21 @@ namespace SheltreSim.EditorTools
     /// </summary>
     public static class BatchSetupAll
     {
+        /// <summary>
+        /// The one-click entry point: builds the whole game (every milestone, in order) and
+        /// then presses Play, so a human doesn't have to click through 11 separate Tools menu
+        /// items first. Only safe to call from an interactive Editor session with a real
+        /// display — forcing EditorApplication.isPlaying from -batchmode -nographics hangs
+        /// indefinitely (see CLAUDE.md's hard-won lessons), so this entry point does NOT run
+        /// under BatchSetupAll's own headless verification path; use RunAll directly for that.
+        /// </summary>
+        [MenuItem("Tools/SheltreSim/▶ START GAME (build everything + Play)")]
+        public static void StartGame()
+        {
+            RunAll();
+            EditorApplication.isPlaying = true;
+        }
+
         public static void RunAll()
         {
             Debug.Log("[BatchSetupAll] Building M1 scene...");
@@ -39,6 +54,13 @@ namespace SheltreSim.EditorTools
             // InventoryUI, same ordering reason as M9 above).
             Debug.Log("[BatchSetupAll] Setting up M10 consumables and loot...");
             M10ConsumablesAndLootSetup.SetupConsumablesAndLoot();
+
+            // Must run after M9 (needs the Wood/Stone/IronOre/Berries resource assets), M10
+            // map expansion (needs ExpandedWasteland + its buildings/cars already placed, so
+            // this tool can read their real bounds) and M10 consumables/loot (so LootSpawn
+            // markers are already gone by the time this tool scans the zone).
+            Debug.Log("[BatchSetupAll] Setting up M12 biome blend...");
+            M12BiomeBlendSetup.SetupBiomeBlend();
 
             // Must run after M10ConsumablesAndLootSetup (needs Water/WeaponUpgrade to exist)
             // and after M2 (needs the Workbench/Water Collector prefabs to exist).

@@ -1,6 +1,7 @@
 using SheltreSim.Building;
 using SheltreSim.Combat;
 using SheltreSim.Core;
+using SheltreSim.Interaction;
 using SheltreSim.Items;
 using SheltreSim.Player;
 using UnityEditor;
@@ -59,6 +60,7 @@ namespace SheltreSim.EditorTools
             InventoryUI inventoryUi = SetupInventoryUI(player, inventory, buildController, meleeAttacker);
             SetupPauseMenu(buildController, inventoryUi);
             WireMeleeAttackerIntoSave(meleeAttacker);
+            WireInteractorIntoHud(cameraPivot);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
@@ -87,6 +89,35 @@ namespace SheltreSim.EditorTools
             }
 
             saveManager.meleeAttacker = meleeAttacker;
+        }
+
+        /// <summary>
+        /// Wires PlayerInteractor's on-screen prompt/crosshair/message feed to the HUD — added
+        /// alongside M11 since, until now, every interact prompt and gather/loot/craft/hit
+        /// result was Console-log only (see SurvivalHUD.SetInteractPrompt / GameMessageBus).
+        /// Done here, not in M1SceneBuilder or M3SurvivalSaveSetup, because this is the first
+        /// tool in the chain that runs after both PlayerInteractor (M1) and the HUD (M3) exist
+        /// — same reasoning as every other cross-system reference this file already wires.
+        /// Optional/null-checked: M8 should still work if M3 hasn't run.
+        /// </summary>
+        private static void WireInteractorIntoHud(Transform cameraPivot)
+        {
+            PlayerInteractor interactor = cameraPivot.GetComponent<PlayerInteractor>();
+            if (interactor == null)
+            {
+                Debug.LogError("No PlayerInteractor found on CameraPivot — run Tools > SheltreSim > Build M1 Bunker Scene first.");
+                return;
+            }
+
+            GameObject hud = GameObject.Find("HUD");
+            SheltreSim.Survival.SurvivalHUD survivalHud = hud != null ? hud.GetComponent<SheltreSim.Survival.SurvivalHUD>() : null;
+            if (survivalHud == null)
+            {
+                Debug.LogWarning("No SurvivalHUD found — on-screen prompts/messages will fall back to Console-only. Run Tools > SheltreSim > Setup M3 Survival & Save first if you want them.");
+                return;
+            }
+
+            interactor.survivalHud = survivalHud;
         }
 
         private static void SetupPauseMenu(BuildModeController buildController, InventoryUI inventoryUi)

@@ -1,19 +1,34 @@
+using System.Collections.Generic;
+using System.Text;
 using SheltreSim.Interaction;
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Items
 {
+    /// <summary>One rolled item stack inside a loot crate.</summary>
+    [System.Serializable]
+    public struct LootEntry
+    {
+        public ResourceDefinition resource;
+        public int amount;
+    }
+
     /// <summary>
     /// A single-use searchable container (furniture, a car trunk, etc.) placed at a
     /// "LootSpawn" marker by the scene-population tool. Unlike ResourceNode, it isn't a
     /// repeatable/charge-limited gather point — it's searched exactly once, and the
-    /// outcome (empty or not) is pre-rolled externally via hasLoot/resource/amount rather
-    /// than decided by this component.
+    /// outcome (empty or not) is pre-rolled externally via hasLoot/entries rather than
+    /// decided by this component.
+    ///
+    /// Holds a LIST of entries (not a single resource/amount pair) since the M10 QC-era
+    /// loot rebalance lets one crate contain more than one item stack — a playtester
+    /// complaint ("10 crates, got 2 Water and nothing else") traced to crates handing out
+    /// at most one stack each, not just the empty-crate rate.
     /// </summary>
     public class LootContainer : MonoBehaviour, IInteractable
     {
-        public ResourceDefinition resource;
-        public int amount = 1;
+        public List<LootEntry> entries = new List<LootEntry>();
         public bool hasLoot = true;
 
         private bool searched;
@@ -26,15 +41,15 @@ namespace SheltreSim.Items
         {
             if (searched)
             {
-                Debug.Log("Already searched — nothing left.");
+                GameMessageBus.Post("Already searched — nothing left.");
                 return;
             }
 
             searched = true;
 
-            if (!hasLoot || resource == null)
+            if (!hasLoot || entries == null || entries.Count == 0)
             {
-                Debug.Log("Searched — found nothing.");
+                GameMessageBus.Post("Searched — found nothing.");
                 return;
             }
 
@@ -50,8 +65,25 @@ namespace SheltreSim.Items
                 return;
             }
 
-            inv.Add(resource.id, amount);
-            Debug.Log($"Found {amount} {resource.displayName}.");
+            StringBuilder found = new StringBuilder();
+            for (int i = 0; i < entries.Count; i++)
+            {
+                LootEntry entry = entries[i];
+                if (entry.resource == null || entry.amount <= 0)
+                {
+                    continue;
+                }
+
+                inv.Add(entry.resource.id, entry.amount);
+
+                if (found.Length > 0)
+                {
+                    found.Append(", ");
+                }
+                found.Append(entry.amount).Append(' ').Append(entry.resource.displayName);
+            }
+
+            GameMessageBus.Post(found.Length > 0 ? $"Found {found}." : "Searched — found nothing.");
         }
     }
 }

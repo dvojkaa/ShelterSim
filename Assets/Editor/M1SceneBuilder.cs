@@ -12,7 +12,21 @@ namespace SheltreSim.EditorTools
         private const float RoomSize = 6f;
         private const float WallHeight = 3f;
         private const float WallThickness = 0.2f;
-        private const float DoorGap = 1.2f;
+        /// <summary>
+        /// Width of the gap left in the south wall for the doorway. Was 1.2m for M1-M11,
+        /// which was sized for the player alone (CharacterController radius 0.35 — needs
+        /// ~0.86m of clear width including its 0.08 skinWidth) and left no room for anything
+        /// bulkier. M12 made raiders solid (EnemyAI drives a CharacterController now, radius
+        /// 0.5 → needs ~1.16m) and gave them a reason to walk through this doorway, which
+        /// turned the old number into a hard blocker: measured on the built scene, the open
+        /// door's bottleneck clear band was 1.04m — the swung-open leaf eats ~0.15m of the
+        /// gap — so a raider physically could not fit through the bunker's one entrance, and
+        /// "enemies can come in through the door" would have been false no matter how
+        /// correct InteractableDoor.ForceOpen and EnemyAI.TryBreakNearbyDoors were.
+        /// 1.8m leaves a measured 1.65m bottleneck: ~0.25m of slack per side for a raider
+        /// that steers in a straight line with no pathfinding to correct its approach angle.
+        /// </summary>
+        private const float DoorGap = 1.8f;
 
         [MenuItem("Tools/SheltreSim/Build M1 Bunker Scene")]
         public static void BuildScene()
@@ -58,7 +72,10 @@ namespace SheltreSim.EditorTools
             // around one vertical edge. "DoorHinge" sits at the left edge of the gap; the
             // visible door mesh is its child, offset by half the door's width, so rotating the
             // HINGE swings the mesh out of the doorway instead of spinning it on the spot.
-            const float doorWidth = 1.0f;
+            // Kept 0.2m narrower than DoorGap so the closed door reads as a door in a frame
+            // rather than a perfectly flush plug (unchanged proportion from the original
+            // 1.2m gap / 1.0m leaf).
+            const float doorWidth = DoorGap - 0.2f;
             GameObject doorHinge = new GameObject("DoorHinge");
             doorHinge.transform.position = new Vector3(-doorWidth / 2f, 1.1f, -half);
 

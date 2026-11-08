@@ -41,18 +41,25 @@ namespace SheltreSim.EditorTools
 
         // Candidate placement area for buildings/cars: inset from the perimeter walls and
         // from the connection seam so nothing spawns clipped into a wall or straddling the
-        // join with the original zone.
-        private const float PlaceMinX = -55f;
-        private const float PlaceMaxX = 55f;
-        private const float PlaceMinZ = -235f;
-        private const float PlaceMaxZ = -45f;
+        // join with the original zone. Internal (not private): M12BiomeBlendSetup reuses the
+        // exact same rectangle to scatter resource nodes/raiders within the same zone bounds.
+        internal const float PlaceMinX = -55f;
+        internal const float PlaceMaxX = 55f;
+        internal const float PlaceMinZ = -235f;
+        internal const float PlaceMaxZ = -45f;
 
         private const int BuildingCount = 12;
         private const int CarCount = 15;
 
         private const float BuildingWallHeight = 3f;
         private const float BuildingWallThickness = 0.2f;
-        private const float BuildingDoorGap = 1.2f;
+        // Widened from 1.2m for the same reason M1SceneBuilder.DoorGap was (see its comment):
+        // a raider's CharacterController is 1.0m across and needs ~1.16m of clear width with
+        // its skinWidth, so the original 1.2m opening admitted the 0.7m player and essentially
+        // nothing else. These ruins are where M12 put both the loot crates and 8 more raiders,
+        // so a chase has to be able to follow the player inside one. No door leaf here, so the
+        // full gap is the clear width.
+        private const float BuildingDoorGap = 1.8f;
 
         // Car body dimensions are needed both to build the prop and to park the car's loot
         // marker clear of it (see CreateLootSpawn's call site in BuildCars), so they live here

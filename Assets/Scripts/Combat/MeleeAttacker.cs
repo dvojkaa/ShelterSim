@@ -1,4 +1,5 @@
 using System.Collections;
+using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -95,16 +96,16 @@ namespace SheltreSim.Combat
                 if (enemy != null)
                 {
                     enemy.TakeDamage(attackDamage);
-                    Debug.Log($"Hit {enemy.name} for {attackDamage} damage.");
+                    GameMessageBus.Post($"Hit {enemy.name} for {attackDamage} damage.");
                 }
                 else
                 {
-                    Debug.Log("Swing missed - nothing to hit.");
+                    GameMessageBus.Post("Swing missed - nothing to hit.");
                 }
             }
             else
             {
-                Debug.Log("Swing missed - nothing in range.");
+                GameMessageBus.Post("Swing missed - nothing in range.");
             }
 
             StartCoroutine(SwingWeapon());

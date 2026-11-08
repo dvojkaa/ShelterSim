@@ -3,6 +3,7 @@ using System.Text;
 using SheltreSim.Crafting;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
+using SheltreSim.UI;
 using UnityEngine;
 
 namespace SheltreSim.Building
@@ -77,13 +78,13 @@ namespace SheltreSim.Building
 
             if (!CraftingSystem.TryAfford(inv, craftingCost))
             {
-                Debug.Log($"Cannot afford to craft {output.displayName}.");
+                GameMessageBus.Post($"Cannot afford to craft {output.displayName}.");
                 return;
             }
 
             CraftingSystem.Spend(inv, craftingCost);
             inv.Add(output.id, outputAmount);
-            Debug.Log($"Crafted {outputAmount} {output.displayName}.");
+            GameMessageBus.Post($"Crafted {outputAmount} {output.displayName}.");
         }
     }
 }

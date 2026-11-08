@@ -14,6 +14,36 @@ namespace SheltreSim.Interaction
 
         public string InteractPrompt => isOpen ? "Press E to close" : "Press E to open";
 
+        public bool IsOpen => isOpen;
+
+        /// <summary>
+        /// Opens the door without going through player Interact() — used by a chasing
+        /// <see cref="SheltreSim.Enemies.EnemyAI"/> to break into the bunker. A closed door
+        /// was previously only ever toggled by the player pressing E, so "hide inside and
+        /// close the door" was an absolute safe-room with no in-game way for a raider to
+        /// follow through it. No-ops if already open.
+        /// </summary>
+        public void ForceOpen()
+        {
+            if (isOpen)
+            {
+                return;
+            }
+
+            isOpen = true;
+
+            if (doorVisual != null)
+            {
+                doorVisual.localRotation = Quaternion.Euler(OpenRotation);
+            }
+            else if (fallbackCollider != null)
+            {
+                fallbackCollider.enabled = false;
+            }
+
+            Debug.Log($"{name} was forced open!");
+        }
+
         private void Awake()
         {
             if (doorVisual == null)

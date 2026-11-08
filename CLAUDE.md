@@ -116,3 +116,31 @@ never rescinded, to keep building this way:
   in code (no `.inputactions` asset anywhere) — match this pattern for any new input.
 - Single-scene architecture is deliberate (no `DontDestroyOnLoad`/scene-transition
   complexity) — don't introduce a second scene without discussing it first.
+- `CharacterController` is itself a `Collider` subclass. Converting `EnemyAI` from raw
+  `transform.position` writes to `CharacterController.Move` (so raiders actually collide with
+  walls/buildings/cars instead of clipping through them) needed zero changes to
+  `MeleeAttacker`'s `SphereCastAll`-based hit detection — a `CharacterController` satisfies
+  `GetComponentInParent<EnemyAI>()` exactly like the `CapsuleCollider` it replaced. Remove the
+  default collider `CreatePrimitive` adds rather than keeping both on the same GameObject.
+- Player-facing one-off feedback (loot results, hit/miss, craft results) goes through
+  `SheltreSim.UI.GameMessageBus.Post(string)`, not a bare `Debug.Log` — it logs to the Console
+  internally *and* surfaces on `SurvivalHUD`'s on-screen message feed from one call site. Added
+  after an Opus-model review flagged that most milestones' player feedback was Console-only and
+  therefore invisible during normal play (nobody plays with the Console open). Route new
+  player-facing messages through it rather than introducing a second `Debug.Log` convention.
+- **Giving an actor a collider changes which geometry it can fit through — go measure the gaps,
+  don't assume the ones the player uses are wide enough.** When `EnemyAI` got a
+  `CharacterController` (radius 0.5, i.e. 1.0m across, ~1.16m once its 0.08 `skinWidth` is
+  counted), every doorway in the game was still sized for the 0.7m player: the bunker's 1.2m
+  gap measured **1.04m** of real clearance with the door swung open, so "raiders can come in
+  through the door" was false while every line of door-breaking code was correct. Both
+  `M1SceneBuilder.DoorGap` and `M10MapExpansionSetup.BuildingDoorGap` are 1.8m now. The way
+  this was found is the way all three of this category have been found (M10's buried crates,
+  M11's sunk Water Collector, this): a throwaway `Assets/Editor/_TempProbe.cs` that runs real
+  `Physics.OverlapCapsule`/`SphereCastAll` queries against the batch-built scene and is deleted
+  afterwards. Reason on paper about geometry and you will be wrong; sweep it and you won't.
+- **A passive HUD canvas must not carry a `GraphicRaycaster`, and HUD graphics must set
+  `raycastTarget = false`.** Unity defaults it to true, and the moment a HUD draws anything in
+  the middle of the screen (crosshair, interact prompt) it sits on top of whatever modal panel
+  shares that space — same `sortingOrder 0`, incidental winner. That is the same bug as M9's
+  unclickable Eat button, one canvas over.

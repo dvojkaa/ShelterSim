@@ -42,8 +42,9 @@ along the way, and [`SETUP.md`](SETUP.md) for a milestone-by-milestone playtest 
 | M7 | The apocalypse trigger itself, tying the whole loop together |
 | M8 | Pause menu, inventory screen ("I"), melee combat with a procedural weapon swing, and starting furniture in the bunker |
 | M9 | More resource variety (trees, stone, iron ore) and a food source (blueberry bushes) you can eat from the inventory screen to recover hunger, plus a read-only recipe/crafting list in that same screen. The inventory is a modal panel now — it frees the cursor and freezes the game while open, same as the pause menu |
-| M10 | A second, much larger wasteland zone (~24,000m², ~17x the original outdoor area) beyond the first, with 12 lootable building shells and 15 lootable cars scattered via seeded random placement. 38 loot crates roll (once, deterministically) into Wood/Scrap Metal/Stone/Iron Ore/Blueberries/Water/a First Aid Kit/a weapon upgrade, or nothing — about 30% of crates come up empty. Water (drink) and First Aid Kits (heal) get their own inventory buttons alongside Eat; a weapon upgrade item permanently boosts melee damage when Equipped |
+| M10 | A second, much larger wasteland zone (~24,000m², ~17x the original outdoor area) beyond the first, with 12 lootable building shells and 15 lootable cars scattered via seeded random placement. 38 loot crates roll (once, deterministically) into Wood/Scrap Metal/Stone/Iron Ore/Blueberries/Water/a First Aid Kit/a weapon upgrade, or nothing (see M12 — the empty-crate rate was cut right back in the loot rebalance). Water (drink) and First Aid Kits (heal) get their own inventory buttons alongside Eat; a weapon upgrade item permanently boosts melee damage when Equipped |
 | M11 | The Workbench and Water Collector build pieces actually do something now. Workbench: press E to craft a Makeshift Blade (2 Scrap Metal + 2 Wood) — the same weapon-upgrade item M10 made lootable. Water Collector: passively accumulates 1 Water every 30s (caps at 5), press E to collect |
+| M12 | A one-click **▶ START GAME** menu item that builds everything and presses Play. Raiders now have real collision (they're blocked by walls/buildings/cars instead of walking through them) and will force open a closed bunker door and keep chasing rather than giving up partway home. Loot crates are more generous (85% chance of contents, 1-2 varied item stacks per hit instead of always one). The big M10 wasteland is no longer empty/pressure-free — trees, stone, iron ore, food bushes and 8 more raiders are scattered through it, so the whole map reads as one mixed environment instead of "nature zone, then city zone." Interaction prompts, loot/craft/combat results now show on screen (crosshair + prompt + message feed) instead of being Console-only |
 
 All world objects are flat-colored primitives (still grey-box by design, just not all the same
 grey/white anymore) — generated entirely in code, no imported art assets.
@@ -74,8 +75,10 @@ grey/white anymore) — generated entirely in code, no imported art assets.
 ## Running it
 
 Open the project in Unity Hub and press Play — the scene already has everything wired up. If
-you ever need to regenerate it from scratch, each milestone has its own menu item under
-`Tools > SheltreSim`, or run them all at once via `Tools > SheltreSim` → see
+you ever need to regenerate it from scratch, the fastest way is **`Tools > SheltreSim > ▶ START
+GAME (build everything + Play)`** — one click runs all 12 milestones' setup tools in order and
+drops you straight into Play mode, no need to click through them individually. Each milestone
+also still has its own menu item under `Tools > SheltreSim` if you want to run just one. See
 [`SETUP.md`](SETUP.md) for the exact steps and a full playtest checklist.
 
 ## Known limitations
@@ -94,7 +97,13 @@ what you can afford, but actually placing a piece still happens through build mo
 this screen. Save files cover the player, survival stats, placed build pieces, inventory counts
 and (since M10) melee damage — but not which loot crates you've already searched, resource-node
 depletion, a Water Collector's pending water, or the current game phase, so those reset when you
-reopen the project. Interaction prompts are Console messages; there is no on-screen prompt UI. The expanded
-wasteland has no enemies in it, and reaching its far end and getting back may not be survivable
-on the current decay rates. All deliberate scope decisions for a first prototype, not oversights
-— see `DESIGN_NOTES.md` for the reasoning behind each one.
+reopen the project. Interaction prompts, loot/craft/combat results, and "cannot afford" messages
+now also show on screen (a crosshair, a prompt line, and a small fading message feed), not just
+the Console — though the Console log is still there too. Raiders have real collision (walls,
+buildings, cars block them) and will force open a closed bunker door rather than be stopped by
+it, and no longer give up chasing partway home — there's no pathfinding, though, so one can still
+get stuck sliding along a wall it doesn't have a direct line through. The expanded wasteland now
+has resource nodes and raiders scattered through it alongside the buildings/cars, but reaching
+its far end and getting back may still not be survivable on the current decay rates. All
+deliberate scope decisions for a first prototype, not oversights — see `DESIGN_NOTES.md` for the
+reasoning behind each one.

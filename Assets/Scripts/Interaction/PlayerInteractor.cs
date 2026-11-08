@@ -1,4 +1,5 @@
 using System;
+using SheltreSim.Survival;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,6 +9,10 @@ namespace SheltreSim.Interaction
     {
         public float interactRange = 2.5f;
         public LayerMask interactableMask = ~0;
+
+        // Optional on-screen readout for the interact prompt - null-checked below, not
+        // required (scene wiring is done separately by an editor setup tool).
+        public SurvivalHUD survivalHud;
 
         public event Action<IInteractable> FocusChanged;
 
@@ -64,6 +69,14 @@ namespace SheltreSim.Interaction
             {
                 lastLoggedPrompt = prompt;
                 Debug.Log(prompt);
+
+                // The HUD gets an EMPTY string rather than "No interactable in range" — that
+                // sentence is a useful Console line (it marks the moment focus was lost) but
+                // a terrible on-screen one: nothing is focused for most of a play session, so
+                // pushing it through would park a permanent line of text under the crosshair
+                // and the one label that is supposed to mean "you can press E right now"
+                // would be lit up almost always. Clearing it is the on-screen equivalent.
+                survivalHud?.SetInteractPrompt(focused != null ? prompt : string.Empty);
             }
         }
 

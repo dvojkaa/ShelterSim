@@ -27,10 +27,25 @@ namespace SheltreSim.EditorTools
     {
         private const int LootSeed = 20261108;
 
-        // 70% of crates actually contain something — the rest come up empty on search. This
-        // is the playtester's "chance to spawn some things" request; the other 30% is what
-        // makes that chance meaningful instead of every single crate being a guaranteed hit.
-        private const double HasLootChance = 0.7;
+        // 85% of crates contain something — raised from the original 70% after the playtester
+        // reported 10 crates yielding only 2 Water and nothing else. The remaining 15% is meant
+        // to keep "might be empty" a real possibility (LootContainer's prompt deliberately never
+        // reveals contents) without it being the dominant outcome — but note that with the
+        // LootSeed below it does not currently happen at all: the shipped build rolls 38 of 38
+        // crates non-empty (measured, not assumed). That is a legitimate consequence of a fixed
+        // seed plus a changed draw sequence (the multi-roll rebalance below consumes a different
+        // number of System.Random draws per crate than the single-roll version did, which shifts
+        // every later crate's hasLoot draw), not a bug in this constant. It over-delivers against
+        // the "too stingy" complaint rather than undermining it, so it is left alone; anyone who
+        // wants visible empty crates back should change LootSeed and re-check the tool's own
+        // "(N with something inside, M empty)" summary line, not change this number.
+        private const double HasLootChance = 0.85;
+
+        // A crate that has loot rolls this many distinct item stacks (1-2), not always exactly
+        // one — the single-roll-per-crate design was the other half of the "too stingy"
+        // complaint: even a "successful" crate often handed over a single stack of 1.
+        private const int MinRollsPerCrate = 1;
+        private const int MaxRollsPerCrate = 2;
 
         private static readonly Color CrateColor = new Color(0.45f, 0.35f, 0.2f);
 
@@ -117,11 +132,25 @@ namespace SheltreSim.EditorTools
 
                 if (hasLoot)
                 {
-                    ResourceDefinition picked = candidates[rng.Next(candidates.Count)];
-                    loot.resource = picked;
-                    // Medicine/weapon finds are single items; everything else rolls 1-3,
-                    // matching how resource nodes already hand out small stackable amounts.
-                    loot.amount = (picked == firstAid || picked == weaponUpgrade) ? 1 : rng.Next(1, 4);
+                    int rollCount = rng.Next(MinRollsPerCrate, MaxRollsPerCrate + 1);
+                    List<ResourceDefinition> alreadyRolled = new List<ResourceDefinition>();
+
+                    for (int roll = 0; roll < rollCount; roll++)
+                    {
+                        ResourceDefinition picked = PickDistinctCandidate(rng, candidates, alreadyRolled);
+                        if (picked == null)
+                        {
+                            break; // ran out of distinct candidates (tiny pool) — stop rather than duplicate.
+                        }
+                        alreadyRolled.Add(picked);
+
+                        // Medicine/weapon finds are single items regardless of roll count; raw
+                        // materials/food/water hand out a bigger, more satisfying stack than the
+                        // original 1-3 — a direct response to the "too stingy" playtest feedback.
+                        int amount = (picked == firstAid || picked == weaponUpgrade) ? 1 : rng.Next(2, 6);
+                        loot.entries.Add(new LootEntry { resource = picked, amount = amount });
+                    }
+
                     lootedCount++;
                 }
 
@@ -193,6 +222,28 @@ namespace SheltreSim.EditorTools
 
             AssetDatabase.CreateAsset(definition, path);
             return definition;
+        }
+
+        /// <summary>
+        /// Picks a weighted-random candidate, re-rolling (up to a bounded number of times)
+        /// if it duplicates something already rolled for this crate — a multi-roll crate
+        /// should read as "varied loot", not "3 Wood" three times over. Falls back to null if
+        /// the candidate pool genuinely has no distinct option left (never happens with this
+        /// project's 8-resource pool at 1-2 rolls, but a tiny future pool shouldn't infinite-loop).
+        /// </summary>
+        private static ResourceDefinition PickDistinctCandidate(System.Random rng, List<ResourceDefinition> candidates, List<ResourceDefinition> alreadyRolled)
+        {
+            const int maxAttempts = 20;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                ResourceDefinition candidate = candidates[rng.Next(candidates.Count)];
+                if (!alreadyRolled.Contains(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         private static void AddCandidate(List<ResourceDefinition> candidates, string path, int weight)

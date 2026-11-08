@@ -43,7 +43,8 @@ namespace SheltreSim.EditorTools
             Debug.Log("M6 enemies ready. 4 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. Fight back with left-click (M8 melee) or avoid them.");
         }
 
-        private static void SpawnEnemy(string name, Vector3 position, Transform parent)
+        /// <summary>internal, not private: reused by M12BiomeBlendSetup to spawn extra raiders in the expanded wasteland with the exact same CharacterController conversion.</summary>
+        internal static void SpawnEnemy(string name, Vector3 position, Transform parent)
         {
             if (GameObject.Find(name) != null)
             {
@@ -55,6 +56,21 @@ namespace SheltreSim.EditorTools
             enemy.transform.SetParent(parent, false);
             enemy.transform.position = position;
             EditorMaterialUtility.Apply(enemy, new Color(0.6f, 0.15f, 0.15f));
+
+            // EnemyAI now drives movement through a CharacterController (so raiders actually
+            // collide with walls/buildings/cars instead of walking through them) — remove the
+            // CapsuleCollider CreatePrimitive gave it for free, since CharacterController is
+            // itself a Collider subclass and covers both physics collision and MeleeAttacker's
+            // SphereCastAll hit detection. Same default shape (height 2, radius 0.5, centered
+            // on the object) as the CapsuleCollider it replaces, so nothing in the hit-detection
+            // or save paths needs to change — but note it is 1.0m ACROSS (and ~1.16m including
+            // skinWidth, which is what a doorway has to clear), against a player that is only
+            // 0.7m. Both the bunker's doorway and the ruined buildings' were sized for the
+            // player alone and had to be widened before a raider could actually follow you
+            // through one: see M1SceneBuilder.DoorGap / M10MapExpansionSetup.BuildingDoorGap.
+            // If this radius ever changes, re-measure those two gaps.
+            UnityEngine.Object.DestroyImmediate(enemy.GetComponent<CapsuleCollider>());
+            enemy.AddComponent<CharacterController>();
             enemy.AddComponent<EnemyAI>();
         }
     }

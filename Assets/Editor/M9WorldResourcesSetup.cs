@@ -115,7 +115,7 @@ namespace SheltreSim.EditorTools
         /// ResourceNode and collider live on the parent empty so a raycast hit on either
         /// visual-only child primitive resolves to this node via GetComponentInParent.
         /// </summary>
-        private static GameObject BuildTree(string name, Vector3 position, ResourceDefinition wood, Transform parent)
+        internal static GameObject BuildTree(string name, Vector3 position, ResourceDefinition wood, Transform parent)
         {
             GameObject node = new GameObject(name);
             node.transform.SetParent(parent, false);
@@ -152,7 +152,7 @@ namespace SheltreSim.EditorTools
         /// Shared builder for Stone and Iron Ore nodes: a small irregular cluster of two
         /// offset, slightly rotated cubes, colored differently per resource type.
         /// </summary>
-        private static GameObject BuildRockCluster(string name, Vector3 position, ResourceDefinition resourceType, Color color, Transform parent)
+        internal static GameObject BuildRockCluster(string name, Vector3 position, ResourceDefinition resourceType, Color color, Transform parent)
         {
             GameObject node = new GameObject(name);
             node.transform.SetParent(parent, false);
@@ -191,7 +191,7 @@ namespace SheltreSim.EditorTools
         /// built-in Cone primitive) with several small blue "berry" spheres dotted around its
         /// surface at varying heights.
         /// </summary>
-        private static GameObject BuildFoodBush(string name, Vector3 position, ResourceDefinition berries, Transform parent)
+        internal static GameObject BuildFoodBush(string name, Vector3 position, ResourceDefinition berries, Transform parent)
         {
             GameObject node = new GameObject(name);
             node.transform.SetParent(parent, false);
