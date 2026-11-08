@@ -4,6 +4,18 @@ First-person bunker building and survival in a seeded, streamed wasteland. Prepa
 trigger the apocalypse, then explore, scavenge and improve your equipment for longer expeditions.
 Unity6 / C# / Linux / Built-in Render Pipeline / New Input System.
 
+## Play it (testers)
+
+Linux only for now. No Unity needed:
+
+```
+git clone git@github.com:dvojkaa/ShelterSim.git
+cd ShelterSim
+./Builds/Linux/SheltreSim.x86_64
+```
+
+What to try is in the M20-M21 checklist at the end of `SETUP.md`.
+
 ## The world
 
 The original bunker and starter ruins remain hand-built. Beyond them, 128m chunks generate as you
