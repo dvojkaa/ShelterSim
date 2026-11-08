@@ -12,13 +12,18 @@ namespace SheltreSim.Survival
         public float thirst;
         public float health;
 
-        // Tuned after first playtest: the original rates (0.5/0.8, 2 for starvation) took
-        // minutes before health visibly moved at all, reading as "health never drops" in a
-        // short test session. Faster now: hunger/thirst empty in roughly 60-90s after the
-        // apocalypse trigger, then starvation drains health in ~20s.
-        public float hungerDecayPerSecond = 1.1f;
-        public float thirstDecayPerSecond = 1.7f;
-        public float healthDecayWhenStarving = 5f;
+        // Rebalanced per an Opus-model review's top balance flag: the previous rates (1.1/1.7,
+        // 5 for starvation) killed a do-nothing player in ~79s after the apocalypse trigger —
+        // thirst always hit zero before hunger ever mattered, and there was no time to make a
+        // real "push deeper or head home" decision before dying. Target is now roughly 5-8
+        // minutes of do-nothing survival: thirst empties in ~4 min (still the binding
+        // constraint, same ordering as before), hunger in ~5.5 min, then starvation drains
+        // health over another ~2 min — about 6 min total. See WaterCollectorPiece.secondsPerUnit
+        // for the matching Water Collector retune (its old rate would now cover ~280% of thirst
+        // drain instead of the intended ~70-90%).
+        public float hungerDecayPerSecond = 0.3f;
+        public float thirstDecayPerSecond = 0.42f;
+        public float healthDecayWhenStarving = 0.8f;
 
         /// <summary>
         /// M7 — while true, Update does nothing (no decay at all). Lets the Building phase
@@ -80,17 +85,26 @@ namespace SheltreSim.Survival
         }
 
         /// <summary>
-        /// Death previously only set a flag and logged to Console — invisible to a player who
-        /// isn't watching it. Now it actually freezes the player: movement and interaction are
-        /// disabled (FirstPersonController's OnDisable also unlocks the cursor, which doubles
-        /// as a plain "something happened" signal). No respawn/game-over screen yet — that's
-        /// further than this bug-fix pass needs to go.
+        /// M13 — direct field reference to the death screen, wired by M13DeathScreenSetup, same
+        /// direct-reference convention SurvivalHUD/InventoryUI use elsewhere in this project
+        /// rather than Unity's UnityEvent/listener indirection. Null-checked: SurvivalStats
+        /// works (freeze-only, no screen) even if M13's setup tool hasn't run yet.
+        /// </summary>
+        public SheltreSim.Core.GameOverScreen gameOverScreen;
+
+        /// <summary>
+        /// Death previously only set a flag, logged to Console, and froze the player (movement
+        /// and interaction disabled — FirstPersonController's OnDisable also unlocks the
+        /// cursor) with no on-screen feedback at all: the only way out was F9 to load an old
+        /// save, which doesn't exist if the player never saved. An Opus-model review flagged
+        /// this, so death now also shows a "You Died" screen with a Restart option.
         /// </summary>
         private void Die()
         {
             IsDead = true;
             Debug.Log("Player has died.");
             SetPlayerControlEnabled(false);
+            gameOverScreen?.Show();
         }
 
         /// <summary>

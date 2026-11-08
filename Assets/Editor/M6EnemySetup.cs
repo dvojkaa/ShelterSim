@@ -43,6 +43,10 @@ namespace SheltreSim.EditorTools
             Debug.Log("M6 enemies ready. 4 raiders patrol the outdoor area — they'll detect, chase, and attack on sight. Fight back with left-click (M8 melee) or avoid them.");
         }
 
+        private static readonly Color BodyColor = new Color(0.35f, 0.12f, 0.1f);
+        private static readonly Color HeadColor = new Color(0.55f, 0.42f, 0.35f);
+        private static readonly Color WeaponColor = new Color(0.2f, 0.19f, 0.18f);
+
         /// <summary>internal, not private: reused by M12BiomeBlendSetup to spawn extra raiders in the expanded wasteland with the exact same CharacterController conversion.</summary>
         internal static void SpawnEnemy(string name, Vector3 position, Transform parent)
         {
@@ -55,7 +59,7 @@ namespace SheltreSim.EditorTools
             enemy.name = name;
             enemy.transform.SetParent(parent, false);
             enemy.transform.position = position;
-            EditorMaterialUtility.Apply(enemy, new Color(0.6f, 0.15f, 0.15f));
+            EditorMaterialUtility.Apply(enemy, BodyColor);
 
             // EnemyAI now drives movement through a CharacterController (so raiders actually
             // collide with walls/buildings/cars instead of walking through them) — remove the
@@ -72,6 +76,38 @@ namespace SheltreSim.EditorTools
             UnityEngine.Object.DestroyImmediate(enemy.GetComponent<CapsuleCollider>());
             enemy.AddComponent<CharacterController>();
             enemy.AddComponent<EnemyAI>();
+
+            AddVisualDetail(enemy.transform);
+        }
+
+        /// <summary>
+        /// Purely cosmetic child primitives — a head and a crude held weapon — so a raider
+        /// reads as a humanoid figure rather than a plain capsule. Every collider
+        /// `CreatePrimitive` gives these is explicitly destroyed: MeleeAttacker's SphereCastAll
+        /// distance-0-vs-swept logic (rewritten twice already, see DESIGN_NOTES.md) was tuned
+        /// and verified against exactly one collider per enemy — the CharacterController added
+        /// above — and an extra collider poking further out than it in some direction would be
+        /// new, unverified surface for that same bug category to reappear in. These primitives
+        /// exist to be looked at, never to be hit-tested.
+        /// </summary>
+        private static void AddVisualDetail(Transform enemy)
+        {
+            GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            head.name = "Head";
+            head.transform.SetParent(enemy, false);
+            head.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+            head.transform.localScale = new Vector3(0.42f, 0.42f, 0.42f);
+            UnityEngine.Object.DestroyImmediate(head.GetComponent<Collider>());
+            EditorMaterialUtility.Apply(head, HeadColor);
+
+            GameObject weapon = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            weapon.name = "WeaponProp";
+            weapon.transform.SetParent(enemy, false);
+            weapon.transform.localPosition = new Vector3(0.32f, 0.05f, 0.25f);
+            weapon.transform.localRotation = Quaternion.Euler(35f, 0f, 15f);
+            weapon.transform.localScale = new Vector3(0.08f, 0.08f, 0.65f);
+            UnityEngine.Object.DestroyImmediate(weapon.GetComponent<Collider>());
+            EditorMaterialUtility.Apply(weapon, WeaponColor);
         }
     }
 }

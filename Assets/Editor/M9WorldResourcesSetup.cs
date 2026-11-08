@@ -145,6 +145,27 @@ namespace SheltreSim.EditorTools
             foliage.transform.localScale = new Vector3(1.8f, 1.0f, 1.8f);
             EditorMaterialUtility.Apply(foliage, TreeFoliageColor);
 
+            // Two smaller secondary foliage clumps at varying heights/offsets so the tree
+            // reads as a fuller canopy instead of a single sphere on a stick ("lollipop").
+            // Purely cosmetic children (no collider changes, same fallback-to-parent pattern
+            // as Trunk/Foliage above). Offset direction/size deterministic per tree, seeded
+            // from the node's own name — never UnityEngine.Random, see CLAUDE.md.
+            System.Random rnd = new System.Random(name.GetHashCode());
+            float[] clumpHeights = { 2.3f, 2.6f };
+            for (int i = 0; i < clumpHeights.Length; i++)
+            {
+                float angle = (float)(rnd.NextDouble() * 360.0) * Mathf.Deg2Rad;
+                float radius = 0.5f + (float)rnd.NextDouble() * 0.4f;
+                float scale = 0.9f + (float)rnd.NextDouble() * 0.3f;
+
+                GameObject clump = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                clump.name = "FoliageClump_" + (i + 1);
+                clump.transform.SetParent(node.transform, false);
+                clump.transform.localPosition = new Vector3(Mathf.Cos(angle) * radius, clumpHeights[i], Mathf.Sin(angle) * radius);
+                clump.transform.localScale = new Vector3(scale, scale * 0.8f, scale);
+                EditorMaterialUtility.Apply(clump, TreeFoliageColor);
+            }
+
             return node;
         }
 
@@ -183,6 +204,25 @@ namespace SheltreSim.EditorTools
             rockB.transform.localScale = new Vector3(0.5f, 0.5f, 0.6f);
             EditorMaterialUtility.Apply(rockB, color);
 
+            // A third, smaller rock piece for a less symmetric two-rock silhouette. Purely
+            // cosmetic child (same fallback-to-parent pattern as RockA/RockB above); the
+            // parent's own BoxCollider set above is untouched. Offset/rotation/scale
+            // deterministic per node, seeded from its own name — never UnityEngine.Random.
+            System.Random rnd = new System.Random(name.GetHashCode());
+            GameObject rockC = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rockC.name = "RockC";
+            rockC.transform.SetParent(node.transform, false);
+            float offsetX = -0.3f - (float)rnd.NextDouble() * 0.25f;
+            float offsetZ = -0.25f - (float)rnd.NextDouble() * 0.2f;
+            rockC.transform.localPosition = new Vector3(offsetX, 0.2f + (float)rnd.NextDouble() * 0.1f, offsetZ);
+            rockC.transform.localRotation = Quaternion.Euler(
+                (float)(rnd.NextDouble() * 20.0 - 10.0),
+                (float)(rnd.NextDouble() * 360.0),
+                (float)(rnd.NextDouble() * 20.0 - 10.0));
+            float rockCScale = 0.3f + (float)rnd.NextDouble() * 0.15f;
+            rockC.transform.localScale = new Vector3(rockCScale, rockCScale * 0.8f, rockCScale * 0.9f);
+            EditorMaterialUtility.Apply(rockC, color);
+
             return node;
         }
 
@@ -214,21 +254,27 @@ namespace SheltreSim.EditorTools
             spruce.transform.localScale = new Vector3(0.5f, 0.9f, 0.5f);
             EditorMaterialUtility.Apply(spruce, SpruceColor);
 
-            Vector3[] berryOffsets =
-            {
-                new Vector3(0.35f, 0.5f, 0.2f),
-                new Vector3(-0.3f, 0.9f, 0.25f),
-                new Vector3(0.2f, 1.2f, -0.3f),
-                new Vector3(-0.25f, 1.5f, -0.15f),
-            };
+            // Berry count/placement varies per bush — deterministic, seeded from the node's
+            // own name (never UnityEngine.Random, see CLAUDE.md), not a fixed 4-offset array,
+            // so bushes don't all look identical. Berries are spaced up the spruce stand-in
+            // at increasing height, each at a small random angle/radius around it, so the
+            // silhouette still reads clearly as "berries dotted on a bush" at a glance.
+            System.Random rnd = new System.Random(name.GetHashCode());
+            int berryCount = 3 + rnd.Next(0, 3); // 3-5 berries
 
-            for (int i = 0; i < berryOffsets.Length; i++)
+            for (int i = 0; i < berryCount; i++)
             {
+                float heightT = (float)(i + 1) / (berryCount + 1);
+                float height = 0.4f + heightT * 1.3f;
+                float angle = (float)(rnd.NextDouble() * 360.0) * Mathf.Deg2Rad;
+                float radius = 0.2f + (float)rnd.NextDouble() * 0.2f;
+                float berryScale = 0.12f + (float)rnd.NextDouble() * 0.08f;
+
                 GameObject berry = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 berry.name = "Berry_" + (i + 1);
                 berry.transform.SetParent(node.transform, false);
-                berry.transform.localPosition = berryOffsets[i];
-                berry.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f);
+                berry.transform.localPosition = new Vector3(Mathf.Cos(angle) * radius, height, Mathf.Sin(angle) * radius);
+                berry.transform.localScale = new Vector3(berryScale, berryScale, berryScale);
                 EditorMaterialUtility.Apply(berry, BerryColor);
             }
 

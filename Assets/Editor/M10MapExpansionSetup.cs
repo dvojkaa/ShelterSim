@@ -185,7 +185,7 @@ namespace SheltreSim.EditorTools
                 buildingRoot.transform.localRotation = Quaternion.Euler(0f, rotationY, 0f);
 
                 Color wallColor = JitterColor(buildingBaseColor, rnd, 0.06f);
-                BuildBuildingShell(buildingRoot.transform, width, depth, wallColor);
+                BuildBuildingShell(buildingRoot.transform, width, depth, wallColor, rnd);
 
                 int lootCount = rnd.Next(1, 4); // 1-3 inclusive
                 for (int j = 0; j < lootCount; j++)
@@ -202,7 +202,7 @@ namespace SheltreSim.EditorTools
             return built;
         }
 
-        private static void BuildBuildingShell(Transform buildingRoot, float width, float depth, Color wallColor)
+        private static void BuildBuildingShell(Transform buildingRoot, float width, float depth, Color wallColor, System.Random rnd)
         {
             float halfWidth = width / 2f;
             float halfDepth = depth / 2f;
@@ -218,6 +218,68 @@ namespace SheltreSim.EditorTools
             float sideCenterOffset = BuildingDoorGap / 2f + sideSpan / 2f;
             CreateBlock("Wall_South_A", buildingRoot, new Vector3(-sideCenterOffset, BuildingWallHeight / 2f, -halfDepth), new Vector3(sideSpan, BuildingWallHeight, BuildingWallThickness), wallColor);
             CreateBlock("Wall_South_B", buildingRoot, new Vector3(sideCenterOffset, BuildingWallHeight / 2f, -halfDepth), new Vector3(sideSpan, BuildingWallHeight, BuildingWallThickness), wallColor);
+
+            BuildRuinDetailing(buildingRoot, width, depth, wallColor, rnd);
+        }
+
+        /// <summary>
+        /// Purely cosmetic "ruined" dressing: a flat roof-slab cap, a visually-broken top corner
+        /// (an angled cube overlapping one wall's top edge, reading as crumbled masonry), and a
+        /// couple of rubble debris chunks scattered near the base. None of this changes `width`,
+        /// `depth`, any wall's position/size, or `BuildingDoorGap` — it is purely additive
+        /// geometry layered on top of the untouched shell built above. Every piece here has its
+        /// collider destroyed: it must never add a new obstacle a raider's CharacterController
+        /// or the player could snag on, which is exactly the bug category this milestone has hit
+        /// twice before (buried loot crates, a too-narrow doorway).
+        /// </summary>
+        private static void BuildRuinDetailing(Transform buildingRoot, float width, float depth, Color wallColor, System.Random rnd)
+        {
+            float halfWidth = width / 2f;
+            float halfDepth = depth / 2f;
+
+            // Flat roof cap, slightly darker than the walls.
+            Color roofColor = JitterColor(wallColor * 0.6f, rnd, 0.03f);
+            CreateTrim("Roof", buildingRoot, new Vector3(0f, BuildingWallHeight + 0.05f, 0f), new Vector3(width, 0.1f, depth), roofColor);
+
+            // One broken corner: a chunky cube resting diagonally across a randomly-picked top
+            // corner of the shell, suggesting a collapsed chunk of wall. Deliberately smaller
+            // than the wall height and offset outward so it reads as debris sitting ON the wall
+            // top rather than poking through the doorway or interior space.
+            int corner = rnd.Next(0, 4);
+            float cornerX = (corner == 0 || corner == 1) ? halfWidth : -halfWidth;
+            float cornerZ = (corner == 0 || corner == 2) ? halfDepth : -halfDepth;
+            GameObject brokenChunk = CreateTrim("BrokenCorner", buildingRoot,
+                new Vector3(cornerX * 0.85f, BuildingWallHeight - 0.15f, cornerZ * 0.85f),
+                new Vector3(0.7f, 0.45f, 0.7f), JitterColor(wallColor, rnd, 0.08f));
+            brokenChunk.transform.localRotation = Quaternion.Euler(
+                12f + (float)rnd.NextDouble() * 10f, (float)(rnd.NextDouble() * 360.0), 8f + (float)rnd.NextDouble() * 10f);
+
+            // A couple of low rubble chunks near the base, just outside the footprint so they
+            // can never overlap a LootSpawn marker placed inside it.
+            Color rubbleColor = JitterColor(wallColor * 0.75f, rnd, 0.05f);
+            int rubbleCount = rnd.Next(2, 4); // 2-3 inclusive
+            for (int i = 0; i < rubbleCount; i++)
+            {
+                float side = rnd.NextDouble() < 0.5 ? -1f : 1f;
+                float along = ((float)rnd.NextDouble() * 2f - 1f) * halfDepth * 0.8f;
+                float rubbleSize = 0.2f + (float)rnd.NextDouble() * 0.2f;
+                Vector3 rubblePos = new Vector3(side * (halfWidth + 0.3f + (float)rnd.NextDouble() * 0.3f), rubbleSize / 2f, along);
+                GameObject rubble = CreateTrim($"Rubble_{i + 1}", buildingRoot, rubblePos, new Vector3(rubbleSize, rubbleSize, rubbleSize), rubbleColor);
+                rubble.transform.localRotation = Quaternion.Euler(0f, (float)(rnd.NextDouble() * 360.0), 0f);
+            }
+        }
+
+        /// <summary>Decorative-only primitive: collider is destroyed immediately so it can never affect physics/raycasts/placement checks.</summary>
+        private static GameObject CreateTrim(string name, Transform parent, Vector3 localPosition, Vector3 scale, Color color)
+        {
+            GameObject trim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            trim.name = name;
+            trim.transform.SetParent(parent, false);
+            trim.transform.localPosition = localPosition;
+            trim.transform.localScale = scale;
+            EditorMaterialUtility.Apply(trim, color);
+            UnityEngine.Object.DestroyImmediate(trim.GetComponent<Collider>());
+            return trim;
         }
 
         private static int BuildCars(System.Random rnd, List<PlacedFootprint> placed, Transform carsContainer, ref int lootSpawnCount)
@@ -252,7 +314,7 @@ namespace SheltreSim.EditorTools
                 carRoot.transform.localRotation = Quaternion.Euler(0f, rotationY, 0f);
 
                 Color bodyColor = carPalette[rnd.Next(0, carPalette.Length)];
-                BuildCarProp(carRoot.transform, bodyColor);
+                BuildCarProp(carRoot.transform, bodyColor, rnd);
 
                 // Behind the rear bumper, on the ground — NOT at the car's own centre, which is
                 // where this marker started out. The car body is a solid 1.8 x 1.4 x 4.2 cube
@@ -272,7 +334,16 @@ namespace SheltreSim.EditorTools
             return built;
         }
 
-        private static void BuildCarProp(Transform carRoot, Color bodyColor)
+        /// <summary>
+        /// <paramref name="rnd"/> is the same seeded stream BuildCars already uses for this
+        /// car's position/rotation/palette pick — consuming a few more draws here to vary the
+        /// cabin shape and mirror placement just shifts what the next car's draws look like,
+        /// which is fine: nothing downstream depends on a specific draw count, only on the
+        /// overall run being reproducible for a fixed Seed, which it still is.
+        /// Does NOT touch CarBodyWidth/Height/Length or the loot marker offset math in
+        /// BuildCars — those are untouched constants this method only reads.
+        /// </summary>
+        private static void BuildCarProp(Transform carRoot, Color bodyColor, System.Random rnd)
         {
             const float bodyWidth = CarBodyWidth;
             const float bodyHeight = CarBodyHeight;
@@ -284,9 +355,13 @@ namespace SheltreSim.EditorTools
 
             CreateBlock("Body", carRoot, new Vector3(0f, bodyCenterY, 0f), new Vector3(bodyWidth, bodyHeight, bodyLength), bodyColor);
 
-            // Cabin/windshield block, offset slightly forward and narrower than the body.
+            // Cabin/windshield block, offset slightly forward and narrower than the body. Height
+            // and length fraction vary slightly per car (still a seeded draw) so the fleet isn't
+            // 15 copies of the exact same silhouette.
             Color cabinColor = JitterColor(bodyColor, new System.Random(bodyColor.GetHashCode()), 0.03f);
-            CreateBlock("Cabin", carRoot, new Vector3(0f, bodyCenterY + bodyHeight / 2f + 0.25f, 0.3f), new Vector3(bodyWidth * 0.75f, 0.5f, bodyLength * 0.45f), cabinColor);
+            float cabinHeight = 0.42f + (float)rnd.NextDouble() * 0.16f; // 0.42 - 0.58
+            float cabinLengthFraction = 0.4f + (float)rnd.NextDouble() * 0.12f; // 0.40 - 0.52
+            CreateBlock("Cabin", carRoot, new Vector3(0f, bodyCenterY + bodyHeight / 2f + cabinHeight / 2f, 0.3f), new Vector3(bodyWidth * 0.75f, cabinHeight, bodyLength * cabinLengthFraction), cabinColor);
 
             Color wheelColor = new Color(0.08f, 0.08f, 0.08f);
             float wheelX = bodyWidth / 2f - 0.05f;
@@ -295,6 +370,28 @@ namespace SheltreSim.EditorTools
             CreateWheel("Wheel_FR", carRoot, new Vector3(wheelX, wheelRadius, wheelZ), wheelRadius, wheelThickness, wheelColor);
             CreateWheel("Wheel_RL", carRoot, new Vector3(-wheelX, wheelRadius, -wheelZ), wheelRadius, wheelThickness, wheelColor);
             CreateWheel("Wheel_RR", carRoot, new Vector3(wheelX, wheelRadius, -wheelZ), wheelRadius, wheelThickness, wheelColor);
+
+            BuildCarDetailing(carRoot, bodyWidth, bodyHeight, bodyLength, bodyCenterY, bodyColor, rnd);
+        }
+
+        /// <summary>
+        /// Purely cosmetic add-ons: two side mirrors and a rear bumper strip. None of these
+        /// change CarBodyWidth/Height/Length, the body/cabin/wheel colliders above, or the loot
+        /// marker offset in BuildCars (the bumper sits flush against the body's own rear face,
+        /// well short of the marker parked at -(bodyLength/2 + 0.45)). All decorative — colliders
+        /// destroyed immediately — so they can never change the car's physical footprint that
+        /// TryFindPosition's spacing check and the raider/player CharacterControllers rely on.
+        /// </summary>
+        private static void BuildCarDetailing(Transform carRoot, float bodyWidth, float bodyHeight, float bodyLength, float bodyCenterY, Color bodyColor, System.Random rnd)
+        {
+            Color mirrorColor = JitterColor(bodyColor, rnd, 0.1f);
+            float mirrorY = bodyCenterY + bodyHeight / 2f + 0.05f;
+            float mirrorX = bodyWidth / 2f + 0.08f;
+            CreateTrim("Mirror_L", carRoot, new Vector3(-mirrorX, mirrorY, 0.6f), new Vector3(0.1f, 0.12f, 0.2f), mirrorColor);
+            CreateTrim("Mirror_R", carRoot, new Vector3(mirrorX, mirrorY, 0.6f), new Vector3(0.1f, 0.12f, 0.2f), mirrorColor);
+
+            Color bumperColor = new Color(0.12f, 0.12f, 0.12f);
+            CreateTrim("Bumper_Rear", carRoot, new Vector3(0f, bodyCenterY - bodyHeight / 2f + 0.15f, -(bodyLength / 2f + 0.08f)), new Vector3(bodyWidth * 0.95f, 0.18f, 0.12f), bumperColor);
         }
 
         /// <summary>

@@ -13,7 +13,13 @@ namespace SheltreSim.Building
     public class WaterCollectorPiece : MonoBehaviour, IInteractable
     {
         public ResourceDefinition waterResource;
-        public float secondsPerUnit = 30f;
+
+        // Retuned alongside SurvivalStats' M12 decay-rate rebalance: thirst now drains at
+        // 0.42/s instead of 1.7/s, so the old 30s-per-unit rate would have one collector
+        // covering ~280% of thirst drain instead of the intended "roughly covers it alone,
+        // two is comfortable" — 90s/unit puts one collector's 35-thirst-per-90s at ~93% of the
+        // new drain rate, keeping the same relative balance as before the rebalance.
+        public float secondsPerUnit = 90f;
         public int maxStored = 5;
 
         private float timer;
@@ -22,6 +28,15 @@ namespace SheltreSim.Building
         public string InteractPrompt => stored > 0
             ? $"Press E to collect {stored} Water"
             : "Collecting water... (none ready yet)";
+
+        /// <summary>Exposed for SaveManager, which persists this as an extra field on the piece's PlacedPieceData.</summary>
+        public int Stored => stored;
+
+        /// <summary>Restores save-loaded state. Called by SaveManager right after this piece is re-Instantiated.</summary>
+        public void SetStored(int value)
+        {
+            stored = Mathf.Clamp(value, 0, maxStored);
+        }
 
         private void Update()
         {

@@ -24,6 +24,13 @@ namespace SheltreSim.Saving
         /// </summary>
         public SheltreSim.Combat.MeleeAttacker meleeAttacker;
 
+        /// <summary>
+        /// Optional — needed so GameStateManager.CurrentPhase (Building/Apocalypse/Survival)
+        /// survives a save/load round trip; save/load works without it, the phase is just not
+        /// persisted (reload always lands back in Building, the pre-existing behaviour).
+        /// </summary>
+        public SheltreSim.Core.GameStateManager gameStateManager;
+
         private const string SaveFileName = "savegame.json";
 
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
@@ -66,15 +73,51 @@ namespace SheltreSim.Saving
                 thirst = stats.thirst,
                 health = stats.health,
                 attackDamage = meleeAttacker != null ? meleeAttacker.attackDamage : -1f,
+                gamePhase = gameStateManager != null
+                    ? (int)gameStateManager.CurrentPhase
+                    : (int)SheltreSim.Core.GamePhase.Building,
             };
 
             foreach (PlacedPiece p in PlacedPieceRegistry.All)
             {
-                data.placedPieces.Add(new SaveData.PlacedPieceData
+                SaveData.PlacedPieceData pieceData = new SaveData.PlacedPieceData
                 {
                     pieceId = p.pieceId,
                     position = p.transform.position,
                     rotation = p.transform.rotation,
+                };
+
+                SheltreSim.Building.WaterCollectorPiece collector = p.GetComponent<SheltreSim.Building.WaterCollectorPiece>();
+                if (collector != null)
+                {
+                    pieceData.waterStored = collector.Stored;
+                }
+
+                data.placedPieces.Add(pieceData);
+            }
+
+            // Resource nodes/loot crates are static scene objects, not PlacedPieces — matched
+            // back up on load by hierarchy-path id rather than destroyed/re-Instantiated.
+            // FindObjectsInactive.Include matters here in case any node is still fully
+            // inactive from before the regrow-timer change (or a half-applied scene edit).
+            foreach (SheltreSim.Items.ResourceNode node in Object.FindObjectsByType<SheltreSim.Items.ResourceNode>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                data.nodeStates.Add(new SaveData.NodeState
+                {
+                    id = ComputeStableId(node.transform),
+                    remainingCharges = node.remainingCharges,
+                    depleted = node.IsDepleted,
+                });
+            }
+
+            foreach (SheltreSim.Items.LootContainer crate in Object.FindObjectsByType<SheltreSim.Items.LootContainer>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                data.crateStates.Add(new SaveData.CrateState
+                {
+                    id = ComputeStableId(crate.transform),
+                    searched = crate.Searched,
                 });
             }
 
@@ -158,7 +201,58 @@ namespace SheltreSim.Saving
                     continue;
                 }
 
-                Instantiate(definition.prefab, entry.position, entry.rotation);
+                GameObject instance = Instantiate(definition.prefab, entry.position, entry.rotation);
+
+                // Non-negative means this entry actually had a Water Collector (see
+                // SaveData.PlacedPieceData.waterStored) — negative means either no collector,
+                // or a save predating this field, either way leave the fresh instance alone.
+                if (entry.waterStored >= 0)
+                {
+                    SheltreSim.Building.WaterCollectorPiece collector = instance.GetComponent<SheltreSim.Building.WaterCollectorPiece>();
+                    if (collector != null)
+                    {
+                        collector.SetStored(entry.waterStored);
+                    }
+                }
+            }
+
+            // Resource nodes/loot crates are static scene objects that were never destroyed
+            // above — match each saved entry back to its live instance by hierarchy-path id.
+            Dictionary<string, SheltreSim.Items.ResourceNode> nodesById = new Dictionary<string, SheltreSim.Items.ResourceNode>();
+            foreach (SheltreSim.Items.ResourceNode node in Object.FindObjectsByType<SheltreSim.Items.ResourceNode>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                nodesById[ComputeStableId(node.transform)] = node;
+            }
+
+            foreach (SaveData.NodeState state in data.nodeStates)
+            {
+                if (nodesById.TryGetValue(state.id, out SheltreSim.Items.ResourceNode node))
+                {
+                    node.RestoreState(state.remainingCharges, state.depleted);
+                }
+            }
+
+            Dictionary<string, SheltreSim.Items.LootContainer> cratesById = new Dictionary<string, SheltreSim.Items.LootContainer>();
+            foreach (SheltreSim.Items.LootContainer crate in Object.FindObjectsByType<SheltreSim.Items.LootContainer>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                cratesById[ComputeStableId(crate.transform)] = crate;
+            }
+
+            foreach (SaveData.CrateState state in data.crateStates)
+            {
+                if (cratesById.TryGetValue(state.id, out SheltreSim.Items.LootContainer crate))
+                {
+                    crate.RestoreSearchedState(state.searched);
+                }
+            }
+
+            // Bypasses TriggerApocalypse/ApocalypseSequence entirely — a loaded Survival-phase
+            // save must not re-play the siren/shake sequence or re-pause decay via coroutine.
+            if (gameStateManager != null)
+            {
+                gameStateManager.RestorePhase((SheltreSim.Core.GamePhase)data.gamePhase);
             }
 
             if (inventory != null)
@@ -171,6 +265,25 @@ namespace SheltreSim.Saving
             }
 
             Debug.Log($"Loaded game from {SavePath} ({data.placedPieces.Count} pieces restored).");
+        }
+
+        /// <summary>
+        /// Computes a stable id for a static scene object (ResourceNode/LootContainer) from its
+        /// hierarchy path, e.g. "OutdoorArea/ExpandedWasteland/Buildings/Building_3/LootCrate".
+        /// These objects are baked into the scene at editor-tool run time with the same seeded,
+        /// deterministic construction every run — never instantiated at runtime — so the path
+        /// from scene root to the object is stable across saves without needing a GUID/registry.
+        /// </summary>
+        private static string ComputeStableId(Transform t)
+        {
+            var sb = new System.Text.StringBuilder(t.name);
+            Transform current = t.parent;
+            while (current != null)
+            {
+                sb.Insert(0, "/").Insert(0, current.name);
+                current = current.parent;
+            }
+            return sb.ToString();
         }
     }
 }

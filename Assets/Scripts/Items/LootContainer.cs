@@ -37,6 +37,19 @@ namespace SheltreSim.Items
             ? "Already searched"
             : "Press E to search";
 
+        /// <summary>Exposed for SaveManager, which persists this via a hierarchy-path id.</summary>
+        public bool Searched => searched;
+
+        /// <summary>
+        /// Restores save-loaded state. Called by SaveManager after matching this instance to
+        /// a saved entry; kept separate from the private field so <c>searched</c> itself can
+        /// stay private to the normal Interact() flow.
+        /// </summary>
+        public void RestoreSearchedState(bool isSearched)
+        {
+            searched = isSearched;
+        }
+
         public void Interact(GameObject interactor)
         {
             if (searched)

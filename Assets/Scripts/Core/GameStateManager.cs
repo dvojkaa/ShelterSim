@@ -24,6 +24,21 @@ namespace SheltreSim.Core
             }
         }
 
+        /// <summary>
+        /// Restores a loaded phase directly, bypassing TriggerApocalypse/ApocalypseSequence
+        /// entirely — a loaded save that was already in Survival should not re-play "Sirens
+        /// wail..." or the shake-delay coroutine, it should just BE in that phase immediately.
+        /// Called by SaveManager on load, when wired.
+        /// </summary>
+        public void RestorePhase(GamePhase phase)
+        {
+            CurrentPhase = phase;
+            if (stats != null)
+            {
+                stats.decayPaused = (phase == GamePhase.Building);
+            }
+        }
+
         public void TriggerApocalypse()
         {
             if (CurrentPhase != GamePhase.Building)

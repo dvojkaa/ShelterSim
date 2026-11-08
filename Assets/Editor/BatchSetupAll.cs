@@ -79,6 +79,19 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M8 menus and combat...");
             M8MenusSetup.SetupMenusAndCombat();
 
+            // Needs SurvivalStats (M3) on the Player; after M8 purely for chain-order
+            // consistency, not a hard dependency.
+            Debug.Log("[BatchSetupAll] Setting up M13 death screen...");
+            M13DeathScreenSetup.SetupDeathScreen();
+
+            // Needs raiders already spawned (M6 + M12) so it can find them at Play-mode Start.
+            Debug.Log("[BatchSetupAll] Setting up M14 raider respawn...");
+            M14RaiderRespawnSetup.SetupRaiderRespawn();
+
+            // Needs the BedPiece prefab (M2).
+            Debug.Log("[BatchSetupAll] Setting up M15 bed...");
+            M15BedSetup.SetupBed();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }

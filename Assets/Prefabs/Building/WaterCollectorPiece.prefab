@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 6678582994054931816}
   - component: {fileID: 5268646459426359374}
   - component: {fileID: 8182914006580954899}
-  - component: {fileID: -554013814368987054}
+  - component: {fileID: 3043454467439967612}
   m_Layer: 0
   m_Name: WaterCollectorPiece
   m_TagString: Untagged
@@ -129,7 +129,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: water_collector
---- !u!114 &-554013814368987054
+--- !u!114 &3043454467439967612
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -142,5 +142,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.WaterCollectorPiece
   waterResource: {fileID: 11400000, guid: a8d8ec46303517218b575c2fd3e0eb71, type: 2}
-  secondsPerUnit: 30
+  secondsPerUnit: 90
   maxStored: 5

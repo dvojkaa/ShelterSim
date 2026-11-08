@@ -18,6 +18,7 @@ namespace SheltreSim.Survival
         private Text thirstLabel;
 
         private Text interactPromptLabel;
+        private Text buildReadoutLabel;
 
         private const int MessageFeedLines = 3;
         private const float MessageLifetimeSeconds = 4f;
@@ -77,6 +78,7 @@ namespace SheltreSim.Survival
             CreateCrosshair(canvasObject.transform);
             interactPromptLabel = CreatePromptLabel(canvasObject.transform);
             feedLabels = CreateMessageFeed(canvasObject.transform);
+            buildReadoutLabel = CreateBuildReadoutLabel(canvasObject.transform);
 
             // GameMessageBus is the single call site gameplay scripts use instead of a bare
             // Debug.Log for one-off player feedback ("Found 3 Wood", "Hit Raider_1 for 20
@@ -144,6 +146,34 @@ namespace SheltreSim.Survival
             rect.sizeDelta = new Vector2(600f, 32f);
 
             Text label = promptObject.GetComponent<Text>();
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = 20;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.text = string.Empty;
+            label.raycastTarget = false;
+
+            return label;
+        }
+
+        private static Text CreateBuildReadoutLabel(Transform parent)
+        {
+            // Top-center — Opus-review suggestion: cycling build pieces (mouse wheel) gave no
+            // feedback at all before this, so you picked a piece blind and only learned you
+            // couldn't afford it after clicking to place. Shows the selected piece's name and
+            // cost, colored green/afford or red/can't, via the same CraftingSystem.TryAfford
+            // check InventoryUI's Recipes list already uses — kept blank outside build mode.
+            GameObject readoutObject = new GameObject("BuildReadout", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            readoutObject.transform.SetParent(parent, false);
+
+            RectTransform rect = readoutObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -20f);
+            rect.sizeDelta = new Vector2(700f, 32f);
+
+            Text label = readoutObject.GetComponent<Text>();
             label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             label.fontSize = 20;
             label.alignment = TextAnchor.MiddleCenter;
@@ -287,6 +317,24 @@ namespace SheltreSim.Survival
             }
 
             interactPromptLabel.text = text ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Build-mode piece readout: pass null/empty to clear it (called when leaving build
+        /// mode or cycling with no pieces available). <paramref name="canAfford"/> colors the
+        /// text green/white-ish or red, mirroring InventoryUI's Recipes list coloring.
+        /// </summary>
+        public void SetBuildReadout(string text, bool canAfford)
+        {
+            if (buildReadoutLabel == null)
+            {
+                return;
+            }
+
+            buildReadoutLabel.text = text ?? string.Empty;
+            buildReadoutLabel.color = string.IsNullOrEmpty(text)
+                ? Color.white
+                : (canAfford ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.5f, 0.5f));
         }
 
         /// <summary>

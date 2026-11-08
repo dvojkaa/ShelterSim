@@ -1,3 +1,4 @@
+using System.Collections;
 using SheltreSim.Interaction;
 using SheltreSim.Player;
 using SheltreSim.Survival;
@@ -48,6 +49,31 @@ namespace SheltreSim.Enemies
         public float attackDamage = 5f;
         public float attackCooldown = 1.5f;
 
+        /// <summary>
+        /// Raised right before <c>Destroy(gameObject)</c> on a lethal hit, with <c>this</c> as
+        /// the argument (NOT after — by then the object is on its way out and <c>this</c> would
+        /// be a dangling reference to a destroyed Unity object). <see cref="EnemySpawner"/>
+        /// subscribes to this on every raider to drive respawns; killing every raider in the
+        /// scene used to permanently empty it (Destroy with no spawner), which an Opus-model
+        /// review flagged as a real pressure-release bug, not just a balance nit.
+        /// </summary>
+        public event System.Action<EnemyAI> OnDeath;
+
+        /// <summary>
+        /// Colors must match <c>M6EnemySetup.BodyColor</c>/<c>HeadColor</c>/<c>WeaponColor</c>
+        /// (and <c>EnemySpawner</c>'s copies of the same three constants) — this is what a hit
+        /// flash reverts TO. Hardcoded rather than read back from the renderer at Awake time:
+        /// this project's raiders are a fixed color per enemy part, so there is nothing to read
+        /// back dynamically, and hardcoding avoids any property-block read-back subtlety.
+        /// </summary>
+        private static readonly Color BodyColor = new Color(0.35f, 0.12f, 0.1f);
+        private static readonly Color HeadColor = new Color(0.55f, 0.42f, 0.35f);
+        private static readonly Color WeaponColor = new Color(0.2f, 0.19f, 0.18f);
+        private static readonly Color FlashColor = Color.white;
+        private const float FlashDuration = 0.15f;
+        private MaterialPropertyBlock propertyBlock;
+        private Coroutine flashCoroutine;
+
         /// <summary>How close the enemy must be to a closed door to force it open.</summary>
         public float doorBreakRadius = 1.8f;
         private const float DoorCheckInterval = 0.4f;
@@ -75,6 +101,7 @@ namespace SheltreSim.Enemies
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            propertyBlock = new MaterialPropertyBlock();
         }
 
         private void Start()
@@ -109,7 +136,64 @@ namespace SheltreSim.Enemies
             {
                 isDead = true;
                 Debug.Log($"{name} was killed.");
+                // Must fire BEFORE Destroy — once the object is destroyed 'this' is a dangling
+                // reference, and EnemySpawner's handler needs a live EnemyAI reference to look
+                // up which respawn slot it belongs to.
+                OnDeath?.Invoke(this);
                 Destroy(gameObject);
+            }
+            else
+            {
+                // No flash on a lethal hit — the object is about to be destroyed anyway, and a
+                // coroutine on a dying GameObject would just be wasted work.
+                if (flashCoroutine != null)
+                {
+                    StopCoroutine(flashCoroutine);
+                }
+                flashCoroutine = StartCoroutine(FlashDamage());
+            }
+        }
+
+        /// <summary>
+        /// Playtest/Opus-review feedback: combat had zero hit feedback beyond a Console/HUD-feed
+        /// text line. Briefly flashes every renderer under this enemy (the body capsule plus the
+        /// cosmetic "Head"/"WeaponProp" children <see cref="EnemyAI"/>'s setup tools add) to
+        /// <see cref="FlashColor"/>, then reverts to each part's fixed base color. Uses a
+        /// MaterialPropertyBlock rather than touching sharedMaterial directly, same pattern as
+        /// BuildModeController.TintGhost — avoids allocating per-instance material copies and
+        /// setting a property name the active shader doesn't have (_BaseColor on this project's
+        /// Built-in RP Standard shader) is a harmless no-op, so setting both _Color and
+        /// _BaseColor costs nothing and matches that existing precedent.
+        /// </summary>
+        private IEnumerator FlashDamage()
+        {
+            SetRendererColors(FlashColor, FlashColor, FlashColor);
+            yield return new WaitForSeconds(FlashDuration);
+            SetRendererColors(BodyColor, HeadColor, WeaponColor);
+            flashCoroutine = null;
+        }
+
+        private void SetRendererColors(Color body, Color head, Color weapon)
+        {
+            foreach (Renderer childRenderer in GetComponentsInChildren<Renderer>())
+            {
+                Color color;
+                switch (childRenderer.gameObject.name)
+                {
+                    case "Head":
+                        color = head;
+                        break;
+                    case "WeaponProp":
+                        color = weapon;
+                        break;
+                    default:
+                        color = body;
+                        break;
+                }
+
+                propertyBlock.SetColor("_Color", color);
+                propertyBlock.SetColor("_BaseColor", color);
+                childRenderer.SetPropertyBlock(propertyBlock);
             }
         }
 

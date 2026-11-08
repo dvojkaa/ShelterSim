@@ -49,6 +49,8 @@ namespace SheltreSim.EditorTools
         private static readonly Color FloorColor = new Color(0.5f, 0.5f, 0.5f);
         private static readonly Color WallColor = new Color(0.35f, 0.35f, 0.38f);
         private static readonly Color DoorColor = new Color(0.45f, 0.28f, 0.14f);
+        private static readonly Color TrimColor = new Color(0.22f, 0.22f, 0.24f);
+        private static readonly Color RoofColor = new Color(0.3f, 0.3f, 0.32f);
 
         private static void BuildRoom()
         {
@@ -56,9 +58,13 @@ namespace SheltreSim.EditorTools
 
             CreateBlock("Floor", new Vector3(0f, -WallThickness / 2f, 0f), new Vector3(RoomSize, WallThickness, RoomSize), FloorColor);
 
-            CreateBlock("Wall_North", new Vector3(0f, WallHeight / 2f, half), new Vector3(RoomSize, WallHeight, WallThickness), WallColor);
-            CreateBlock("Wall_East", new Vector3(half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor);
-            CreateBlock("Wall_West", new Vector3(-half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor);
+            // Each wall gets a tiny hand-picked tint offset from the base WallColor so the room
+            // doesn't read as four identical flat-grey slabs — deterministic literals, not
+            // System.Random (there's no seeded RNG threaded through this file and this project's
+            // convention is to only introduce one where variety is actually requested at scale).
+            CreateBlock("Wall_North", new Vector3(0f, WallHeight / 2f, half), new Vector3(RoomSize, WallHeight, WallThickness), WallColor + new Color(0.02f, 0.015f, -0.01f));
+            CreateBlock("Wall_East", new Vector3(half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor + new Color(-0.015f, 0f, 0.015f));
+            CreateBlock("Wall_West", new Vector3(-half, WallHeight / 2f, 0f), new Vector3(WallThickness, WallHeight, RoomSize), WallColor + new Color(0.01f, -0.015f, 0.005f));
 
             // South wall split around a doorway gap centered on x = 0.
             float sideSpan = (RoomSize - DoorGap) / 2f;
@@ -88,6 +94,51 @@ namespace SheltreSim.EditorTools
 
             InteractableDoor doorScript = door.AddComponent<InteractableDoor>();
             doorScript.doorVisual = doorHinge.transform;
+
+            BuildDoorTrim(half);
+            BuildRoof(half);
+        }
+
+        /// <summary>
+        /// Purely decorative door frame: a lintel above the opening plus two thin door-post
+        /// strips lining the inside edges of the gap. All three are visual-only (collider
+        /// destroyed immediately below) specifically so they carry zero risk of narrowing the
+        /// raider-clearance-tuned DoorGap — see the class-level comment on DoorGap for why that
+        /// number is load-bearing. The lintel sits above the door leaf's 2.2m height, so even a
+        /// hypothetical collider wouldn't have blocked the doorway; the posts are flush with the
+        /// existing side walls, not inset into the gap.
+        /// </summary>
+        private static void BuildDoorTrim(float half)
+        {
+            const float frameHeight = 2.4f;
+            const float postThickness = 0.12f;
+
+            CreateTrim("DoorTrim_Lintel", new Vector3(0f, 2.6f, -half), new Vector3(DoorGap + WallThickness, 0.8f, WallThickness * 1.5f), TrimColor);
+            CreateTrim("DoorTrim_PostLeft", new Vector3(-DoorGap / 2f + postThickness / 2f, frameHeight / 2f, -half), new Vector3(postThickness, frameHeight, WallThickness * 1.3f), TrimColor);
+            CreateTrim("DoorTrim_PostRight", new Vector3(DoorGap / 2f - postThickness / 2f, frameHeight / 2f, -half), new Vector3(postThickness, frameHeight, WallThickness * 1.3f), TrimColor);
+        }
+
+        /// <summary>
+        /// Flat roof slab closing the top of the room — purely a visual cap (nothing in this
+        /// game traverses upward to WallHeight=3, the camera sits at ~1.6m), so it skips a
+        /// collider entirely rather than risk ever being mistaken for a ceiling the player could
+        /// bump into from underneath in some future vertical-movement feature.
+        /// </summary>
+        private static void BuildRoof(float half)
+        {
+            CreateTrim("Roof", new Vector3(0f, WallHeight + 0.05f, 0f), new Vector3(RoomSize, 0.1f, RoomSize), RoofColor);
+        }
+
+        /// <summary>Decorative-only primitive: collider is destroyed immediately so it can never affect physics/raycasts.</summary>
+        private static GameObject CreateTrim(string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject trim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            trim.name = name;
+            trim.transform.position = position;
+            trim.transform.localScale = scale;
+            EditorMaterialUtility.Apply(trim, color);
+            Object.DestroyImmediate(trim.GetComponent<Collider>());
+            return trim;
         }
 
         private static GameObject CreateBlock(string name, Vector3 position, Vector3 scale, Color color)

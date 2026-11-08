@@ -21,6 +21,15 @@ namespace SheltreSim.Building
         public SheltreSim.Items.Inventory inventory;
 
         /// <summary>
+        /// Optional, null-checked — on-screen readout for the currently-selected build piece
+        /// and whether you can afford it. Opus-review suggestion: cycling pieces previously
+        /// gave zero feedback, so you only learned you couldn't afford one after clicking to
+        /// place it.
+        /// </summary>
+        public SheltreSim.Survival.SurvivalHUD survivalHud;
+        private string lastBuildReadoutText;
+
+        /// <summary>
         /// Exposed so other systems that also bind Escape or left-click (melee attack, pause
         /// menu) can defer to build mode instead of double-firing on the same input.
         /// </summary>
@@ -158,6 +167,7 @@ namespace SheltreSim.Building
             if (!isBuildModeActive)
             {
                 DestroyGhost();
+                ClearBuildReadout();
                 return;
             }
 
@@ -172,6 +182,8 @@ namespace SheltreSim.Building
             }
 
             BuildPieceDefinition activePiece = GetActivePiece();
+            UpdateBuildReadout(activePiece);
+
             if (activePiece.prefab == null)
             {
                 if (!loggedMissingPrefab)
@@ -247,6 +259,57 @@ namespace SheltreSim.Building
             currentPieceIndex = ((currentPieceIndex + direction) % availablePieces.Count + availablePieces.Count) % availablePieces.Count;
             DestroyGhost();
             lastCycleTime = Time.time;
+        }
+
+        private void UpdateBuildReadout(BuildPieceDefinition piece)
+        {
+            if (survivalHud == null || piece == null)
+            {
+                return;
+            }
+
+            bool canAfford = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost);
+
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            sb.Append(piece.displayName).Append(" — ");
+            if (piece.craftingCost == null || piece.craftingCost.Count == 0)
+            {
+                sb.Append("free");
+            }
+            else
+            {
+                for (int i = 0; i < piece.craftingCost.Count; i++)
+                {
+                    var line = piece.craftingCost[i];
+                    if (line.resource == null)
+                    {
+                        continue;
+                    }
+                    if (i > 0)
+                    {
+                        sb.Append(", ");
+                    }
+                    sb.Append(line.amount).Append(' ').Append(line.resource.displayName);
+                }
+            }
+
+            // Rebuilt and re-sent every frame while in build mode (not just on piece-change) —
+            // affordability can flip without the selected piece changing (gathering/spending
+            // resources while still looking at the same piece), and this project's scale makes
+            // a per-frame string rebuild here irrelevant, same as the stat bars above.
+            lastBuildReadoutText = sb.ToString();
+            survivalHud.SetBuildReadout(lastBuildReadoutText, canAfford);
+        }
+
+        private void ClearBuildReadout()
+        {
+            if (survivalHud == null || lastBuildReadoutText == null)
+            {
+                return;
+            }
+
+            lastBuildReadoutText = null;
+            survivalHud.SetBuildReadout(string.Empty, false);
         }
 
         private BuildPieceDefinition GetActivePiece()

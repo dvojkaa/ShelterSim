@@ -31,14 +31,16 @@ namespace SheltreSim.EditorTools
         // reported 10 crates yielding only 2 Water and nothing else. The remaining 15% is meant
         // to keep "might be empty" a real possibility (LootContainer's prompt deliberately never
         // reveals contents) without it being the dominant outcome — but note that with the
-        // LootSeed below it does not currently happen at all: the shipped build rolls 38 of 38
-        // crates non-empty (measured, not assumed). That is a legitimate consequence of a fixed
-        // seed plus a changed draw sequence (the multi-roll rebalance below consumes a different
-        // number of System.Random draws per crate than the single-roll version did, which shifts
-        // every later crate's hasLoot draw), not a bug in this constant. It over-delivers against
-        // the "too stingy" complaint rather than undermining it, so it is left alone; anyone who
-        // wants visible empty crates back should change LootSeed and re-check the tool's own
-        // "(N with something inside, M empty)" summary line, not change this number.
+        // LootSeed below it does not currently happen at all: the shipped build rolls every
+        // placed crate non-empty (measured via the tool's own summary line, not assumed — 38 of
+        // 38 as of the M10 QC pass, 39 of 39 after the visual-detail pass added a few more
+        // System.Random draws per building in M10MapExpansionSetup; check the current log line
+        // rather than trusting either literal number). That is a legitimate consequence of a
+        // fixed seed plus however many System.Random draws precede each crate's hasLoot roll,
+        // not a bug in this constant. It over-delivers against the "too stingy" complaint rather
+        // than undermining it, so it is left alone; anyone who wants visible empty crates back
+        // should change LootSeed and re-check the tool's own "(N with something inside, M empty)"
+        // summary line, not change this number.
         private const double HasLootChance = 0.85;
 
         // A crate that has loot rolls this many distinct item stacks (1-2), not always exactly
@@ -48,6 +50,7 @@ namespace SheltreSim.EditorTools
         private const int MaxRollsPerCrate = 2;
 
         private static readonly Color CrateColor = new Color(0.45f, 0.35f, 0.2f);
+        private static readonly Color CrateBandColor = new Color(0.22f, 0.16f, 0.09f);
 
         [MenuItem("Tools/SheltreSim/Setup M10 Consumables And Loot")]
         public static void SetupConsumablesAndLoot()
@@ -125,6 +128,7 @@ namespace SheltreSim.EditorTools
                 crate.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
                 crate.transform.rotation = Quaternion.Euler(0f, (float)(rng.NextDouble() * 360.0), 0f);
                 EditorMaterialUtility.Apply(crate, CrateColor);
+                BuildCrateDetailing(crate.transform);
 
                 LootContainer loot = crate.AddComponent<LootContainer>();
                 bool hasLoot = rng.NextDouble() < HasLootChance;
@@ -205,6 +209,40 @@ namespace SheltreSim.EditorTools
             }
 
             return buried;
+        }
+
+        /// <summary>
+        /// Purely cosmetic "binding strap + lid seam" detail, added as children of the crate so
+        /// it never touches the crate's own transform (localScale 0.4/0.4/0.4, position) — both
+        /// were specifically tuned so crates don't end up buried in car bodies or floating above
+        /// floors (see <see cref="ReportBuriedCrates"/>). Children's localScale is expressed
+        /// relative to the crate's own uniform 0.4 scale (world size / 0.4) so the strap/seam
+        /// come out at the intended real-world thickness rather than being compounded down to
+        /// 40% of it. Both are decorative only — no collider — so they cannot affect the
+        /// buried-crate overlap check or any raycast/melee logic.
+        /// </summary>
+        private static void BuildCrateDetailing(Transform crateTransform)
+        {
+            // Horizontal binding strap around the crate's middle, slightly proud of its faces.
+            GameObject strap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            strap.name = "CrateStrap";
+            strap.transform.SetParent(crateTransform, false);
+            strap.transform.localPosition = Vector3.zero;
+            strap.transform.localScale = new Vector3(1.08f, 0.22f, 1.08f); // world ~0.432 x 0.088 x 0.432
+            EditorMaterialUtility.Apply(strap, CrateBandColor);
+            UnityEngine.Object.DestroyImmediate(strap.GetComponent<Collider>());
+
+            // Thin lid-seam line near the top face.
+            GameObject seam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            seam.name = "CrateLidSeam";
+            seam.transform.SetParent(crateTransform, false);
+            // localPosition.y of 0.3 (in the crate's own unscaled unit-cube space) lands at
+            // world y = crate.position.y + 0.4 * 0.3 = +0.12 from centre — just inside the
+            // crate's 0.2 half-extent, near the top face.
+            seam.transform.localPosition = new Vector3(0f, 0.3f, 0f);
+            seam.transform.localScale = new Vector3(1.02f, 0.08f, 1.02f);
+            EditorMaterialUtility.Apply(seam, CrateBandColor);
+            UnityEngine.Object.DestroyImmediate(seam.GetComponent<Collider>());
         }
 
         private static ResourceDefinition CreateOrLoadResource(string id, string displayName, string path, Action<ResourceDefinition> configure)

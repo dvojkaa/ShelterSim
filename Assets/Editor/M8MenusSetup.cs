@@ -60,7 +60,7 @@ namespace SheltreSim.EditorTools
             InventoryUI inventoryUi = SetupInventoryUI(player, inventory, buildController, meleeAttacker);
             SetupPauseMenu(buildController, inventoryUi);
             WireMeleeAttackerIntoSave(meleeAttacker);
-            WireInteractorIntoHud(cameraPivot);
+            WireInteractorIntoHud(cameraPivot, buildController);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
@@ -89,6 +89,22 @@ namespace SheltreSim.EditorTools
             }
 
             saveManager.meleeAttacker = meleeAttacker;
+
+            // World-state persistence round — GameStateManager.CurrentPhase wasn't saved before,
+            // so reloading always put you back in the Building phase with the apocalypse button
+            // live again even after it had already been triggered. Optional/null-checked, same
+            // degrade-gracefully pattern as meleeAttacker above: only present once M7 has run.
+            GameObject gameStateObject = GameObject.Find("GameStateManager");
+            SheltreSim.Core.GameStateManager gameStateManager = gameStateObject != null
+                ? gameStateObject.GetComponent<SheltreSim.Core.GameStateManager>()
+                : null;
+            if (gameStateManager == null)
+            {
+                Debug.LogWarning("No GameStateManager found — the current game phase will not survive save/load. Run Tools > SheltreSim > Setup M7 Apocalypse Trigger first if you want that.");
+                return;
+            }
+
+            saveManager.gameStateManager = gameStateManager;
         }
 
         /// <summary>
@@ -100,7 +116,7 @@ namespace SheltreSim.EditorTools
         /// — same reasoning as every other cross-system reference this file already wires.
         /// Optional/null-checked: M8 should still work if M3 hasn't run.
         /// </summary>
-        private static void WireInteractorIntoHud(Transform cameraPivot)
+        private static void WireInteractorIntoHud(Transform cameraPivot, BuildModeController buildController)
         {
             PlayerInteractor interactor = cameraPivot.GetComponent<PlayerInteractor>();
             if (interactor == null)
@@ -118,6 +134,10 @@ namespace SheltreSim.EditorTools
             }
 
             interactor.survivalHud = survivalHud;
+
+            // Opus-review suggestion — build-mode piece cycling previously gave no feedback.
+            // Same optional/null-checked wiring as the interactor above.
+            buildController.survivalHud = survivalHud;
         }
 
         private static void SetupPauseMenu(BuildModeController buildController, InventoryUI inventoryUi)
@@ -225,11 +245,15 @@ namespace SheltreSim.EditorTools
             GameObject weaponObject;
             if (weapon == null)
             {
-                weaponObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                // A bat-like silhouette instead of a single thin cube: this object is the grip
+                // (what MeleeAttacker.weaponVisual actually rotates for the swing), with a
+                // wider "head" primitive parented to its tip so it swings along for free.
+                weaponObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 weaponObject.name = "WeaponVisual";
                 weaponObject.transform.SetParent(cameraPivot, false);
-                weaponObject.transform.localPosition = new Vector3(0.35f, -0.25f, 0.6f);
-                weaponObject.transform.localScale = new Vector3(0.06f, 0.06f, 0.6f);
+                weaponObject.transform.localPosition = new Vector3(0.35f, -0.25f, 0.55f);
+                weaponObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                weaponObject.transform.localScale = new Vector3(0.045f, 0.3f, 0.045f);
 
                 // Purely visual — no collider needed on the player's own weapon prop, and an
                 // active one would just add noise to the melee SphereCast's hit results.
@@ -240,6 +264,20 @@ namespace SheltreSim.EditorTools
                 }
 
                 EditorMaterialUtility.Apply(weaponObject, new Color(0.35f, 0.3f, 0.25f));
+
+                GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                head.name = "WeaponHead";
+                head.transform.SetParent(weaponObject.transform, false);
+                // Local space here is the grip's un-rotated axis (its own localScale.y is the
+                // cylinder's half-length direction), so the head sits past the grip's tip.
+                head.transform.localPosition = new Vector3(0f, 1.3f, 0f);
+                head.transform.localScale = new Vector3(1.8f, 0.5f, 1.8f);
+                Collider headCollider = head.GetComponent<Collider>();
+                if (headCollider != null)
+                {
+                    Object.DestroyImmediate(headCollider);
+                }
+                EditorMaterialUtility.Apply(head, new Color(0.3f, 0.28f, 0.27f));
             }
             else
             {
