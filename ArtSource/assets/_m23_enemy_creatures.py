@@ -2,6 +2,8 @@
 Named mesh pivots are optional animation attachment points, not a rig.
 """
 import os
+import math
+from mathutils import Matrix, Vector
 import bpy
 from ss_art import Model, finish, ROOT
 
@@ -127,8 +129,142 @@ def build(name):
         if ob.name not in m.parts:
             bpy.data.objects.remove(ob,do_unlink=True)
     bpy.context.scene.camera=None
+    animate_and_export(name,list(bpy.data.objects))
     bpy.context.scene.unit_settings.system='METRIC'
     bpy.context.scene.unit_settings.scale_length=1
     bpy.context.preferences.filepaths.save_version=0
     bpy.context.preferences.filepaths.file_preview_type='NONE'
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'ArtSource','blend',name+'.blend'))
+
+
+CLIPS={'Idle':60,'Walk':24,'Attack':23,'Hit':9,'Death':30}
+
+
+def animate_and_export(name,objects):
+    """Five multi-slot actions, baked together into named FBX takes.
+
+    Blender's stock per-NLA export mutes every strip except one, which splits
+    object animation. The scoped adapter below calls the stock global sampler
+    once per multi-object action. No exporter file or shared library is edited.
+    Unity must set Loop Time for Idle/Walk; FBX takes do not encode Unity flags.
+    """
+    from io_scene_fbx import export_fbx_bin as exporter
+    scene=bpy.context.scene
+    scene.render.fps=30
+    scene.frame_start=0
+    scene.frame_end=60
+    # Actions from earlier batch assets must not acquire .001 suffixes.
+    for action in list(bpy.data.actions):
+        bpy.data.actions.remove(action)
+    rest={o.name:(o.location.copy(),o.rotation_euler.copy(),o.scale.copy()) for o in objects}
+    actions={}
+    for clip,end in CLIPS.items():
+        action=bpy.data.actions.new(clip)
+        action.use_fake_user=True
+        action['loop']=clip in ('Idle','Walk')
+        action['duration_seconds']=end/30
+        slots={}
+        for ob in objects:
+            ob.animation_data_create()
+            ob.animation_data.action=action
+            slot=action.slots.new(id_type='OBJECT',name=ob.name)
+            ob.animation_data.action_slot=slot
+            slots[ob.name]=slot
+        for frame in range(end+1):
+            t=frame/end
+            for ob in objects:
+                loc,rot,scale=rest[ob.name]
+                ob.location=loc
+                ob.rotation_euler=rot
+                ob.scale=scale
+                part=ob.name
+                if clip=='Idle':
+                    breath=(1-math.cos(t*math.tau))*.5
+                    if part=='Torso':
+                        ob.scale.z=1+.018*breath
+                        ob.rotation_euler.y=math.radians(1.5*math.sin(t*math.tau))
+                    if part=='Head':
+                        ob.rotation_euler.x=math.radians(2*math.sin(t*math.tau))
+                    if part.startswith('Arm_'):
+                        ob.rotation_euler.x=math.radians(3*math.sin(t*math.tau))
+                elif clip=='Walk':
+                    sign=-1 if part.endswith('_L') else 1
+                    if part.startswith('Hindleg_'): sign*=-1
+                    if part.startswith(('Leg_','Foreleg_','Hindleg_')):
+                        ob.rotation_euler.x=math.radians(13*sign*math.sin(t*math.tau))
+                    elif part.startswith('Arm_'):
+                        ob.rotation_euler.x=math.radians(-18*sign*math.sin(t*math.tau))
+                    elif part=='Torso':
+                        ob.rotation_euler.y=math.radians(2*math.sin(t*math.tau))
+                    elif part=='Head':
+                        ob.rotation_euler.x=math.radians(3*math.sin(t*math.tau))
+                elif clip=='Attack':
+                    # Deliberate windup, impact exactly at frame 15 (0.5 s), recovery.
+                    if frame<=9: a=-.35*frame/9
+                    elif frame<=15: a=-.35+1.35*(frame-9)/6
+                    else: a=1-(frame-15)/(end-15)
+                    if part=='Torso':
+                        ob.rotation_euler.x=math.radians(-8*a)
+                        ob.location.y+=.07*a
+                    elif part=='Head':
+                        ob.rotation_euler.x=math.radians((-25 if name!='enemy_rootwalker' else -12)*a)
+                        ob.location.y+=.07*a
+                    elif part.startswith('Arm_'):
+                        ob.rotation_euler.x=math.radians(60*a)
+                        ob.rotation_euler.y=math.radians((18 if part.endswith('_L') else -18)*a)
+                elif clip=='Hit':
+                    a=math.sin(math.pi*t)
+                    if part in ('Torso','Head'):
+                        ob.rotation_euler.x=math.radians(13*a)
+                        ob.location.y-=.045*a
+                    elif part.startswith('Arm_'):
+                        ob.rotation_euler.x=math.radians(-12*a)
+                else:
+                    # Whole-body fall, with the imported root held fixed at the origin.
+                    a=t*t*(3-2*t)
+                    turn=Matrix.Rotation(math.radians(86*a),4,'Y')
+                    ob.location=turn@loc
+                    ob.rotation_euler=(turn.to_3x3()@rot.to_matrix()).to_euler()
+            bpy.context.view_layer.update()
+            # Foot contact per sampled frame; no foot or tusk penetrates the floor.
+            floor=min((ob.matrix_world@v.co).z for ob in objects for v in ob.data.vertices)
+            for ob in objects:
+                ob.location.z-=floor
+                for channel in ('location','rotation_euler','scale'):
+                    ob.keyframe_insert(channel,frame=frame,group=ob.name)
+        actions[clip]=(action,slots,end)
+    def bind(action,slots):
+        for ob in objects:
+            ob.animation_data.action=action
+            ob.animation_data.action_slot=slots[ob.name]
+    def together(scene_data):
+        takes=[]
+        animated=set()
+        for clip,(action,slots,end) in actions.items():
+            bind(action,slots)
+            scene.frame_set(0)
+            take=exporter.fbx_animations_do(scene_data,action,0,end,True,force_keep=True)
+            assert take is not None,clip
+            takes.append(take)
+            for elem_key,(_,curvenodes) in take[1].items():
+                for prop in curvenodes: animated.add((elem_key,prop))
+            print('CREATURE_TAKE',name,clip,'seconds=',end/30,'parts=',len(take[1]),'loop=',clip in ('Idle','Walk'),flush=True)
+        return takes,animated,0,60
+    original=exporter.fbx_animations
+    exporter.fbx_animations=together
+    try:
+        bpy.ops.object.select_all(action='DESELECT')
+        for ob in objects: ob.select_set(True)
+        bpy.context.view_layer.objects.active=objects[0]
+        bpy.ops.export_scene.fbx(filepath=os.path.join(ROOT,'Assets','Art','Models',name+'.fbx'),
+            use_selection=True,object_types={'MESH'},axis_forward='Z',axis_up='Y',
+            global_scale=1,apply_unit_scale=True,apply_scale_options='FBX_SCALE_ALL',
+            bake_space_transform=True,mesh_smooth_type='FACE',use_mesh_modifiers=False,
+            add_leaf_bones=False,use_triangles=True,path_mode='STRIP',embed_textures=False,
+            bake_anim=True,bake_anim_use_all_actions=False,bake_anim_use_nla_strips=False,
+            bake_anim_step=1,bake_anim_simplify_factor=0)
+    finally:
+        exporter.fbx_animations=original
+        action,slots,_=actions['Idle']
+        bind(action,slots)
+        scene.frame_set(0)

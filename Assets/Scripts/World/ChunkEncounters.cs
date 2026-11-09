@@ -8,33 +8,27 @@ namespace SheltreSim.World
 {
     public static class ChunkEncounters
     {
+        /// <summary>
+        /// Ruined world only (ProceduralWorld calls it after the bombs). Habitat groups, camps and boss lairs live in
+        /// SheltreSim.Bestiary; each draws from its own per-chunk random, so none of them shifts anything else.
+        /// </summary>
         public static void Build(Transform parent, Vector2Int coordinate, int seed, ProceduralWorldAssets assets)
         {
             float x = coordinate.x * 128f + 64f, z = coordinate.y * 128f + 64f;
-            if (WorldLayout.IsHomePlot(x,z) || WorldLayout.IsWater(x,z,seed,10f)) return;
             int hash = WorldLayout.Hash(coordinate.x,coordinate.y,seed+197);
             bool town=WorldLayout.IsTownChunk(coordinate,seed), landmark=ProceduralLandmarks.HasLandmark(coordinate,seed);
-            bool patrol=landmark || (town ? hash%3==0 : hash%17==0);
-            if (patrol && assets.raiderPrefab != null)
-            {
-                // East/west road verges remain clear of landmark decks and urban lots.
-                Vector3 start=new Vector3(coordinate.x*128f+12f,0f,coordinate.y*128f+64f);
-                start.y=WorldLayout.HeightAt(start.x,start.z,seed)+1.08f;
-                if (!WorldLayout.IsWater(start.x,start.z,seed,2f))
-                {
-                    var slot = new GameObject("EncounterSlot_0");
-                    slot.transform.SetParent(parent,false);
-                    slot.transform.position=start;
-                    var actor=UnityEngine.Object.Instantiate(assets.raiderPrefab,slot.transform,false);
-                    actor.name="PatrolRaider";
-                    actor.transform.localPosition=Vector3.zero;
-                    actor.SetActive(true);
-                    var state=slot.AddComponent<ChunkEncounterSlot>();
-                    state.Initialize(actor.GetComponent<EnemyAI>(),seed);
-                }
-            }
-            if (!town && !landmark && hash%23==0)
-            {
+            bool camp=SheltreSim.Bestiary.EnemyCamps.IsCamp(coordinate,seed);
+            if (!camp && !town && !landmark && hash%23==0 && !WorldLayout.IsHomePlot(x,z) && !WorldLayout.IsWater(x,z,seed,10f))
+                ReliefCache(parent, coordinate, seed, assets, x, z);
+            // Placement checks query this chunk's colliders, built a moment ago this frame.
+            Physics.SyncTransforms();
+            if (camp) SheltreSim.Bestiary.EnemyCamps.Build(parent, coordinate, seed, assets);
+            else SheltreSim.Bestiary.EncounterHabitats.Build(parent, coordinate, seed);
+            if (landmark) SheltreSim.Bestiary.BossLairs.Build(parent, coordinate, seed, assets);
+        }
+
+        private static void ReliefCache(Transform parent, Vector2Int coordinate, int seed, ProceduralWorldAssets assets, float x, float z)
+        {
                 var cache=new GameObject("ReliefCache");
                 cache.transform.SetParent(parent,false);
                 cache.transform.position=new Vector3(x,WorldLayout.HeightAt(x,z,seed),z);
@@ -52,7 +46,6 @@ namespace SheltreSim.World
                 var discovery=cache.AddComponent<LandmarkDiscovery>();
                 discovery.stableId=$"relief_{seed}_{coordinate.x}_{coordinate.y}";
                 discovery.title="Abandoned relief supplies";
-            }
         }
     }
 
@@ -83,7 +76,7 @@ namespace SheltreSim.World
         }
         private void Update()
         {
-            if(Actor==null||Defeated||Actor.IsDead||Actor.IsChasing||Time.timeScale<=0f||player==null)return;
+            if(Actor==null||Defeated||Actor.IsDead||Actor.Brain!=null||Actor.IsChasing||Time.timeScale<=0f||player==null)return;
             if(ProceduralWorld.Active!=null&&!ProceduralWorld.Active.HasGroundAt(Actor.transform.position))return;
             if((player.position-Actor.transform.position).sqrMagnitude<Actor.detectionRadius*Actor.detectionRadius)return;
             float phase=Time.time*.045f+(WorldLayout.Hash((int)anchor.x,(int)anchor.z,seed)%628)/100f;

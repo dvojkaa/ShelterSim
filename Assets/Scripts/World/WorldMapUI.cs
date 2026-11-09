@@ -143,7 +143,7 @@ namespace SheltreSim.World
                 }
                 goal=tracker.GoalText().Split('\n')[0];
             }
-            position.text=$"NORTH ↑   /   YELLOW + YOU   /   GREEN B BUNKER   /   [ ] VISITED   /   ? REVEALED   /   X WAYPOINT\nSeed {world.Seed}   |   X {p.x:0}   Z {p.z:0}   |   {homeText}\n{waypointText}\n{goal}\nLocal view 1.5 km. Pale districts: towns. Dark lines: roads. Undiscovered loot is not shown.";
+            position.text=$"NORTH ↑  /  YELLOW + YOU  /  GREEN B BUNKER  /  [ ] VISITED  /  ? REVEALED  /  ! CAMP, BOSS  /  X WAYPOINT\nSeed {world.Seed}   |   X {p.x:0}   Z {p.z:0}   |   {homeText}\n{waypointText}\n{goal}\nLocal view 1.5 km. Pale districts: towns. Dark lines: roads. Undiscovered loot is not shown.";
         }
 
         /// <summary>Where a world position falls on the map, relative to its centre (the viewer).</summary>
@@ -164,6 +164,7 @@ namespace SheltreSim.World
                 foreach(string id in tracker.RevealedLandmarks) PlaceSite(id,"? ","",GameUI.Warning,p,seed,shown,ref used);
                 PlaceSite(tracker.RelayLocatedId,"? ","",GameUI.Warning,p,seed,shown,ref used);
             }
+            PlaceEncounters(p,seed,ref used);
             for(int i=used;i<markers.Count;i++) markers[i].gameObject.SetActive(false);
             bool hasWaypoint=tracker!=null&&tracker.HasWaypoint;
             waypointMarker.gameObject.SetActive(hasWaypoint);
@@ -178,6 +179,35 @@ namespace SheltreSim.World
             }
             waypointMarker.rectTransform.anchoredPosition=offset;
             waypointMarker.text=inside?"X "+tracker.WaypointTitle:"X WAYPOINT";
+        }
+
+        // Camps and boss lairs the player has seen, and the one camp every world has near home as "?" until then.
+        private void PlaceEncounters(Vector3 p,int seed,ref int used)
+        {
+            var shown=new HashSet<string>();
+            foreach(string id in SheltreSim.Bestiary.EncounterAtlas.Discovered)
+            {
+                if(!SheltreSim.Bestiary.EncounterAtlas.TryParse(id,out bool camp,out Vector2Int c,out int siteSeed)||siteSeed!=seed||!shown.Add(id)) continue;
+                if(camp) PlaceLabel(SheltreSim.Bestiary.EnemyCamps.Center(c,seed),"! Camp",new Color(1f,.35f,.25f),p,ref used);
+                else if(SheltreSim.Bestiary.BossLairs.TryPosition(c,seed,out Vector3 lair,out string boss))
+                    PlaceLabel(lair,"! "+boss,new Color(1f,.35f,.25f),p,ref used);
+            }
+            Vector2Int? near=SheltreSim.Bestiary.EnemyCamps.Guaranteed(seed);
+            if(near.HasValue&&!shown.Contains(SheltreSim.Bestiary.EncounterAtlas.CampId(near.Value,seed)))
+                PlaceLabel(SheltreSim.Bestiary.EnemyCamps.Center(near.Value,seed),"? Camp",GameUI.Warning,p,ref used);
+        }
+
+        private void PlaceLabel(Vector3 world,string text,Color color,Vector3 p,ref int used)
+        {
+            Vector2 offset=MapOffset(world,p);
+            if(Mathf.Abs(offset.x)>=MapSize*.5f-8f||Mathf.Abs(offset.y)>=MapSize*.5f-8f) return;
+            if(used==markers.Count)
+                markers.Add(GameUI.Label(map.transform,"Site"+used,"",Vector2.one*.5f,Vector2.one*.5f,Vector2.zero,new Vector2(110,22),14,Color.white,TextAnchor.MiddleCenter,true));
+            Text marker=markers[used++];
+            marker.gameObject.SetActive(true);
+            marker.rectTransform.anchoredPosition=offset;
+            marker.color=color;
+            marker.text=text;
         }
 
         private void PlaceSite(string id,string prefix,string suffix,Color color,Vector3 p,int seed,HashSet<string> shown,ref int used)

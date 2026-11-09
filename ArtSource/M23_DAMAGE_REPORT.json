@@ -1,0 +1,79 @@
+{
+  "design": "Same-footprint visual swaps; these assets contain no collider or gameplay logic.",
+  "recommended_health_thresholds": {
+    "damaged_below_fraction": 0.65,
+    "critical_below_fraction": 0.3,
+    "destroy_at_fraction": 0.0
+  },
+  "variants": [
+    {
+      "base_id": "piece_wall_steel",
+      "damaged_id": "piece_wall_steel_damaged",
+      "critical_id": "piece_wall_steel_critical",
+      "bounds": {
+        "x": [
+          -1.0,
+          1.0
+        ],
+        "y": [
+          -0.1,
+          0.1
+        ],
+        "z": [
+          0.0,
+          3.0
+        ]
+      },
+      "triangles": {
+        "damaged": 3216,
+        "critical": 2992
+      }
+    },
+    {
+      "base_id": "piece_door_wood",
+      "damaged_id": "piece_door_wood_damaged",
+      "critical_id": "piece_door_wood_critical",
+      "bounds": {
+        "x": [
+          -0.8,
+          0.8
+        ],
+        "y": [
+          -0.04,
+          0.04
+        ],
+        "z": [
+          0.01,
+          2.19
+        ]
+      },
+      "triangles": {
+        "damaged": 528,
+        "critical": 460
+      }
+    },
+    {
+      "base_id": "piece_door_steel",
+      "damaged_id": "piece_door_steel_damaged",
+      "critical_id": "piece_door_steel_critical",
+      "bounds": {
+        "x": [
+          -0.8,
+          0.8
+        ],
+        "y": [
+          -0.038,
+          0.035
+        ],
+        "z": [
+          0.0,
+          2.2
+        ]
+      },
+      "triangles": {
+        "damaged": 524,
+        "critical": 348
+      }
+    }
+  ]
+}

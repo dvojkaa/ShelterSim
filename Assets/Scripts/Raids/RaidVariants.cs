@@ -8,8 +8,8 @@ namespace SheltreSim.Raids
     public enum LootTier { Ordinary, Elite, Warlord }
 
     /// <summary>
-    /// The one table of what each raid enemy is. ModelId names the FBX planned for it in Assets/Art/Models. None exist yet,
-    /// so every variant is today's raider prefab with a tint and a scale.
+    /// The one table of what each raid enemy is. ModelId names GPT's model (Resources/Enemies/&lt;id&gt;), which RaidDirector puts on
+    /// the raider prefab when it spawns the actor (EnemyModels.Apply); without that prefab it stays the raider with a tint and a scale.
     /// BodyRadius and BodyHeight are the capsule in world metres and don't follow the scale: the bunker door opening is
     /// 2.3 m high and the capsule adds a 0.08 skin at each end, so 2.0 is the limit (measured by RaidProbe). A larger model must not grow it.
     /// </summary>

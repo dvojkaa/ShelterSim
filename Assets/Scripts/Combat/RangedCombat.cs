@@ -70,7 +70,7 @@ namespace SheltreSim.Combat
             if (enemy != null)
             {
                 if (enemy.IsDead) return HitKind.World;
-                enemy.TakeDamage(damage);
+                enemy.TakeDamage(damage, from);
                 if (!enemy.IsDead) return HitKind.Target;
                 GameMessageBus.Post("Raider defeated.");
                 return HitKind.Kill;

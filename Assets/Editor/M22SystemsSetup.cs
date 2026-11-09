@@ -23,6 +23,7 @@ namespace SheltreSim.EditorTools
         private const string WeaponModels = "Assets/Art/Models/";
         private const string WeaponPrefabs = "Assets/Art/Resources/Weapons/";
         private const string PropPrefabs = "Assets/Art/Resources/Props/";
+        private const string EnemyPrefabs = "Assets/Art/Resources/Enemies/";
         private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell" };
 
         private sealed class Row
@@ -74,6 +75,12 @@ namespace SheltreSim.EditorTools
             BuildWeaponPrefabs(atlas);
             Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
             foreach (string id in PropIds) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
+            Directory.CreateDirectory(EnemyPrefabs.TrimEnd('/'));
+            foreach (var species in SheltreSim.Bestiary.SpeciesSpec.All)
+            {
+                ModelPrefab(WeaponModels + species.ModelId + ".fbx", EnemyPrefabs + species.ModelId + ".prefab", species.ModelId, atlas);
+                AddAnimator(WeaponModels + species.ModelId + ".fbx", EnemyPrefabs + species.ModelId);
+            }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             WireScene(added);
@@ -150,6 +157,59 @@ namespace SheltreSim.EditorTools
             {
                 ModelPrefab(WeaponModels + "weapon_" + spec.id + ".fbx", WeaponPrefabs + spec.id + ".prefab", spec.id, atlas);
             }
+        }
+
+        // One controller per model from its own takes: Idle and Walk loop, Attack/Hit/Death once. Driven by EnemyAnimationDriver.
+        private static void AddAnimator(string modelPath, string prefabBase)
+        {
+            string prefabPath = prefabBase + ".prefab";
+            if (!File.Exists(prefabPath)) return;
+            var clips = AssetDatabase.LoadAllAssetsAtPath(modelPath).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();
+            AnimationClip Clip(string name) => clips.FirstOrDefault(c => c.name == name) ?? clips.FirstOrDefault(c => c.name.EndsWith(name));
+            AnimationClip idle = Clip("Idle"), walk = Clip("Walk"), attack = Clip("Attack"), hit = Clip("Hit"), death = Clip("Death");
+            if (idle == null || walk == null || attack == null)
+            {
+                Debug.LogWarning($"[M22] {modelPath}: no Idle/Walk/Attack takes ({clips.Count} clips), it keeps the procedural walk");
+                return;
+            }
+            string controllerPath = prefabBase + "_anim.controller";
+            AssetDatabase.DeleteAsset(controllerPath);
+            var controller = UnityEditor.Animations.AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
+            controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            controller.AddParameter("Attack", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Hit", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Dead", AnimatorControllerParameterType.Trigger);
+            var sm = controller.layers[0].stateMachine;
+            var sIdle = sm.AddState("Idle"); sIdle.motion = idle;
+            var sWalk = sm.AddState("Walk"); sWalk.motion = walk;
+            var sAttack = sm.AddState("Attack"); sAttack.motion = attack;
+            sm.defaultState = sIdle;
+            var t = sIdle.AddTransition(sWalk); t.hasExitTime = false; t.duration = .15f; t.AddCondition(UnityEditor.Animations.AnimatorConditionMode.Greater, .3f, "Speed");
+            t = sWalk.AddTransition(sIdle); t.hasExitTime = false; t.duration = .2f; t.AddCondition(UnityEditor.Animations.AnimatorConditionMode.Less, .2f, "Speed");
+            t = sm.AddAnyStateTransition(sAttack); t.hasExitTime = false; t.duration = .05f; t.canTransitionToSelf = false; t.AddCondition(UnityEditor.Animations.AnimatorConditionMode.If, 0, "Attack");
+            t = sAttack.AddTransition(sIdle); t.hasExitTime = true; t.exitTime = 1f; t.duration = .1f;
+            if (hit != null)
+            {
+                var sHit = sm.AddState("Hit"); sHit.motion = hit;
+                t = sm.AddAnyStateTransition(sHit); t.hasExitTime = false; t.duration = .05f; t.canTransitionToSelf = false; t.AddCondition(UnityEditor.Animations.AnimatorConditionMode.If, 0, "Hit");
+                t = sHit.AddTransition(sIdle); t.hasExitTime = true; t.exitTime = 1f; t.duration = .1f;
+            }
+            if (death != null)
+            {
+                var sDeath = sm.AddState("Death"); sDeath.motion = death;
+                t = sm.AddAnyStateTransition(sDeath); t.hasExitTime = false; t.duration = .05f; t.canTransitionToSelf = false; t.AddCondition(UnityEditor.Animations.AnimatorConditionMode.If, 0, "Dead");
+            }
+            GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+            try
+            {
+                Animator animator = root.GetComponent<Animator>();
+                if (animator == null) animator = root.AddComponent<Animator>(); // not ??: Unity objects fake null
+                animator.runtimeAnimatorController = controller;
+                animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate; // cull modes skip enemies the camera isn't rendering, a probe or a turret still needs them posed
+                PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
         }
 
         private static void ModelPrefab(string modelPath, string path, string name, Material atlas)

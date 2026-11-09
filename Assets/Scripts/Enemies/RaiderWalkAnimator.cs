@@ -24,22 +24,45 @@ namespace SheltreSim.Enemies
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            Rebind();
+        }
+
+        /// <summary>
+        /// Finds the limbs again. Call after the "Visual" child was swapped (EnemyModels.Apply on an already active enemy):
+        /// Awake has bound the old model's parts. Parts are found at any depth under Visual.
+        /// </summary>
+        public void Rebind()
+        {
+            if (controller == null) controller = GetComponent<CharacterController>();
             Transform visual = transform.Find("Visual");
-            if (visual == null)
-            {
-                enabled = false;
-                return;
-            }
-            legL = visual.Find("Leg_L");
-            legR = visual.Find("Leg_R");
-            armL = visual.Find("Arm_L");
-            armR = visual.Find("Arm_R");
-            torso = visual.Find("Torso");
+            enabled = visual != null;
+            if (visual == null) return;
+            phase = 0f;
+            amount = 0f;
+            legL = Part(visual, "Leg_L");
+            legR = Part(visual, "Leg_R");
+            armL = Part(visual, "Arm_L");
+            armR = Part(visual, "Arm_R");
+            torso = Part(visual, "Torso");
             legLRest = Rest(legL);
             legRRest = Rest(legR);
             armLRest = Rest(armL);
             armRRest = Rest(armR);
             torsoRest = Rest(torso);
+        }
+
+        /// <summary>A named part anywhere under root, or null.</summary>
+        public static Transform Part(Transform root, string name)
+        {
+            if (root == null) return null;
+            Transform direct = root.Find(name);
+            if (direct != null) return direct;
+            foreach (Transform child in root)
+            {
+                Transform found = Part(child, name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         private static Quaternion Rest(Transform t) => t != null ? t.localRotation : Quaternion.identity;

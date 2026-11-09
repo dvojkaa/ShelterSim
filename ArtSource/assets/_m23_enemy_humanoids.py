@@ -164,6 +164,8 @@ def build(kind):
     objs=[o for o in bpy.context.scene.objects if o.type=='MESH']
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.makedirs(os.path.join(root,'blend'),exist_ok=True)
+    from _m23_enemy_humanoid_animation import animate_export
+    animate_export(objs,name,kind,os.path.join(root,'..','Assets','Art','Models',name+'.fbx'))
     bpy.context.preferences.filepaths.save_version=0
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(root,'blend',name+'.blend'))
     lo,hi=_world_bounds(objs)

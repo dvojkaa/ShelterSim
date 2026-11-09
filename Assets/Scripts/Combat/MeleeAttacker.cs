@@ -118,7 +118,7 @@ namespace SheltreSim.Combat
             EnemyAI enemy = target != null ? target.GetComponentInParent<EnemyAI>() : null;
             if (enemy != null)
             {
-                enemy.TakeDamage(attackDamage);
+                enemy.TakeDamage(attackDamage, transform.position);
                 SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitFlesh, enemy.transform.position + Vector3.up, 0.9f, 25f);
                 GameMessageBus.Post(enemy.IsDead
                     ? "Raider defeated."

@@ -2,7 +2,7 @@
 import math
 from pathlib import Path
 import bpy
-from mathutils import Vector
+from mathutils import Vector, Euler
 from ss_art import Model, finish
 
 
@@ -19,11 +19,149 @@ def deliver(m,bounds):
         if obj.name not in m.parts:
             bpy.data.objects.remove(obj,do_unlink=True)
     bpy.context.scene.camera=None
+    animate_boss(m)
     path=Path(__file__).resolve().parents[1]/'blend'/(m.name+'.blend')
     path.parent.mkdir(exist_ok=True)
     bpy.context.preferences.filepaths.save_version=0
     bpy.context.preferences.filepaths.file_preview_type='NONE'
     bpy.ops.wm.save_as_mainfile(filepath=str(path))
+
+
+def animate_boss(model):
+    """Five whole-character transform takes, driven by one NLA controller.
+
+    The FBX exporter isolates NLA strips; a single controller therefore bakes all
+    six driven mesh transforms in each take, instead of exporting one limb/take.
+    """
+    scene=bpy.context.scene
+    scene.render.fps=30
+    root=bpy.data.objects.new('BossMotion',None)
+    bpy.context.collection.objects.link(root)
+    visual_root=bpy.data.objects.new(model.name,None)
+    bpy.context.collection.objects.link(visual_root)
+    root.parent=visual_root
+    root['animation_notes']='Idle/Walk loop; Attack impact 0.65s; Hit/Death one-shot; no root motion'
+    parts={n:bpy.data.objects[n] for n in model.parts if n in bpy.data.objects and bpy.data.objects[n].type=='MESH'}
+    torso=parts['Torso']
+    for n,obj in parts.items():
+        world=obj.matrix_world.copy()
+        obj.parent=visual_root
+        obj.matrix_world=world
+    scene.view_layers.update() if hasattr(scene.view_layers,'update') else bpy.context.view_layer.update()
+    base={n:obj.location.copy() for n,obj in parts.items()}
+    sole_extent={n:max(abs(v.co.y) for v in obj.data.vertices) for n,obj in parts.items() if n.startswith('Leg_')}
+    # Driver controls remain editable in the native scene; FBX contains sampled transforms.
+    for n,obj in parts.items():
+        obj.rotation_mode='XYZ'
+        for channel in ('rx','ry','rz','tx','ty','tz'):
+            key=n+'_'+channel
+            root[key]=0.0
+        for i,axis in enumerate('xyz'):
+            for path,channel in (('rotation_euler','r'+axis),('location','t'+axis)):
+                fc=obj.driver_add(path,i)
+                driver=fc.driver
+                var=driver.variables.new();var.name='value'
+                var.targets[0].id=root;var.targets[0].data_path='["'+n+'_'+channel+'"]'
+                driver.expression='value' if path=='rotation_euler' else str(base[n][i])+'+value'
+                # Legs rotate around their planted sole through a pivot correction.
+                if n.startswith('Leg_') and path=='location' and i in (1,2):
+                    var=driver.variables.new();var.name='angle'
+                    var.targets[0].id=root;var.targets[0].data_path='["'+n+'_rx"]'
+                    height=base[n].z
+                    driver.expression+=('-'+str(height)+'*sin(angle)' if i==1 else '+'+str(height)+'*(cos(angle)-1)+'+str(sole_extent[n])+'*abs(sin(angle))')
+    root.animation_data_create()
+    colossus=model.name=='boss_root_colossus'
+    heavy=model.name=='boss_gatekeeper'
+    durations={'Idle':60,'Walk':27,'Attack':30,'Hit':11,'Death':39}
+    controls=[n+'_'+c for n in parts for c in ('rx','ry','rz','tx','ty','tz')]
+    for clip,frames in durations.items():
+        action=bpy.data.actions.new(clip)
+        root.animation_data.action=action
+        start=1+list(durations).index(clip)*100
+        for frame in range(frames+1):
+            u=frame/frames
+            values={key:0.0 for key in controls}
+            def put(part,**channels):
+                for channel,value in channels.items():values[part+'_'+channel]=value
+            if clip=='Idle':
+                wave=math.sin(u*math.tau)
+                put('Torso',rx=math.radians(1.5)*wave,ty=.005*wave)
+                put('Head',rx=math.radians(-1)*wave)
+                put('Arm_L',rx=math.radians(2)*wave)
+                put('Arm_R',rx=math.radians(-2)*wave)
+            elif clip=='Walk':
+                wave=math.sin(u*math.tau)
+                stride=math.radians(8 if colossus else 11)*wave
+                put('Leg_L',rx=stride);put('Leg_R',rx=-stride)
+                put('Arm_L',rx=-stride*.65);put('Arm_R',rx=stride*.65)
+                put('Torso',rz=math.radians(2)*wave,tz=-.015*(1-math.cos(u*math.tau*2)))
+                put('Head',rz=math.radians(-1.5)*wave)
+            elif clip=='Attack':
+                # Slow anticipation, decisive contact at frame 20 (~0.65s), then recovery.
+                if u<=.48: lift=u/.48;strike=0
+                elif u<=.65: lift=1-(u-.48)/.17;strike=(u-.48)/.17
+                else:lift=0;strike=max(0,1-(u-.65)/.35)
+                put('Torso',rx=math.radians(8)*lift-math.radians(13)*strike)
+                put('Head',rx=-math.radians(6)*lift+math.radians(8)*strike)
+                if colossus:
+                    put('Arm_L',rx=math.radians(125)*lift+math.radians(35)*strike,rz=math.radians(-12)*lift)
+                    put('Arm_R',rx=math.radians(125)*lift+math.radians(35)*strike,rz=math.radians(12)*lift)
+                elif heavy:
+                    put('Arm_L',rx=math.radians(145)*lift+math.radians(40)*strike)
+                    put('Arm_R',rx=math.radians(20)*lift)
+                else:
+                    put('Arm_R',rx=math.radians(125)*lift+math.radians(40)*strike)
+                    put('Arm_L',rx=math.radians(18)*lift)
+            elif clip=='Hit':
+                recoil=math.sin(math.pi*u)
+                put('Torso',rx=math.radians(8)*recoil,rz=math.radians(-3)*recoil)
+                put('Head',rx=math.radians(10)*recoil)
+                put('Arm_L',rx=math.radians(9)*recoil);put('Arm_R',rx=math.radians(9)*recoil)
+            else:
+                collapse=min(1,u/.85);ease=collapse*collapse*(3-2*collapse)
+                angle=-math.radians(66)*ease
+                hip=base['Leg_L'].z
+                put('Leg_L',rx=angle);put('Leg_R',rx=angle)
+                put('Torso',rx=-math.radians(76)*ease,ty=-hip*math.sin(angle),tz=hip*(math.cos(angle)-1)+sole_extent['Leg_L']*abs(math.sin(angle)))
+                put('Head',rx=math.radians(12)*ease)
+                put('Arm_L',rx=math.radians(25)*ease,rz=-math.radians(12)*ease)
+                put('Arm_R',rx=math.radians(20)*ease,rz=math.radians(12)*ease)
+                if model.name=='boss_shift_commander':
+                    values['Arm_L_ty']=-.065*ease
+            # Compose torso motion into upper-part sibling transforms. This bakes
+            # connected motion without nesting Head/arms below Torso, so runtime
+            # visual.Find("Head") continues to resolve the original part names.
+            torso_rotation=Euler(tuple(values['Torso_r'+a] for a in 'xyz'),'XYZ').to_matrix()
+            torso_position=base['Torso']+Vector(tuple(values['Torso_t'+a] for a in 'xyz'))
+            for n in ('Head','Arm_L','Arm_R'):
+                local_offset=Vector(tuple(values[n+'_t'+a] for a in 'xyz'))
+                position=torso_position+torso_rotation@(base[n]-base['Torso']+local_offset)
+                rotation=(torso_rotation@Euler(tuple(values[n+'_r'+a] for a in 'xyz'),'XYZ').to_matrix()).to_euler('XYZ')
+                for i,a in enumerate('xyz'):
+                    values[n+'_t'+a]=position[i]-base[n][i]
+                    values[n+'_r'+a]=rotation[i]
+            for key,value in values.items():
+                root[key]=value
+                root.keyframe_insert(data_path='["'+key+'"]',frame=start+frame,group=key.rsplit('_',1)[0])
+        track=root.animation_data.nla_tracks.new();track.name=clip
+        strip=track.strips.new(clip,start,action);strip.name=clip
+        strip.extrapolation='NOTHING';strip.blend_type='REPLACE'
+        root.animation_data.action=None
+    scene.frame_start=1;scene.frame_end=61
+    scene.frame_set(1)
+    bpy.context.view_layer.update()
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in [visual_root,root,*parts.values()]:obj.select_set(True)
+    bpy.context.view_layer.objects.active=root
+    from ss_art import MODELS_DIR
+    bpy.ops.export_scene.fbx(filepath=str(Path(MODELS_DIR)/(model.name+'.fbx')),
+        use_selection=True,object_types={'MESH','EMPTY'},axis_forward='Z',axis_up='Y',
+        global_scale=1.0,apply_unit_scale=True,apply_scale_options='FBX_SCALE_ALL',
+        bake_space_transform=True,mesh_smooth_type='FACE',use_mesh_modifiers=False,
+        add_leaf_bones=False,bake_anim=True,bake_anim_use_nla_strips=True,
+        bake_anim_use_all_actions=False,bake_anim_step=1,bake_anim_simplify_factor=0,
+        use_triangles=True,path_mode='STRIP',embed_textures=False)
+    print('BOSS_ANIMATION_EXPORT',model.name,'Idle=2s Walk=0.9s Attack=1s Hit=0.366667s Death=1.3s; five NLA takes; fps=30',flush=True)
 
 
 def humanoid(name, heavy=False):

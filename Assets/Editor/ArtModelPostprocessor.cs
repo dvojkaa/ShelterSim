@@ -10,6 +10,9 @@ namespace SheltreSim.EditorTools
     /// </summary>
     public sealed class ArtModelPostprocessor : AssetPostprocessor
     {
+        // Bumped when these settings change, so Unity reimports every model (2: animated enemies).
+        public override uint GetVersion() => 2;
+
         private const string ModelsFolder = "Assets/Art/Models/";
         private const string TexturesFolder = "Assets/Art/Textures/";
 
@@ -23,13 +26,33 @@ namespace SheltreSim.EditorTools
             importer.addCollider = false;
             importer.importCameras = false;
             importer.importLights = false;
-            importer.importAnimation = false;
-            importer.animationType = ModelImporterAnimationType.None;
+            // GPT's enemies and bosses carry five Generic takes (Idle, Walk, Attack, Hit, Death). Everything else is static.
+            bool animated = IsAnimated(assetPath);
+            importer.importAnimation = animated;
+            importer.animationType = animated ? ModelImporterAnimationType.Generic : ModelImporterAnimationType.None;
             importer.materialImportMode = ModelImporterMaterialImportMode.None;
             importer.importNormals = ModelImporterNormals.Import;
             importer.importBlendShapes = false;
             importer.isReadable = false;
             importer.meshCompression = ModelImporterMeshCompression.Off;
+        }
+
+        public static bool IsAnimated(string path) =>
+            path.StartsWith(ModelsFolder + "enemy_") || path.StartsWith(ModelsFolder + "boss_");
+
+        // Loop Time is importer metadata, not something an FBX can carry.
+        private void OnPreprocessAnimation()
+        {
+            if (!IsAnimated(assetPath)) return;
+            ModelImporter importer = (ModelImporter)assetImporter;
+            ModelImporterClipAnimation[] clips = importer.defaultClipAnimations;
+            foreach (ModelImporterClipAnimation clip in clips)
+            {
+                bool loop = clip.name.EndsWith("Idle") || clip.name.EndsWith("Walk");
+                clip.loopTime = loop;
+                clip.name = clip.name.Contains("|") ? clip.name.Substring(clip.name.LastIndexOf('|') + 1) : clip.name;
+            }
+            importer.clipAnimations = clips;
         }
 
         private void OnPreprocessTexture()

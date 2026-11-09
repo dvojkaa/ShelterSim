@@ -72,5 +72,13 @@
     "boss_gatekeeper",
     "boss_root_colossus",
     "boss_shift_commander"
+  ],
+  "damage_visuals": [
+    "piece_wall_steel_damaged",
+    "piece_wall_steel_critical",
+    "piece_door_wood_damaged",
+    "piece_door_wood_critical",
+    "piece_door_steel_damaged",
+    "piece_door_steel_critical"
   ]
 }

@@ -220,11 +220,15 @@ namespace SheltreSim.Diagnostics
             player.enabled = false; // FPC's own Move would replace the velocity this test is producing.
 
             Mark("footsteps: outdoor walk");
+            // Enemies wander now and their steps use the same clips: only the player's count here.
+            var quiet = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None).Where(e => e.gameObject.activeSelf).ToList();
+            foreach (EnemyAI e in quiet) e.gameObject.SetActive(false);
             CountDuringWalk(body, new Vector3(50f, 6.2f, -242f), Vector3.right * 4f, 3f, out IEnumerator walk);
             yield return walk;
             int outdoor = Played(Sfx.FootDirt);
             Log($"outdoor walk: {outdoor} dirt steps, peak speed {lastWalkSpeed:F2}, log: {string.Join(" ", GameAudio.PlayLog)}");
             Check(outdoor >= 4 && outdoor <= 10, $"Walking 12 m outdoors gives a sensible step count of dirt ({outdoor})");
+            foreach (EnemyAI e in quiet) if (e != null) e.gameObject.SetActive(true);
 
             Mark("footsteps: bunker walk");
             CountDuringWalk(body, new Vector3(68f, 0.2f, -219f), new Vector3(0f, 0f, 2.5f), 1.8f, out walk);
@@ -434,7 +438,9 @@ namespace SheltreSim.Diagnostics
             // Patrols walk without having noticed anyone, and standing beside one isn't a fight.
             int chasersBefore = RaiderAudio.ChaserCount;
             CharacterController raiderBody = raider.GetComponent<CharacterController>();
-            Move(raider.transform.position + Vector3.back * 2f + Vector3.up * 0.1f);
+            // A bestiary brain notices anyone within touch range or sight, so stand outside its senses.
+            float apart = raider.GetComponent<SheltreSim.Bestiary.SpeciesActor>() != null ? raider.detectionRadius + 4f : 2f;
+            Move(raider.transform.position + Vector3.back * apart + Vector3.up * 0.1f);
             GameAudio.PlayLog.Clear();
             for (float t = 0f; t < 1f; t += Time.deltaTime)
             {

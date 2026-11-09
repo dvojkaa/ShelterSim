@@ -2176,5 +2176,179 @@
       }
     ],
     "failures": []
+  },
+  {
+    "id": "piece_wall_steel_damaged",
+    "tris": 3216,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.1,
+        0.1
+      ],
+      "z": [
+        0.0,
+        3.0
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_wall_steel_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_wall_steel_critical",
+    "tris": 2992,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.1,
+        0.1
+      ],
+      "z": [
+        0.0,
+        3.0
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_wall_steel_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_door_wood_damaged",
+    "tris": 528,
+    "bounds": {
+      "x": [
+        -0.8,
+        0.8
+      ],
+      "y": [
+        -0.04,
+        0.04
+      ],
+      "z": [
+        0.01,
+        2.19
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_door_wood_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_door_wood_critical",
+    "tris": 460,
+    "bounds": {
+      "x": [
+        -0.8,
+        0.8
+      ],
+      "y": [
+        -0.04,
+        0.04
+      ],
+      "z": [
+        0.01,
+        2.19
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_door_wood_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_door_steel_damaged",
+    "tris": 524,
+    "bounds": {
+      "x": [
+        -0.8,
+        0.8
+      ],
+      "y": [
+        -0.038,
+        0.035
+      ],
+      "z": [
+        0.0,
+        2.2
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_door_steel_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_door_steel_critical",
+    "tris": 348,
+    "bounds": {
+      "x": [
+        -0.8,
+        0.8
+      ],
+      "y": [
+        -0.038,
+        0.035
+      ],
+      "z": [
+        0.0,
+        2.2
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_door_steel_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
   }
 ]

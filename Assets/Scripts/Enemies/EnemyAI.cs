@@ -13,6 +13,22 @@ namespace SheltreSim.Enemies
         void TickBrain();
     }
 
+    /// <summary>A brain that can be idle. IsChasing (the chase music, ChunkEncounterSlot) reads Engaged instead of assuming "always hunting".</summary>
+    public interface IEngagedBrain
+    {
+        bool Engaged { get; }
+    }
+
+    /// <summary>
+    /// A brain that hears about hits. FilterDamage may reduce a hit (a front plate or a shield, from the attacker's position when known);
+    /// OnHurt runs after a non-lethal hit, so a brain can interrupt its own wind-up (or not, for a boss).
+    /// </summary>
+    public interface IHitAwareBrain
+    {
+        float FilterDamage(float amount, Vector3? from);
+        void OnHurt(float dealt, Vector3? from);
+    }
+
     /// <summary>
     /// Simple sight-based chase and melee AI. Local obstacle probes and doorway approach
     /// points help with small props and the bunker entrance; this is not a navigation mesh.
@@ -34,7 +50,8 @@ namespace SheltreSim.Enemies
 
         public bool IsDead { get; private set; }
         // Raid actors are always hunting, which is what the tension music reads.
-        public bool IsChasing => chasing || brain != null;
+        // A brain that can idle says so itself.
+        public bool IsChasing => brain is IEngagedBrain engaged ? engaged.Engaged : chasing || brain != null;
         public event System.Action<EnemyAI> OnDeath;
 
         /// <summary>Every death of every enemy, once, before the object is destroyed. Death loot hangs on this.</summary>
@@ -183,7 +200,7 @@ namespace SheltreSim.Enemies
 
         // ---------- What a brain may do. All of it goes through the same movement and attack code as a patrol. ----------
 
-        public void BrainMove(Vector3 horizontal) => Move(horizontal * SpeedFactor);
+        public CollisionFlags BrainMove(Vector3 horizontal) => Move(horizontal * SpeedFactor);
         public void BrainFace(Vector3 direction) => FaceDirection(direction);
         public void BrainMeleePlayer() => TryAttack();
         public void BrainCancelAttack() => CancelAttack();
@@ -253,12 +270,31 @@ namespace SheltreSim.Enemies
             }
         }
 
-        public void TakeDamage(float amount)
+        /// <summary>A model was swapped after the renderers were cached (a raid actor's GPT model): cache the new ones.</summary>
+        public void RefreshVisuals()
+        {
+            ResetDamageFlash();
+            visualRenderers = null;
+            CacheVisuals();
+        }
+
+        public void TakeDamage(float amount) => ApplyHit(amount, null);
+
+        /// <summary>A hit from a known position (the player's), so armour on one side can matter.</summary>
+        public void TakeDamage(float amount, Vector3 from) => ApplyHit(amount, from);
+
+        private void ApplyHit(float amount, Vector3? from)
         {
             Initialize();
             if (IsDead || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount))
             {
                 return;
+            }
+            IHitAwareBrain aware = brain as IHitAwareBrain;
+            if (aware != null)
+            {
+                amount = aware.FilterDamage(amount, from);
+                if (amount <= 0f || float.IsNaN(amount)) return;
             }
             health = Mathf.Clamp(health - amount, 0f, Mathf.Max(1f, maxHealth));
             chasing = true;
@@ -274,9 +310,10 @@ namespace SheltreSim.Enemies
                 return;
             }
 
+            aware?.OnHurt(amount, from);
             CacheVisuals();
             ResetDamageFlash();
-            flashCoroutine = StartCoroutine(FlashDamage());
+            if (isActiveAndEnabled) flashCoroutine = StartCoroutine(FlashDamage());
         }
 
         /// <summary>Loads an existing living raider without firing death or respawn events.</summary>
@@ -440,7 +477,7 @@ namespace SheltreSim.Enemies
             }
         }
 
-        private void Move(Vector3 horizontal)
+        private CollisionFlags Move(Vector3 horizontal)
         {
             if (controller.isGrounded && verticalSpeed < 0f)
             {
@@ -452,6 +489,7 @@ namespace SheltreSim.Enemies
             {
                 verticalSpeed = -2f;
             }
+            return flags;
         }
 
         private void TryAttack()

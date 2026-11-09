@@ -366,12 +366,26 @@ namespace SheltreSim.Raids
             var agent = obj.AddComponent<RaidAgent>();
             agent.Setup(variant, number, unchecked(ProceduralWorld.Active.Seed + number * 131 + actors.Count * 17));
             EnemyAI enemy = obj.GetComponent<EnemyAI>();
+            GiveModel(agent, enemy);
             if (health > 0f) enemy.health = Mathf.Min(health, enemy.maxHealth);
             if (stolen != null)
                 foreach (LootItem item in stolen) agent.AddStolen(item.id, item.count);
             actors.Add(agent);
             Physics.SyncTransforms();
             return agent;
+        }
+
+        /// <summary>
+        /// The variant's GPT model in place of the raider's (RaidVariantSpec.ModelId), after Setup sized the capsule so the feet land
+        /// on its floor. Only the looks change: the walk animator and the damage flash are pointed at the new parts. No model, no change.
+        /// </summary>
+        private static void GiveModel(RaidAgent agent, EnemyAI enemy)
+        {
+            if (!SheltreSim.Bestiary.EnemyModels.Apply(agent.gameObject, agent.Spec.ModelId, true)) return;
+            enemy.RefreshVisuals();
+            enemy.ApplyTint(agent.Spec.Tint);
+            RaiderWalkAnimator walker = agent.GetComponent<RaiderWalkAnimator>();
+            if (walker != null) walker.Rebind();
         }
 
         private static void DespawnActor(RaidAgent agent)

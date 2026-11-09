@@ -470,3 +470,14 @@ Automated probes pass for each system (see DESIGN_NOTES), but nobody has played 
 - [ ] Radio Console: scan for fuel, follow the waypoint. Military relay quest end to end.
 - [ ] G palette, build a small house outside: foundation, walls, door frame, door, roof. Rain stays out? V repair, X dismantle (press twice).
 - [ ] Save and load during a raid and with machines running.
+
+## M23 human checklist (enemies, camps, bosses)
+
+- [ ] Walk out of the 200 m safe ring: do enemies show up at a sensible rate, and does each kind read as different?
+- [ ] Watch for the wind-ups: can you step out of a swing? Is there a real moment to hit back after one?
+- [ ] Hit a Screamer while it inhales; let one finish and see the group come.
+- [ ] Hit a Plated from the front and from the side (front should take far less).
+- [ ] Find the nearest camp (atlas shows "? Camp"). Is it fun or brutal? Kill the Shift Commander and open the chest.
+- [ ] A factory, farm or military outpost: wake its boss, fight it, open the store. Leave and come back: the boss must not heal or reset.
+- [ ] Save and load mid-fight and after a kill: no second bag, no revived boss.
+- [ ] GPT is making animations: until they're in, limbs swing procedurally. Say if anything looks broken (arms bending backwards).
