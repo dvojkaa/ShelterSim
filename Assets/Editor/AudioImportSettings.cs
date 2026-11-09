@@ -24,7 +24,7 @@ namespace SheltreSim.EditorTools
                 settings.compressionFormat = AudioCompressionFormat.Vorbis;
                 settings.quality = 0.55f;
             }
-            else if (name == "amb_bunker")
+            else if (name == "amb_bunker" || name == "generator_hum" || name == "machine_hum" || name == "fan_loop" || name == "turret_laser")
             {
                 // A pure mains hum exposes any gap at the loop point, so no Vorbis encoder delay here.
                 settings.loadType = AudioClipLoadType.DecompressOnLoad;

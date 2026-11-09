@@ -35,6 +35,8 @@ namespace SheltreSim.World
             startingSprint = player != null ? player.sprintSpeed : 7f;
         }
         public bool HasUpgrade(int index) => index >= 0 && index < 3 && (UpgradeMask & (1 << index)) != 0;
+        public bool IsDiscovered(string id) => !string.IsNullOrEmpty(id) && discoveries.Contains(id);
+        public IEnumerable<string> Discoveries => discoveries;
         public List<string> CaptureDiscoveries() => discoveries.OrderBy(id => id, StringComparer.Ordinal).ToList();
         public void Restore(int upgrades, List<string> sites)
         {
@@ -48,7 +50,7 @@ namespace SheltreSim.World
         {
             if (string.IsNullOrEmpty(id) || !discoveries.Add(id)) return;
             LastDiscovery = title;
-            GameMessageBus.Post("Discovered " + title + ". Search for expedition parts and return to the bunker console.");
+            GameMessageBus.Post("Discovered " + title + ". Search its caches and bring what you find home.");
             Changed?.Invoke();
         }
         public List<CraftingCost> UpgradeCost(int index)
@@ -65,10 +67,14 @@ namespace SheltreSim.World
             if (HasUpgrade(index)) { result = "Already installed."; return false; }
             var stats = GetComponent<SheltreSim.Survival.SurvivalStats>();
             if (stats == null || stats.IsDead || stats.health <= 0f) { result = "Cannot upgrade now."; return false; }
-            if (DiscoveryCount < index + 1) { result = $"Discover {index + 1} landmarks first."; return false; }
+            if (DiscoveryCount < index + 1) { result = DescribeShortage(index)[0]; return false; }
             if (expeditionParts == null || wood == null || scrap == null || iron == null ||
                 !CraftingSystem.TrySpend(GetComponent<Inventory>(), UpgradeCost(index)))
-            { result = "Need more expedition parts and materials."; return false; }
+            {
+                var shortage = DescribeShortage(index);
+                result = shortage.Count > 0 ? shortage[0] : "Need more expedition parts and materials.";
+                return false;
+            }
             UpgradeMask |= 1 << index;
             ApplyBenefits();
             result = "Installed " + UpgradeNames[index] + ": " + UpgradeBenefits[index] + ".";
@@ -76,6 +82,40 @@ namespace SheltreSim.World
             Changed?.Invoke();
             return true;
         }
+        /// <summary>
+        /// Exactly what stands between the player and an upgrade, one line per shortage, each naming where to look.
+        /// Empty when it can be installed now or already is. Named lines say which upgrade they are for.
+        /// </summary>
+        public List<string> DescribeShortage(int index, bool named = false)
+        {
+            var lines = new List<string>();
+            if (index < 0 || index >= 3 || HasUpgrade(index)) return lines;
+            string forUpgrade = named ? " for " + UpgradeNames[index] : "";
+            int sites = index + 1 - DiscoveryCount;
+            if (sites > 0)
+                lines.Add($"Discover {sites} more {(sites == 1 ? "site" : "sites")}{forUpgrade}: scan with a Radio Console or explore.");
+            Inventory inventory = GetComponent<Inventory>();
+            foreach (CraftingCost line in UpgradeCost(index))
+            {
+                if (line.resource == null) continue;
+                int missing = line.amount - (inventory != null ? inventory.GetCount(line.resource.id) : 0);
+                if (missing > 0) lines.Add($"Missing {missing} {line.resource.displayName}{forUpgrade}: {SiteHint(line.resource.id)}.");
+            }
+            return lines;
+        }
+
+        private static string SiteHint(string id)
+        {
+            switch (id)
+            {
+                case "expedition_parts": return "try a factory, abandoned bunker or military outpost";
+                case "wood": return "cut trees outside";
+                case "scrap_metal": return "try a factory, cars or town crates";
+                case "iron_ore": return "mine rock outcrops or try a factory";
+                default: return "search crates";
+            }
+        }
+
         private void ApplyBenefits()
         {
             if (player != null) player.sprintSpeed = startingSprint * (HasUpgrade(2) ? 1.2f : 1f);

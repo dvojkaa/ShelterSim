@@ -237,6 +237,14 @@ namespace SheltreSim.Items
                 if (spec.thirst > 0f) sb.Append("+").Append(spec.thirst.ToString("0")).Append(" water  ");
                 if (spec.heal > 0f) sb.Append("+").Append(spec.heal.ToString("0")).Append(" health");
             }
+            else if (spec.ranged)
+            {
+                sb.Append("Damage ").Append(spec.damage.ToString("0"));
+                if (spec.pellets > 1) sb.Append(" x ").Append(spec.pellets);
+                sb.Append(", ").Append(spec.roundsPerMinute.ToString("0")).Append(" rpm, ").Append(spec.magazine)
+                    .Append(spec.energy ? " shots, " : " rounds, ").Append(ItemCatalog.NameOf(spec.ammoId));
+                if (spec.splashRadius > 0f) sb.Append(", burst ").Append(spec.splashRadius.ToString("0.#")).Append(" m");
+            }
             else if (spec.weapon) sb.Append("Melee damage ").Append(spec.damage.ToString("0"));
             else if (spec.slot == GearSlot.Armor || spec.slot == GearSlot.Coat) sb.Append("Takes ").Append((spec.reduction * 100f).ToString("0")).Append("% less damage");
             else if (spec.tool != ToolKind.None) sb.Append(spec.tool == ToolKind.Axe ? "Wood" : "Stone, ore, coal").Append(" +").Append(spec.bonus.ToString("0")).Append(" per harvest");
@@ -305,6 +313,7 @@ namespace SheltreSim.Items
             {
                 sb.Clear();
                 sb.Append("WEAPON ").Append(gear.WeaponId.Length > 0 ? ItemCatalog.NameOf(gear.WeaponId) : "Fists")
+                    .Append("   RANGED ").Append(gear.RangedId.Length > 0 ? ItemCatalog.NameOf(gear.RangedId) : "none")
                     .Append("   ARMOR ").Append(gear.ArmorId.Length > 0 ? ItemCatalog.NameOf(gear.ArmorId) : "none")
                     .Append("   COAT ").Append(gear.CoatId.Length > 0 ? ItemCatalog.NameOf(gear.CoatId) : "none")
                     .Append("      DAMAGE ").Append(gear.AttackDamage.ToString("0"))

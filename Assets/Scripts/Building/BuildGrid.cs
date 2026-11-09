@@ -18,6 +18,12 @@ namespace SheltreSim.Building
             return new Vector3(snappedX, worldPosition.y, snappedZ);
         }
 
+        /// <summary>Cell centres are at even coordinates (see SnapPosition), so cell edges are at odd ones.</summary>
+        public static float NearestEdgeCoordinate(float value) => Mathf.Round((value - CellSize / 2f) / CellSize) * CellSize + CellSize / 2f;
+
+        /// <summary>The cell centre coordinate nearest a value.</summary>
+        public static float NearestCellCoordinate(float value) => Mathf.Round(value / CellSize) * CellSize;
+
         /// <summary>
         /// Snaps yaw to the nearest 90° increment. Pitch/roll are always 0 — building pieces
         /// are axis-aligned to the 4 cardinal directions only for M2.

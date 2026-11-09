@@ -346,3 +346,21 @@ Playtester, after playing: "hra super", then four requests: the weather doesn't 
 **Not verified:** nobody has played it through by hand. Balance (prices, recipe costs, length of the game) is a first guess. Live weather changing on its own (probes use an override). Rain stopping under real roofs. The cursor re-lock on closing a menu (not readable in batch mode).
 
 **Left unfixed:** no zombies, only raiders. Defeated patrols stay defeated in their chunk, and the old 90 s raider respawn went with the old region, so cleared areas stay clear. Nothing targets the bunker: raiders still only come in if they notice the player. Town blocks are still plain brick boxes with windows on one side. `EnemySpawner`, `ApocalypseTrigger` and the M4/M9/M10/M12/M14 builders are now mostly dead weight.
+
+## M22 work in progress: raids, power, weapons, storage, objectives, homestead (2026-11-09)
+
+Status snapshot, not finished. If a session ends here, this is the state of it. Branch `m22-wip` holds a snapshot; `main` doesn't have it.
+
+Playtester: "finish it so all GPT's proposals work; the sound is good, the weather never changed; add raids that attack me after some time, base defences, automation, electricity, cooling, energy weapons, firearms", plus "loot from enemies when they die". GPT is doing all 3D models this round (`ArtSource/M22_ASSET_HANDOFF.md`, ids and sizes in `DEV_COORDINATION.md`). We only program; missing models fall back to boxes.
+
+**Coordinator's foundations, written:** `Power/PowerGrid.cs` (no cables, networks by 25 m range, priorities, batteries, heat), `Storage/StorageRegistry.cs`, `Saving/SaveableSystems.cs` (`IPieceState`, `ISaveableSystem`, so systems don't edit SaveManager), `Building/StructureHealth.cs`, save v6 reading v5, catalog items/recipes/piece costs, `Sfx` constants, `Editor/M22SystemsSetup.cs` (table of new pieces, adds working components to the generator and crate, weapon prefabs), chain wired in `BatchSetupAll`.
+
+**Weather:** `WorldAtmosphere` used one roll per biome per 180 s, about half clear, so a place could look the same for a long time, and the bomb dust hid the sky. Now one category sequence per 150 s period that doesn't repeat a category twice running; biome only picks the form. Dust gives way when overcast, rain is thicker, changes post a message (also underground). `WeatherProbe.CheckLiveSimulation` tests the real clock, which no probe did before. Compiled only, not yet run.
+
+**Agents' scopes:** see the owner list below. Each writes a probe: `--power-probe`, `--storage-probe`, `--objectives-probe`, `--raid-probe`, `--weapons-probe`, `--homestead-probe`. Audio is finished: 45 new clips pass `check_audio.py`, build with `build_audio.sh m22` only (a full regeneration overwrites Unity's metas).
+Owners: Power `Scripts/Power`, FarmPlot. Storage `Scripts/Storage`, CraftingSystem, CraftingUI. Objectives `Scripts/Objectives`, WorldMapUI, ExpeditionProgression, ExpeditionUpgradeStation, ProceduralLandmarks, RadioBeaconPiece. Raids `Scripts/Raids`, EnemyAI, InteractableDoor, ChunkEncounters. Weapons `Scripts/Combat`, PlayerGear, InventoryUI. Homestead BuildModeController, BuildGrid, `Building/Homestead*`, `Editor/M22HomesteadSetup.cs`.
+
+**Fast compile without Unity:** Roslyn from the Editor against `Library/Bee/artifacts/*/Assembly-CSharp.rsp` minus sources, 2 s, parallel-safe. Worth keeping as a script in the repo.
+
+**Still to do:** finish agents; read their files; full rebuild in a scratch copy (never the shared project); run every probe; fix; docs; review; merge. **Nothing here has run in Unity yet.**
+**Deliberately out of this round:** brick/concrete tiers, production queues, upgrade-in-place.

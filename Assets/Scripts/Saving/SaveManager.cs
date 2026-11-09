@@ -234,6 +234,8 @@ namespace SheltreSim.Saving
                 bunkerAnnex = HomeBase.Active != null && HomeBase.Active.HasAnnex,
                 equippedGear = player.GetComponent<SheltreSim.Crafting.PlayerGear>() != null
                     ? player.GetComponent<SheltreSim.Crafting.PlayerGear>().CaptureEquipped() : new List<string>(),
+                worldGenVersion = WorldLayout.GenerationVersion,
+                systemStates = SaveableSystems.CaptureAll(),
             };
 
             foreach (PlacedPiece piece in PlacedPieceRegistry.All)
@@ -241,6 +243,8 @@ namespace SheltreSim.Saving
                 if (piece.gameObject.scene != player.gameObject.scene) continue;
                 WaterCollectorPiece collector = piece.GetComponent<WaterCollectorPiece>();
                 FarmPlot farm = piece.GetComponent<FarmPlot>();
+                IPieceState pieceState = piece.GetComponent<IPieceState>();
+                StructureHealth structure = piece.GetComponent<StructureHealth>();
                 data.placedPieces.Add(new SaveData.PlacedPieceData
                 {
                     farmStored = farm != null ? farm.State : -1,
@@ -250,6 +254,8 @@ namespace SheltreSim.Saving
                     rotation = piece.transform.rotation,
                     waterStored = collector != null ? collector.Stored : -1,
                     collectionElapsed = collector != null ? collector.CollectionElapsed : 0f,
+                    pieceState = pieceState != null ? pieceState.CapturePieceState() : null,
+                    structureHealth = structure != null ? structure.Health : -1f,
                 });
             }
 
@@ -338,7 +344,7 @@ namespace SheltreSim.Saving
         private static void ValidateSnapshot(SaveData data, Dictionary<string, BuildPieceDefinition> definitions)
         {
             // Version 5 moved the start of the game: older saves place everything in a world that's gone.
-            Require(data != null && data.version == SaveData.CurrentVersion, "This save format is unsupported.");
+            Require(data != null && data.version >= SaveData.MinimumVersion && data.version <= SaveData.CurrentVersion, "This save format is unsupported.");
             Require(data.money >= 0 && data.bunkerStages >= 0 && data.bunkerStages <= HomeBase.Stages.Length &&
                 Finite(data.bunkerBuildElapsed) && data.bunkerBuildElapsed >= 0f, "The saved bunker project is invalid.");
             Require(data.equippedGear != null && data.equippedGear.Count <= 8, "The saved gear is invalid.");
@@ -368,6 +374,8 @@ namespace SheltreSim.Saving
                     "A water collector has invalid saved progress.");
                 Require(piece.farmStored >= -1 && piece.farmStored <= 2 && Finite(piece.farmElapsed) && piece.farmElapsed >= 0f,
                     "A farm plot has invalid saved progress.");
+                Require(Finite(piece.structureHealth) && piece.structureHealth >= -1f, "A build piece has invalid saved health.");
+                Require(piece.pieceState == null || piece.pieceState.Length <= 20000, "A build piece has too much saved state.");
             }
 
             if (data.version >= 2)
@@ -377,6 +385,10 @@ namespace SheltreSim.Saving
                     "The save is incomplete.");
             }
 
+            Require(data.systemStates == null || data.systemStates.Count <= 64, "The save has too many system sections.");
+            if (data.systemStates != null)
+                foreach (SaveData.SystemState state in data.systemStates)
+                    Require(state != null && !string.IsNullOrEmpty(state.key) && (state.json == null || state.json.Length <= 2000000), "A saved system section is invalid.");
             Require(Finite(data.worldElapsedSeconds) && data.worldElapsedSeconds >= 0f && data.worldElapsedSeconds <= 100000000f,
                 "The world clock is invalid.");
             Require(data.expeditionUpgrades >= 0 && data.expeditionUpgrades <= 7, "Unknown expedition upgrade.");
@@ -458,6 +470,10 @@ namespace SheltreSim.Saving
                     }
                     FarmPlot farm = instance.GetComponent<FarmPlot>();
                     if (farm != null && piece.farmStored >= 0) farm.RestoreState(piece.farmStored, piece.farmElapsed);
+                    IPieceState pieceState = instance.GetComponent<IPieceState>();
+                    if (pieceState != null && !string.IsNullOrEmpty(piece.pieceState)) pieceState.RestorePieceState(piece.pieceState);
+                    StructureHealth structure = instance.GetComponent<StructureHealth>();
+                    if (structure != null && piece.structureHealth >= 0f) structure.RestoreHealth(piece.structureHealth);
                 }
                 return staging;
             }
@@ -527,6 +543,10 @@ namespace SheltreSim.Saving
             if(ProceduralWorld.Active!=null)ProceduralWorld.Active.GetComponent<WorldAtmosphere>()?.RestoreTime(data.worldElapsedSeconds);
             stats.RestoreVitals(data.hunger, data.thirst, data.health);
             Physics.SyncTransforms();
+            // Last, so a system can rely on the phase, the world, the pieces and the player being in place.
+            SaveableSystems.RestoreAll(data.systemStates);
+            if (data.version >= 6 && data.hasProceduralWorld && data.worldGenVersion != WorldLayout.GenerationVersion)
+                GameMessageBus.Post("This save was made with a different world generator. Terrain may not match your buildings.");
         }
 
         private void RestoreWorldObjects(SaveData data)

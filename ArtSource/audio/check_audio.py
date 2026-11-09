@@ -14,7 +14,8 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 FOLDER = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "Audio", "Resources", "Audio"))
 PREVIEW = os.path.normpath(os.path.join(HERE, "..", "previews", "audio_spectrograms.ppm"))
-LOOPS = ("amb_wasteland", "amb_forest", "amb_desert", "amb_snow", "amb_marsh", "amb_highlands", "amb_bunker", "amb_rain", "amb_night", "music_tension")
+LOOPS = ("amb_wasteland", "amb_forest", "amb_desert", "amb_snow", "amb_marsh", "amb_highlands", "amb_bunker", "amb_rain", "amb_night", "music_tension",
+         "generator_hum", "machine_hum", "fan_loop", "turret_laser")
 
 
 def read(path):

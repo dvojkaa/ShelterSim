@@ -41,7 +41,7 @@ namespace SheltreSim.World
             {
                 int index=i;
                 var row=GameUI.Panel(p,"Upgrade_"+i,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-145-i*140),new Vector2(820,126),GameUI.RowColor).transform;
-                descriptions[i]=GameUI.Label(row,"Description","",new Vector2(0,1),new Vector2(0,1),new Vector2(16,-10),new Vector2(570,106),19);
+                descriptions[i]=GameUI.Label(row,"Description","",new Vector2(0,1),new Vector2(0,1),new Vector2(16,-5),new Vector2(600,118),16);
                 buttons[i]=GameUI.Button(row,"Install","INSTALL",new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-16,0),new Vector2(185,50),()=>Buy(index));
             }
             status=GameUI.Label(p,"Status","",new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,66),new Vector2(820,58),18,GameUI.Muted,TextAnchor.MiddleCenter);
@@ -61,7 +61,14 @@ namespace SheltreSim.World
             for(int i=0;i<3;i++)
             {
                 var cost=p.UpgradeCost(i);
-                descriptions[i].text=ExpeditionProgression.UpgradeNames[i]+"\n"+ExpeditionProgression.UpgradeBenefits[i]+$"\n{cost[0].amount} expedition parts + {cost[1].amount} {cost[1].resource.displayName}; discover {i+1} sites";
+                string text=ExpeditionProgression.UpgradeNames[i]+"\n"+ExpeditionProgression.UpgradeBenefits[i];
+                if(!p.HasUpgrade(i))
+                {
+                    text+=$"\nCost: {cost[0].amount} expedition parts + {cost[1].amount} {cost[1].resource.displayName}; discover {i+1} sites";
+                    var shortage=p.DescribeShortage(i);
+                    text+=shortage.Count>0?"\n<color=#FFB85C>"+string.Join("\n",shortage)+"</color>":"\n<color=#A1DEA8>Ready to install.</color>";
+                }
+                descriptions[i].text=text;
                 buttons[i].interactable=!p.HasUpgrade(i)&&p.DiscoveryCount>=i+1&&SheltreSim.Crafting.CraftingSystem.TryAfford(inv,cost);
                 buttons[i].GetComponentInChildren<Text>().text=p.HasUpgrade(i)?"INSTALLED":"INSTALL";
             }

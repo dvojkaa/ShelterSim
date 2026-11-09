@@ -9,6 +9,8 @@ namespace SheltreSim.World
     public sealed class ProceduralWorld : MonoBehaviour
     {
         public static ProceduralWorld Active { get; private set; }
+        /// <summary>A chunk has just been generated and its saved state applied.</summary>
+        public static event System.Action<Transform> ChunkBuilt;
         public int initialSeed = 20261108;
         [Range(1, 4)] public int loadRadius = 3;
         public ProceduralWorldAssets assets;
@@ -114,6 +116,7 @@ namespace SheltreSim.World
             if (history.TryGetValue(coordinate, out var state)) ProceduralWorldState.Apply(chunk, state);
             chunks.Add(coordinate, chunk);
             stale.Remove(coordinate);
+            ChunkBuilt?.Invoke(chunk.transform);
             return chunk;
         }
 

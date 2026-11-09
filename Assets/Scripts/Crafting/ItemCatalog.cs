@@ -25,6 +25,11 @@ namespace SheltreSim.Crafting
         public ToolKind tool; public int tier, bonus;
         public GearSlot slot;
         public string assetName;
+        // Ranged weapons. Damage is per pellet. Energy weapons reload a whole magazine from one ammo item and heat up.
+        public bool ranged, energy;
+        public float roundsPerMinute, spreadDegrees, rangeMeters, heatPerShot, splashRadius;
+        public int magazine, pellets = 1;
+        public string ammoId;
 
         public ItemSpec Food(float hungerRestored, float thirstRestored = 0f, float healAmount = 0f)
         {
@@ -39,6 +44,11 @@ namespace SheltreSim.Crafting
             medicine = true; heal = healAmount; hunger = hungerRestored; thirst = thirstRestored; return this;
         }
         public ItemSpec Weapon(float dmg) { weapon = true; damage = dmg; slot = GearSlot.Weapon; return this; }
+        public ItemSpec Ranged(float dmg, float rpm, int mag, string ammo, float spread, float range, int pelletCount = 1)
+        {
+            ranged = true; damage = dmg; roundsPerMinute = rpm; magazine = mag; ammoId = ammo; spreadDegrees = spread; rangeMeters = range; pellets = pelletCount; slot = GearSlot.Ranged; return this;
+        }
+        public ItemSpec Energy(float heat, float splash = 0f) { energy = true; heatPerShot = heat; splashRadius = splash; return this; }
         public ItemSpec Tool(ToolKind kind, int toolTier, int toolBonus) { tool = kind; tier = toolTier; bonus = toolBonus; return this; }
         public ItemSpec Armor(float damageReduction) { slot = GearSlot.Armor; reduction = damageReduction; return this; }
         public ItemSpec Coat(float damageReduction, float warmthFraction) { slot = GearSlot.Coat; reduction = damageReduction; warmth = warmthFraction; return this; }
@@ -111,6 +121,22 @@ namespace SheltreSim.Crafting
             I("metal_plate", "Metal Plate", Ref, "Flat plate for armor and stations.");
             I("reinforced_frame", "Reinforced Frame", Ref, "A braced frame. Every real station is built on one.");
             I("circuit_board", "Circuit Board", Ref, "Hand-assembled board.");
+            I("hinges", "Hinges", Ref, "For gates and heavy doors.");
+            I("repair_kit_wood", "Wood Repair Kit", Ref, "With a hammer, repairs wooden builds. Press V in build mode.");
+            I("repair_kit_metal", "Metal Repair Kit", Ref, "With a hammer, repairs metal builds and machines. Press V in build mode.");
+            I("fertilizer", "Fertilizer", Ref, "Use on a Farm Plot: the crop grows twice as fast.");
+            I("gunpowder", "Gunpowder", Ref, "Mixed at a Chem Lab. Every round needs it.");
+            I("capacitor", "Capacitor", Ref, "Stores a sharp burst of power.");
+            I("laser_diode", "Laser Diode", Ref, "The heart of an energy weapon.");
+            I("coolant", "Coolant", Ref, "Keeps machines and energy weapons from cooking themselves.");
+            I("electric_motor", "Electric Motor", Ref, "Fans, pumps and turret mounts.");
+            I("solar_cell", "Solar Cell", Ref, "Turns daylight into power.");
+
+            // ---- Ammunition: stacks in your pack, loaded when you reload ----
+            I("ammo_9mm", "9mm Rounds", Ref, "For the pistol and the SMG.");
+            I("ammo_rifle", "Rifle Rounds", Ref, "For rifles and machine gun turrets.");
+            I("ammo_shell", "Shotgun Shells", Ref, "Short range, hits hard.");
+            I("energy_cell", "Energy Cell", Ref, "One cell refills an energy weapon. Make them at a bench or charge them at a Cell Charger.");
 
             // ---- Food and drink ----
             I("food_berries", "Blueberries", Food, "Sweet wild berries.").Food(30f).Asset("Berries");
@@ -131,7 +157,12 @@ namespace SheltreSim.Crafting
             I("antibiotics", "Antibiotics", Med, "Strong medicine.").Medicine(75f);
             I("stimulant", "Stimulant", Med, "Quick heal and a burst of energy.").Medicine(30f, 20f);
 
+            I("dried_meat", "Dried Meat", Food, "Keeps forever. Light and salty.").Food(32f);
+            I("trail_mix", "Trail Mix", Food, "Berries and grain for the road.").Food(26f, 0f, 3f);
+            I("vegetable_broth", "Vegetable Broth", Food, "Food and water in one bowl.").Food(20f, 22f, 4f);
+
             // ---- Tools: higher tier wins, never consumed ----
+            I("hammer", "Hammer", Tool, "Needed to repair and dismantle builds. Never consumed.");
             I("stone_axe", "Stone Axe", Tool, "Wood gathering +1 per harvest.").Tool(ToolKind.Axe, 1, 1);
             I("iron_axe", "Iron Axe", Tool, "Wood gathering +2 per harvest.").Tool(ToolKind.Axe, 2, 2);
             I("steel_axe", "Steel Axe", Tool, "Wood gathering +3 per harvest.").Tool(ToolKind.Axe, 3, 3);
@@ -146,6 +177,16 @@ namespace SheltreSim.Crafting
             I("machete", "Machete", Wpn, "Long cleaver. Damage 46.").Weapon(46f);
             I("fire_axe", "Fire Axe", Wpn, "Heavy and brutal. Damage 58.").Weapon(58f);
             I("steel_sword", "Steel Sword", Wpn, "The best blade you can make. Damage 72.").Weapon(72f);
+
+            // ---- Ranged weapons: damage is per pellet ----
+            I("pistol", "Pistol", Wpn, "Reliable sidearm.").Ranged(22f, 240f, 12, "ammo_9mm", 1.2f, 60f);
+            I("smg", "Submachine Gun", Wpn, "Fast and inaccurate.").Ranged(14f, 620f, 30, "ammo_9mm", 3f, 45f);
+            I("shotgun", "Shotgun", Wpn, "Devastating up close.").Ranged(13f, 70f, 6, "ammo_shell", 5.5f, 25f, 8);
+            I("hunting_rifle", "Hunting Rifle", Wpn, "Slow, accurate, long range.").Ranged(68f, 50f, 5, "ammo_rifle", 0.2f, 130f);
+            I("assault_rifle", "Assault Rifle", Wpn, "The best a forge can make.").Ranged(30f, 420f, 25, "ammo_rifle", 1.3f, 90f);
+            I("laser_pistol", "Laser Pistol", Wpn, "Instant beam, no drop. Heats up.").Ranged(27f, 200f, 20, "energy_cell", 0.3f, 80f).Energy(7f);
+            I("laser_rifle", "Laser Rifle", Wpn, "Sustained beam fire. Heats up fast.").Ranged(36f, 300f, 30, "energy_cell", 0.3f, 110f).Energy(5f);
+            I("plasma_rifle", "Plasma Rifle", Wpn, "Slow bolts that burst on impact.").Ranged(85f, 85f, 12, "energy_cell", 0.6f, 70f).Energy(16f, 2.5f);
 
             // ---- Armor ----
             I("padded_jacket", "Padded Jacket", Arm, "Quilted cloth. Takes 8% less damage.").Armor(0.08f);
@@ -186,7 +227,8 @@ namespace SheltreSim.Crafting
             new ShopEntry("rope", 22, 3), new ShopEntry("iron_axe", 90, 1), new ShopEntry("iron_pickaxe", 110, 1),
             new ShopEntry("machete", 160, 1), new ShopEntry("padded_jacket", 75, 1), new ShopEntry("fuel", 40, 4),
             new ShopEntry("copper_wire", 35, 6), new ShopEntry("glass", 20, 4), new ShopEntry("chemicals", 60, 3),
-            new ShopEntry("steel_plate_armor", 400, 1),
+            new ShopEntry("steel_plate_armor", 400, 1), new ShopEntry("pistol", 350, 1), new ShopEntry("ammo_9mm", 40, 24),
+            new ShopEntry("shotgun", 500, 1), new ShopEntry("ammo_shell", 45, 12),
         };
 
         /// <summary>Everything the pre-apocalypse store sells. A prepper cannot afford all of it on roughly $5,000.</summary>

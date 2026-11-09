@@ -14,6 +14,9 @@ namespace SheltreSim.World
         public float WeatherIntensity { get; private set; }
         public bool IsSheltered { get; private set; }
         public event Action<string> OnWeatherChanged;
+        public const float WeatherPeriod = 150f, WeatherFade = 20f;
+        /// <summary>A load jumps the clock: presentation shouldn't announce that as the weather changing.</summary>
+        public int RestoredAtFrame { get; private set; } = -100;
         private Transform player;
         private SurvivalStats stats;
         private float shelterTimer;
@@ -33,6 +36,7 @@ namespace SheltreSim.World
         public void RestoreTime(float seconds)
         {
             ElapsedSeconds = float.IsNaN(seconds) || float.IsInfinity(seconds) ? 0f : Mathf.Max(0f, seconds);
+            RestoredAtFrame = Time.frameCount;
             shelterTimer = 0f;
             UpdateWeather();
         }
@@ -58,17 +62,48 @@ namespace SheltreSim.World
         {
             int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 20261108;
             int biome = player != null ? WorldLayout.BiomeIndexAt(player.position.x, player.position.z, seed) : 0;
-            int roll = WorldLayout.Hash(Mathf.FloorToInt(ElapsedSeconds / 180f), biome, seed + 481) % 100;
-            string next = roll < 48 ? "Clear" : roll < 68 ? "Fog"
-                : biome == 3 ? "Snow" : biome == 2 ? "Clear" : "Rain";
-            WeatherIntensity = next == "Clear" ? 0f : Mathf.SmoothStep(0f, 1f,
-                Mathf.Clamp01(Mathf.Min(ElapsedSeconds % 180f, 180f - ElapsedSeconds % 180f) / 10f));
+            int bucket = Mathf.FloorToInt(ElapsedSeconds / WeatherPeriod);
+            string next = WeatherFor(bucket, biome, seed);
+            float intoBucket = ElapsedSeconds - bucket * WeatherPeriod;
+            float peak = .7f + (WorldLayout.Hash(bucket, 7, seed + 733) % 31) / 100f;
+            WeatherIntensity = next == "Clear" ? 0f : peak * Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01(Mathf.Min(intoBucket, WeatherPeriod - intoBucket) / WeatherFade));
             if (next != WeatherName)
             {
                 WeatherName = next;
                 OnWeatherChanged?.Invoke(next);
             }
             return biome;
+        }
+
+        // Each period is clear, fog or precipitation. The same category is never rolled twice running, so the sky
+        // always changes within a few minutes. Biome only decides the form it takes. Clear used to come up about
+        // half the time per biome, with long runs (the desert stayed clear for most of an hour), and the sky could
+        // look the same for 10 minutes or more. The sequence stays deterministic and doesn't need saving.
+        private static int RawCategory(int bucket, int seed)
+        {
+            int roll = WorldLayout.Hash(bucket, 11, seed + 481) % 100;
+            return roll < 34 ? 0 : roll < 50 ? 1 : 2;
+        }
+
+        private static int Category(int bucket, int seed)
+        {
+            int category = RawCategory(bucket, seed);
+            if (bucket > 0 && category == RawCategory(bucket - 1, seed))
+                category = (category + 1 + WorldLayout.Hash(bucket, 13, seed + 577) % 2) % 3;
+            return category;
+        }
+
+        /// <summary>Pure: what the weather is in a given period and biome. Also used by the probe.</summary>
+        public static string WeatherFor(int bucket, int biome, int seed)
+        {
+            int category = Category(bucket, seed);
+            if (category == 0) return "Clear";
+            if (category == 1) return "Fog";
+            if (biome == 3) return "Snow";
+            if (biome == 2) return "Fog";   // no rain in the red desert: blowing dust, drawn as fog
+            if (biome == 5 && WorldLayout.Hash(bucket, 17, seed + 601) % 2 == 0) return "Snow";
+            return "Rain";
         }
 
         private bool HasRoof()

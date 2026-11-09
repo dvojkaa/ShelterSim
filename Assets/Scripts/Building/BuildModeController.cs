@@ -90,6 +90,17 @@ namespace SheltreSim.Building
             ExitBuildMode();
         }
 
+        /// <summary>Enters build mode on a specific blueprint. For the build palette; does nothing while paused.</summary>
+        public bool BeginBuild(int pieceIndex)
+        {
+            if (!CanBuild || pieceIndex < 0 || pieceIndex >= availablePieces.Count) return false;
+            DestroyGhost();
+            currentPieceIndex = pieceIndex;
+            currentYawDegrees = 0f;
+            isBuildModeActive = true;
+            return true;
+        }
+
         public void ExitBuildMode()
         {
             isBuildModeActive = false;

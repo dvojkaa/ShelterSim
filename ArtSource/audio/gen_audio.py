@@ -6,6 +6,9 @@ Output is deterministic: one literal seed per clip name. Writes 16-bit WAVs plus
 GUIDs derived from the path, so a re-run never churns Unity references.
 
 Naming: `key.wav` or `key_01.wav`. GameAudio groups `_NN` files into random variants of `key`.
+
+A section can be generated alone: `build_audio.sh m22` writes only the M22 clips and their metas, leaving
+every existing WAV and every .meta Unity has since filled in untouched. Add new clips in their own section.
 """
 import hashlib
 import os
@@ -1062,6 +1065,496 @@ def music_tension():
     write("music_tension", np.tanh(unit(x) * 1.2) * 0.82, sr)
 
 
+# ---------------------------------------------------------------- firearms
+
+def gunshot(rng, d, crack, body, low, ring, tail, drive=1.6):
+    """crack and body = (low hz, high hz, tau, level); low = (start hz, end hz, tau, level); ring = (hz, tau, level); tail = (size, mix)."""
+    n = n_of(d)
+    snap = crack[3] * band_noise(rng, n, crack[0], crack[1]) * decay(n, crack[2], attack=0.0002)
+    x = body[3] * band_noise(rng, n, body[0], body[1]) * decay(n, body[2], attack=0.0004)
+    x += low[3] * thump(rng, n, low[0], low[1], low[2])
+    x += ring[2] * modal(rng, n, [(ring[0], ring[1], 1), (ring[0] * 1.73, ring[1] * 0.7, 0.7), (ring[0] * 2.91, ring[1] * 0.45, 0.4)], jitter=0.05)
+    # The crack rides over the saturated body, or the thump's first swing would crush it. The last tanh is the
+    # punch: it holds the sum's peak down, so normalising leaves the body as loud as door_bash's.
+    return room(np.tanh(1.5 * (np.tanh(x * drive) + np.tanh(snap))), tail[0], tail[1], rng)
+
+
+def gun_pistol(rng, i):
+    return gunshot(rng, 0.3, (1800, 9000, 0.004, 1.25), (350, 2400, 0.018, 0.85), (rng.uniform(220, 260), 85, 0.04, 0.8), (1900 + 150 * i, 0.012, 0.16), (0.08, 0.3))
+
+
+def gun_smg(rng, i):
+    """620 rounds a minute is one shot every 97 ms: the body has to be gone by then, or the burst is a smear."""
+    return gunshot(rng, 0.09, (2200, 10000, 0.0025, 1.0), (500, 3000, 0.009, 0.8), (rng.uniform(250, 290), 110, 0.015, 0.65), (2300 + 180 * i, 0.007, 0.14), (0.025, 0.18))
+
+
+def gun_shotgun(rng, i):
+    x = gunshot(rng, 0.7, (900, 7000, 0.007, 1.0), (180, 1800, 0.05, 1.0), (rng.uniform(160, 185), 46, 0.11, 1.0), (1250 + 90 * i, 0.02, 0.12), (0.2, 0.36), drive=1.8)
+    return x
+
+
+def gun_rifle(rng, i):
+    x = gunshot(rng, 0.5, (2500, 11000, 0.0035, 1.5), (300, 2500, 0.025, 0.85), (rng.uniform(190, 215), 64, 0.06, 0.72), (2100 + 170 * i, 0.012, 0.14), (0.11, 0.3), drive=1.7)
+    # A hard surface a little way off answers the shot.
+    out = np.concatenate([x, np.zeros(n_of(0.25))])
+    place(out, fft_band(x, 250, 2000), rng.uniform(0.15, 0.19), gain=0.16)
+    return out
+
+
+def metal_click(rng, hz, tau=0.008, body=0.5):
+    n = n_of(0.08)
+    return modal(rng, n, [(hz, tau, 1), (hz * 1.83, tau * 0.7, 0.7), (hz * 3.1, tau * 0.4, 0.35)], jitter=0.04) + body * thump(rng, n, 320, 150, 0.009)
+
+
+def gun_reload(rng, _):
+    n = n_of(1.25)
+    x = np.zeros(n)
+    place(x, metal_click(rng, 1900), 0.05, gain=0.7)  # Magazine catch.
+    m = n_of(0.17)
+    tt = np.linspace(0, 1, m)
+    place(x, unit(svf_sweep(noise(rng, m), 900 + 1500 * tt, 3)) * np.sin(np.pi * tt) ** 1.5, 0.08, gain=0.3)  # Magazine out.
+    place(x, grains(rng, n_of(0.25), 6, 0.2, 800, 3000, 0.008, strength=(0.05, 0.2)), 0.3)
+    place(x, metal_click(rng, 1250, 0.014, 0.9), 0.58, gain=0.95)  # Magazine seats.
+    place(x, metal_click(rng, 2500, 0.005, 0.2), 0.62, gain=0.5)
+    m = n_of(0.13)
+    tt = np.linspace(0, 1, m)
+    place(x, metal_click(rng, 2200, 0.006), 0.83, gain=0.6)  # Slide back.
+    place(x, unit(svf_sweep(noise(rng, m), 1500 + 2500 * tt, 4)) * np.sin(np.pi * tt), 0.84, gain=0.42)
+    m = n_of(0.05)
+    tt = np.linspace(0, 1, m)
+    place(x, unit(svf_sweep(noise(rng, m), 4000 - 2000 * tt, 4)) * np.sin(np.pi * tt), 0.98, gain=0.4)  # Slide home.
+    place(x, metal_click(rng, 1550, 0.016, 1.0), 1.02, gain=1.0)
+    return room(x, 0.035, 0.2, rng)
+
+
+def gun_empty(rng, _):
+    n = n_of(0.1)
+    x = modal(rng, n, [(2900, 0.004, 1), (4800, 0.002, 0.6)], jitter=0.02) + 0.35 * thump(rng, n, 520, 260, 0.004)
+    place(x, modal(rng, n_of(0.04), [(2100, 0.003, 1)], jitter=0.02), 0.03, gain=0.25)
+    return x
+
+
+def bullet_impact(rng, i):
+    n = n_of(0.3)
+    dirt = 0.7 * thump(rng, n, 190, 70, 0.03) + 0.7 * band_noise(rng, n, 300, 2400) * decay(n, 0.016, attack=0.0003)
+    dirt += 0.55 * grains(rng, n, 14, 0.14, 900, 5000, 0.004, delay=0.005)
+    metal = modal(rng, n, [(rng.uniform(2100, 2700), 0.022, 1), (rng.uniform(3600, 4300), 0.03, 0.75), (rng.uniform(5700, 6600), 0.012, 0.5)], jitter=0.02)
+    metal += 0.7 * band_noise(rng, n, 3000, 10000) * decay(n, 0.003, attack=0.0002)
+    return dirt * (1.0, 0.45, 0.8)[i] + metal * (0.2, 0.9, 0.5)[i]
+
+
+def raider_gunshot(rng, _):
+    """Rougher and further away than the player's own guns: clipped, dull, and answered by the valley."""
+    n = n_of(0.35)
+    x = band_noise(rng, n, 900, 5000) * decay(n, 0.006, attack=0.0004)
+    x += 0.9 * band_noise(rng, n, 250, 1800) * decay(n, 0.03, attack=0.0006)
+    x += 0.8 * thump(rng, n, 170, 62, 0.05)
+    x = fft_band(np.clip(x * 2.6, -0.8, 1.0), 150, 4200)
+    out = np.concatenate([x, np.zeros(n_of(0.5))])
+    dull = fft_band(x, 200, 1500)
+    place(out, dull, 0.17, gain=0.3)
+    place(out, dull, 0.36, gain=0.13)
+    return room(out, 0.2, 0.36, rng, 2400)
+
+
+# ---------------------------------------------------------------- energy weapons
+
+def arcs(rng, n, count, span, delay=0.0, strength=(0.3, 1.0)):
+    """Electric crackle: scattered short buzzing discharges, each with its own pitch."""
+    out = np.zeros(n)
+    for _ in range(count):
+        m = n_of(rng.uniform(0.012, 0.05))
+        tt = np.arange(m) / SR
+        buzz = np.tanh(4 * np.sin(2 * np.pi * rng.uniform(700, 3400) * tt)) * (band_noise(rng, m, 200, 3000) > -0.1)
+        sig = (0.6 * buzz + 0.7 * band_noise(rng, m, 2500, 11000)) * decay(m, m / SR * 0.35, attack=0.0003)
+        place(out, sig, delay + span * rng.uniform(0, 1) ** 1.6, gain=rng.uniform(*strength))
+    return out
+
+
+def laser_shot(rng, i):
+    """A hot, torn zap: two inharmonic FM voices falling fast through a mains-like buzz."""
+    d = rng.uniform(0.26, 0.32)
+    n = n_of(d)
+    t = np.arange(n) / SR
+    start = (2300, 2700, 2000)[i] * rng.uniform(0.95, 1.05)
+    end = start * 0.12
+    hz = end + (start - end) * np.exp(-t / 0.055)
+    phase = 2 * np.pi * np.cumsum(hz) / SR
+    voices = np.sin(phase + 1.6 * np.sin(phase * 1.5)) + 0.6 * np.sin(phase * 1.012 + 1.1 * np.sin(phase * 0.51))
+    buzz = 0.75 + 0.25 * np.sign(np.sin(2 * np.pi * 140 * t))
+    x = np.tanh(2.2 * voices) * buzz * decay(n, 0.085, attack=0.001)
+    x += 0.35 * band_noise(rng, n, 3000, 11000) * decay(n, 0.012, attack=0.0002)
+    x += 0.35 * thump(rng, n, 320, 120, 0.02)
+    return room(fft_band(x, 90, 12000), 0.05, 0.18, rng)
+
+
+def plasma_shot(rng, _):
+    n = n_of(0.75)
+    x = np.zeros(n)
+    m = n_of(0.11)
+    tt = np.arange(m) / SR
+    place(x, np.sin(2 * np.pi * np.cumsum(300 + 1100 * (tt / 0.11) ** 2) / SR) * (tt / 0.11) ** 2, 0, gain=0.3)  # The charge.
+    m = n_of(0.62)
+    tt = np.arange(m) / SR
+    low = np.tanh(3 * np.sin(2 * np.pi * np.cumsum(48 + 330 * np.exp(-tt / 0.07)) / SR)) * decay(m, 0.16, attack=0.004)
+    air = unit(svf_sweep(noise(rng, m), 180 + 2400 * np.exp(-tt / 0.09), 2.2)) * decay(m, 0.13, attack=0.003)
+    sizzle = band_noise(rng, m, 2500, 8000) * decay(m, 0.05) * (band_noise(rng, m, 30, 400) > -0.1)
+    place(x, low + 0.65 * air + 0.25 * sizzle, 0.1)
+    return room(x, 0.09, 0.22, rng)
+
+
+def plasma_burst(rng, _):
+    n = n_of(1.5)
+    x = thump(rng, n, 170, 34, 0.24)
+    x += 0.8 * band_noise(rng, n, 60, 1200) * decay(n, 0.16, attack=0.002)
+    x += 0.5 * band_noise(rng, n, 1500, 9000) * decay(n, 0.02, attack=0.0003)
+    x += 0.7 * arcs(rng, n, 46, 1.0, 0.01) * np.exp(-np.arange(n) / SR / 0.55)
+    return room(np.tanh(x * 1.5), 0.2, 0.3, rng)
+
+
+def energy_overheat(rng, _):
+    """A capacitor whine climbing to a hard cut-out, then the vents opening."""
+    rise = 0.95
+    n = n_of(2.4)
+    x = np.zeros(n)
+    m = n_of(rise)
+    tt = np.arange(m) / SR
+    phase = 2 * np.pi * np.cumsum(500 * (3400 / 500) ** (tt / rise) + 40 * np.sin(2 * np.pi * 7 * tt)) / SR
+    whine = np.sin(phase) + 0.4 * np.sin(2 * phase) + 0.5 * np.sin(1.012 * phase)
+    edge = np.minimum(1, (rise - tt) / 0.02)
+    place(x, whine * (tt / rise) ** 1.5 * edge, 0, gain=0.42)
+    place(x, modal(rng, n_of(0.25), [(300, 0.04, 1), (720, 0.03, 0.7), (1500, 0.015, 0.4)]) + 0.8 * thump(rng, n_of(0.25), 180, 80, 0.025), rise - 0.005, gain=0.8)
+    m = n_of(2.4 - rise)
+    hiss = band_noise(rng, m, 2000, 10000) + 0.4 * band_noise(rng, m, 600, 2500)
+    place(x, hiss * decay(m, 0.5, attack=0.02) * np.minimum(1, np.linspace(5, 0, m)), rise, gain=0.75)
+    return x
+
+
+# ---------------------------------------------------------------- base defence
+
+def turret_fire(rng, i):
+    n = n_of(0.16)
+    x = gunshot(rng, 0.16, (1800, 8000, 0.003, 0.9), (500, 2600, 0.009, 0.8), (rng.uniform(220, 260), 110, 0.014, 0.6), (1100 + 90 * i, 0.02, 0.32), (0.035, 0.15))
+    # The mount rattling under the recoil.
+    for at in rng.uniform(0.018, 0.075, 3):
+        place(x, modal(rng, n_of(0.03), [(rng.uniform(1500, 3400), 0.006, 1), (rng.uniform(4000, 6000), 0.003, 0.5)]), at, gain=rng.uniform(0.15, 0.35))
+    return x
+
+
+def trap_snap(rng, _):
+    n = n_of(0.55)
+    t = np.arange(n) / SR
+    x = thump(rng, n, 230, 80, 0.03)
+    x += 0.7 * band_noise(rng, n, 1500, 9000) * decay(n, 0.004, attack=0.0002)
+    x += 0.8 * modal(rng, n, [(1700, 0.02, 1), (3100, 0.015, 0.7), (5200, 0.01, 0.4)])
+    spring = modal(rng, n, [(410, 0.14, 1), (1130, 0.11, 0.7), (2050, 0.07, 0.45)], jitter=0.02) * (0.6 + 0.4 * np.sin(2 * np.pi * 38 * t))
+    place(x, spring, 0.008, gain=0.45)
+    return x
+
+
+def trap_shock(rng, _):
+    n = n_of(1.0)
+    t = np.arange(n) / SR
+    env = np.interp(t, [0, 0.03, 0.35, 0.95, 1.0], [0, 1, 0.6, 0.12, 0])
+    buzz = np.tanh(3 * sum(np.sin(2 * np.pi * 120 * k * t) / k for k in range(1, 12))) * (band_noise(rng, n, 8, 60) > -0.2)
+    x = 0.4 * fft_band(buzz, 100, 6000) * env + arcs(rng, n, 46, 0.9) * (0.35 + 0.65 * env)
+    x += 0.6 * band_noise(rng, n, 2000, 10000) * decay(n, 0.008, attack=0.0002)
+    return x
+
+
+def structure_hit(rng, _):
+    n = n_of(0.6)
+    x = thump(rng, n, rng.uniform(150, 185), 50, 0.075)
+    x += 0.8 * modal(rng, n, [(185, 0.05, 1), (410, 0.04, 0.8), (860, 0.025, 0.5)], jitter=0.1)
+    x += 0.3 * modal(rng, n, [(rng.uniform(460, 620), 0.09, 1), (rng.uniform(1150, 1400), 0.07, 0.7), (rng.uniform(2500, 3000), 0.04, 0.4)], jitter=0.02)
+    x += 0.5 * band_noise(rng, n, 500, 4000) * decay(n, 0.012, attack=0.0003)
+    x += 0.35 * grains(rng, n, 16, 0.25, 700, 4000, 0.006, delay=0.015)
+    return room(np.tanh(x * 1.4), 0.07, 0.22, rng)
+
+
+def structure_break(rng, _):
+    n = n_of(2.6)
+    t = np.arange(n) / SR
+    x = thump(rng, n, 190, 38, 0.18)
+    x += 0.8 * modal(rng, n, [(195, 0.14, 1), (480, 0.11, 0.9), (1130, 0.08, 0.7), (2150, 0.05, 0.5)])
+    x += 0.7 * band_noise(rng, n, 500, 6000) * decay(n, 0.03)
+    x += 0.5 * grains(rng, n, 60, 0.8, 1200, 6000, 0.004, delay=0.01)  # Splintering.
+    x += 0.5 * band_noise(rng, n, 30, 300) * np.interp(t, [0, 0.1, 1.0, 2.2, 2.6], [0, 1, 0.55, 0.08, 0])
+    x += 0.1 * band_noise(rng, n, 1500, 6000) * np.interp(t, [0, 0.5, 2.5, 2.6], [0, 1, 0.1, 0])  # Dust settling.
+    for at in np.sort(rng.uniform(0.15, 1.75, 14)):  # Chunks landing, fewer and quieter as it finishes.
+        m = n_of(0.3)
+        chunk = thump(rng, m, rng.uniform(110, 220), rng.uniform(45, 80), rng.uniform(0.03, 0.07))
+        chunk += 0.7 * modal(rng, m, [(rng.uniform(170, 300), 0.04, 1), (rng.uniform(400, 700), 0.03, 0.7), (rng.uniform(900, 1500), 0.015, 0.4)])
+        place(x, chunk, at, gain=0.65 * np.exp(-at / 1.1) * rng.uniform(0.6, 1))
+    for at in rng.uniform(0.2, 1.3, 4):
+        base = rng.uniform(320, 800)
+        place(x, modal(rng, n_of(0.35), [(base, 0.09, 1), (base * 2.37, 0.1, 0.7), (base * 4.1, 0.05, 0.4)], jitter=0.02), at, gain=rng.uniform(0.12, 0.3))
+    return room(np.tanh(x * 1.4), 0.2, 0.3, rng)
+
+
+def raid_horn(rng, _):
+    """A long horn a long way off: a wide brass stack, dulled by distance, the valley answering late."""
+    d = 3.4
+    n = n_of(d)
+    t = np.arange(n) / SR
+    f0 = np.interp(t, [0, 0.35, 0.9, 2.7, d], [74, 94, 98, 97, 84])
+    f0 = f0 * (1 + 0.004 * np.sin(2 * np.pi * 4.3 * t) + 0.003 * unit(fft_band(noise(rng, n), 0.3, 3)))
+
+    def brass(hz):
+        phase = 2 * np.pi * np.cumsum(hz) / SR
+        return sum(np.sin(k * phase) / k ** 0.9 for k in range(1, 23))
+
+    x = brass(f0) + 0.7 * brass(f0 * 1.006) + 0.45 * brass(f0 * 0.7492) + 0.3 * brass(f0 * 0.5)
+    x = unit(x) * np.interp(t, [0, 0.5, 2.6, d], [0, 1, 0.9, 0]) ** 1.2
+    x = fft_band(x, 70, 1300, slope=0.5) + 0.6 * fft_band(x, 300, 800)
+    x += 0.03 * band_noise(rng, n, 300, 1600)
+    out = np.concatenate([x, np.zeros(n_of(0.7))])
+    place(out, fft_band(x, 200, 900), 0.7, gain=0.32)
+    out = room(out, 0.55, 0.4, rng, 1800)[:n_of(4.3)]
+    out[-n_of(0.5):] *= np.linspace(1, 0, n_of(0.5)) ** 1.5
+    return out
+
+
+def alarm_klaxon(rng, _):
+    n = n_of(2.0)
+    x = np.zeros(n)
+    length = 0.56
+    for at in (0.0, 0.68, 1.36):
+        m = n_of(length)
+        tt = np.arange(m) / SR
+        hz = 400 - 110 * np.exp(-tt / 0.045)
+        phase = 2 * np.pi * np.cumsum(hz) / SR
+        honk = np.tanh(6 * np.sin(phase)) + 0.7 * np.tanh(6 * np.sin(phase * 1.26))
+        honk *= 0.82 + 0.18 * np.sign(np.sin(2 * np.pi * 60 * tt))
+        honk *= np.minimum(1, tt / 0.008) * np.minimum(1, (length - tt) / 0.025)
+        place(x, honk, at)
+    return room(fft_band(x, 200, 5000), 0.1, 0.2, rng)
+
+
+# ---------------------------------------------------------------- power
+
+def engine_pop(rng, sr=SR):
+    n = int(0.09 * sr)
+    return thump(rng, n, 170, 75, 0.024, sr) + 0.55 * band_noise(rng, n, 250, 1600, sr) * decay(n, 0.012, sr, 0.0005)
+
+
+def engine_run(rng, rates, skip=None, gains=None):
+    """Fires one combustion pop per cycle of `rates` (per-sample Hz). skip is a per-sample misfire chance."""
+    x = np.zeros(len(rates))
+    cycles = np.cumsum(rates) / SR
+    fired = np.nonzero(np.diff(np.floor(cycles)) > 0)[0]
+    for index in fired:
+        if skip is not None and rng.uniform() < skip[index]:
+            continue
+        gain = rng.uniform(0.75, 1.0) * (gains[index] if gains is not None else 1.0)
+        place(x, engine_pop(rng), index / SR, gain=gain)
+    return x
+
+
+def generator_start(rng, _):
+    d = 2.15
+    n = n_of(d)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    # The cord: a rising rasp and an accelerating ratchet.
+    m = n_of(0.58)
+    tt = np.linspace(0, 1, m)
+    place(x, unit(svf_sweep(noise(rng, m), 300 + 1500 * np.sin(np.pi * tt) ** 2, 3)) * np.sin(np.pi * tt) ** 1.2, 0.03, gain=0.4)
+    at = 0.05
+    gap = 0.075
+    while at < 0.58:
+        place(x, modal(rng, n_of(0.03), [(1500, 0.005, 1), (2800, 0.003, 0.5)]), at, gain=0.3)
+        at += gap
+        gap = max(0.028, gap * 0.87)
+    # Two coughs.
+    place(x, engine_pop(rng), 0.6, gain=0.7)
+    place(x, engine_pop(rng), 0.79, gain=0.55)
+    # Catches, overshoots, settles at the rate generator_hum runs at.
+    catch = 0.94
+    rates = np.interp(t, [0, catch, 1.45, 1.75, d], [0, 7, 29, 25, 25]) * (t >= catch)
+    gains = np.interp(t, [catch, 1.3, d], [0.7, 1.0, 0.9])
+    x += engine_run(rng, rates, gains=gains)
+    # Generator winding spinning up underneath.
+    hz = np.interp(t, [0, catch, 1.6, d], [0, 0, 400, 400])
+    whine = np.sin(2 * np.pi * np.cumsum(hz) / SR) + 0.4 * np.sin(4 * np.pi * np.cumsum(hz) / SR)
+    x += 0.05 * whine * np.clip((t - catch) / 0.5, 0, 1)
+    x += 0.2 * band_noise(rng, n, 80, 700) * np.clip((t - catch) / 0.3, 0, 1)
+    # generator_hum takes over from here.
+    x *= np.interp(t, [0, d - 0.25, d], [1, 1, 0])
+    return room(x, 0.05, 0.15, rng)
+
+
+def generator_stop(rng, _):
+    d = 1.7
+    n = n_of(d)
+    t = np.arange(n) / SR
+    rates = np.interp(t, [0, 0.35, 0.9, 1.25, 1.3], [25, 16, 8, 4, 0])
+    skip = np.interp(t, [0, 0.3, 1.2], [0, 0.18, 0.4])
+    x = engine_run(rng, rates, skip=skip, gains=np.interp(t, [0, 0.6, 1.3], [0.9, 1.0, 0.6]))
+    x += 0.25 * band_noise(rng, n, 80, 700) * np.interp(t, [0, 0.6, 1.3, d], [1, 0.5, 0.05, 0])
+    hz = np.interp(t, [0, 1.2], [400, 40])
+    x += 0.05 * np.sin(2 * np.pi * np.cumsum(hz) / SR) * np.interp(t, [0, 1.2], [1, 0])
+    place(x, modal(rng, n_of(0.15), [(2600, 0.02, 1), (4300, 0.012, 0.5)]), 1.48, gain=0.09)  # Metal ticking as it cools.
+    return room(x, 0.05, 0.15, rng)
+
+
+def repair_tick(rng, _):
+    n = n_of(0.22)
+    x = 0.8 * modal(rng, n, [(3200, 0.006, 1), (5400, 0.004, 0.6)], jitter=0.04)
+    x += 0.8 * arcs(rng, n, 8, 0.14)
+    x += 0.45 * grains(rng, n, 16, 0.18, 3000, 9000, 0.0025, strength=(0.1, 0.7))
+    return x
+
+
+def power_down(rng, _):
+    n = n_of(1.6)
+    t = np.arange(n) / SR
+    hz = 28 + 392 * np.exp(-t / 0.33)
+    phase = 2 * np.pi * np.cumsum(hz) / SR
+    x = sum(a * np.sin(k * phase) for k, a in [(1, 1.0), (2, 0.5), (3, 0.3), (5, 0.15)])
+    x *= np.interp(t, [0, 0.04, 0.9, 1.5, 1.6], [0, 1, 0.5, 0.05, 0])
+    x += 0.5 * (np.sin(2 * np.pi * 100 * t) + 0.5 * np.sin(2 * np.pi * 300 * t)) * np.exp(-t / 0.2)
+    x += 0.8 * modal(rng, n, [(680, 0.02, 1), (1720, 0.014, 0.8), (3300, 0.008, 0.4)]) + 0.8 * thump(rng, n, 240, 90, 0.02)  # The relay.
+    x += 0.5 * arcs(rng, n, 10, 0.4, 0.01, (0.2, 0.7))
+    return room(x, 0.1, 0.2, rng)
+
+
+def write_device_loop(name, x, sr=32000, peak=0.6):
+    """Seamless loop for a device's own AudioSource. Rotated to start on a zero crossing, so starting it doesn't click either."""
+    x = x - np.mean(x)
+    rising = np.nonzero((x[:-1] <= 0) & (x[1:] > 0))[0]
+    gentlest = rising[np.argmin(x[rising + 1] - x[rising])]
+    write(name, unit(np.roll(x, -int(gentlest + 1))) * peak, sr)
+
+
+def device_loops():
+    """Every partial has an integer cycle count over the loop, and all noise and pulses wrap, so these repeat exactly."""
+    sr = 32000
+    seconds = 4
+    n = seconds * sr
+    t = np.arange(n) / sr
+
+    r = rng_for("generator_hum")
+    firing = 25  # Matches where generator_start settles.
+    x = np.zeros(n)
+    for k in range(firing * seconds):
+        pop = engine_pop(r, sr)
+        at = int(k * n / (firing * seconds) + r.uniform(-0.0006, 0.0006) * sr)
+        x[(at + np.arange(len(pop))) % n] += pop * r.uniform(0.75, 1.0) * (1.0 if k % 2 == 0 else 0.82)
+    beat = np.sin(np.pi * firing * t) ** 2
+    x += 0.32 * band_noise(r, n, 80, 700, sr) * (0.55 + 0.45 * beat) * (0.85 + 0.15 * periodic_lfo(r, n, 3))
+    x += 0.07 * band_noise(r, n, 1800, 5000, sr) * beat ** 4
+    for hz, level in [(50, 0.2), (100, 0.14), (400, 0.05), (800, 0.02)]:
+        x += level * np.sin(2 * np.pi * hz * t + r.uniform(0, 6.28))
+    write_device_loop("generator_hum", x, sr, 0.7)
+
+    r = rng_for("machine_hum")
+    x = np.zeros(n)
+    for hz, level in [(50, 0.5), (100, 1.0), (150, 0.35), (200, 0.3), (300, 0.14), (350, 0.06), (500, 0.03)]:
+        x += level * np.sin(2 * np.pi * hz * t + r.uniform(0, 6.28)) * (0.88 + 0.12 * periodic_lfo(r, n, 4))
+    x = unit(x)
+    x += 0.18 * band_noise(r, n, 200, 1200, sr) * (0.8 + 0.2 * periodic_lfo(r, n, 5))
+    x += 0.025 * band_noise(r, n, 2500, 6000, sr)
+    write_device_loop("machine_hum", x, sr, 0.45)
+
+    r = rng_for("fan_loop")
+    rotation, blades = 13, 7
+    blade = rotation * blades
+    x = band_noise(r, n, 150, 2400, sr) * (0.55 + 0.45 * np.cos(np.pi * blade * t) ** 2) * (0.9 + 0.1 * np.sin(2 * np.pi * rotation * t))
+    for hz, level in [(blade, 0.3), (blade * 2, 0.16), (blade * 3, 0.07), (rotation, 0.08)]:
+        x += level * np.sin(2 * np.pi * hz * t + r.uniform(0, 6.28))
+    x += 0.012 * np.sin(2 * np.pi * 2600 * t) * periodic_lfo(r, n, 3)  # Bearing.
+    write_device_loop("fan_loop", x, sr, 0.55)
+
+    r = rng_for("turret_laser")
+    d = 0.5
+    m = int(d * SR)
+    t = np.arange(m) / SR
+    buzz = sum(np.sin(2 * np.pi * 120 * k * t) / k ** 0.8 for k in range(1, 25))
+    x = np.tanh(0.8 * buzz) * (0.8 + 0.2 * np.sin(2 * np.pi * 30 * t))
+    x += 0.3 * (np.sin(2 * np.pi * 1440 * t) + 0.7 * np.sin(2 * np.pi * 1924 * t)) * (0.5 + 0.5 * np.sin(2 * np.pi * 34 * t))
+    x += 0.2 * band_noise(r, m, 2000, 9000) * (0.5 + 0.5 * np.sin(2 * np.pi * 240 * t))
+    write_device_loop("turret_laser", x, SR, 0.7)
+
+
+# ---------------------------------------------------------------- radio and objectives
+
+def radio_static(rng, _):
+    """Static with someone almost talking under it. The syllables are formants only: there are no words to find."""
+    d = 2.1
+    n = n_of(d)
+    t = np.arange(n) / SR
+    flutter = 0.55 + 0.45 * unit(fft_band(noise(rng, n), 2, 30))
+    x = 0.55 * band_noise(rng, n, 400, 6500) * flutter
+    x += 0.35 * grains(rng, n, 40, d, 1500, 7000, 0.002, strength=(0.2, 1.0))
+    speech = np.zeros(n)
+    at = 0.22
+    while at < 1.7:
+        length = rng.uniform(0.11, 0.26)
+        f = rng.uniform(105, 150)
+        formant = [AH, UH, OH, EH][rng.integers(0, 4)]
+        place(speech, voice(rng, length, [(0, f), (1, f * rng.uniform(0.82, 1.18))], formant, rough=0.08, breath=0.5, attack=0.015, release=0.05), at)
+        at += length + rng.uniform(0.03, 0.14)
+    x += 0.65 * fft_band(speech, 500, 2600) * np.sin(np.pi * t / d) ** 0.7
+    x *= np.interp(t, [0, 0.03, d - 0.12, d], [0, 1, 0.9, 0])
+    for at in (0.0, d - 0.05):  # Squelch opening and closing.
+        place(x, modal(rng, n_of(0.04), [(2400, 0.004, 1), (4100, 0.002, 0.5)]), at, gain=0.5)
+    return x
+
+
+def radio_ping(rng, _):
+    n = n_of(0.42)
+    x = np.zeros(n)
+    for hz, at, length in [(880, 0.0, 0.11), (1320, 0.15, 0.17)]:
+        m = n_of(length)
+        tt = np.arange(m) / SR
+        tone = (np.sin(2 * np.pi * hz * tt) + 0.25 * np.sin(6 * np.pi * hz * tt)) * np.minimum(1, tt / 0.004) * np.minimum(1, (length - tt) / 0.012)
+        place(x, tone, at)
+    return room(fft_band(x, 300, 4000), 0.03, 0.1, rng)
+
+
+def objective_done(rng, _):
+    """Same family as upgrade and discovery: marimba notes over a held open interval, no fanfare."""
+    n = n_of(1.45)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for hz, level in [(146.83, 0.8), (220.0, 0.65)]:
+        partial = sum(a * np.sin(2 * np.pi * hz * k * t) for k, a in [(1, 1), (2, 0.35), (3, 0.14)])
+        x += 0.3 * level * partial * np.clip(t / 0.05, 0, 1) * np.exp(-t / 0.55)
+    place(x, tones(rng, [293.66, 440, 587.33], tau=0.2, length=0.6, gap=0.11), 0)
+    return room(x, 0.25, 0.3, rng, 2600)
+
+
+def m22_clips():
+    clip("gun_pistol", gun_pistol, 3, 0.92)
+    clip("gun_smg", gun_smg, 3, 0.88)
+    clip("gun_shotgun", gun_shotgun, 2, 0.95)
+    clip("gun_rifle", gun_rifle, 3, 0.95)
+    clip("gun_reload", gun_reload, None, 0.75)
+    clip("gun_empty", gun_empty, None, 0.6)
+    clip("laser_shot", laser_shot, 3, 0.8)
+    clip("plasma_shot", plasma_shot, None, 0.9)
+    clip("plasma_burst", plasma_burst, None, 0.95)
+    clip("energy_overheat", energy_overheat, None, 0.75)
+    clip("bullet_impact", bullet_impact, 3, 0.8)
+    clip("raider_gunshot", raider_gunshot, None, 0.85)
+    clip("turret_fire", turret_fire, 3, 0.85)
+    clip("trap_snap", trap_snap, None, 0.9)
+    clip("trap_shock", trap_shock, None, 0.8)
+    clip("structure_hit", structure_hit, 3, 0.9)
+    clip("structure_break", structure_break, None, 0.95)
+    clip("raid_horn", raid_horn, None, 0.85)
+    clip("alarm_klaxon", alarm_klaxon, None, 0.6)
+    clip("generator_start", generator_start, None, 0.8)
+    clip("generator_stop", generator_stop, None, 0.8)
+    clip("repair_tick", repair_tick, None, 0.6)
+    clip("power_down", power_down, None, 0.8)
+    clip("radio_static", radio_static, None, 0.65)
+    clip("radio_ping", radio_ping, None, 0.55)
+    clip("objective_done", objective_done, None, 0.7)
+    device_loops()
+
+
 # ---------------------------------------------------------------- catalogue
 
 def main():
@@ -1143,11 +1636,13 @@ def main():
     if want("music"):
         music_explore()
         music_tension()
+    if want("m22"):
+        m22_clips()
 
     # Folder metas with stable GUIDs too, written bottom-up from the generated tree.
     folder = OUT
     assets = os.path.normpath(os.path.join(OUT, "..", "..", ".."))
-    while folder != assets:
+    while folder != assets and only != "m22":
         write_meta(folder, "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
         folder = os.path.dirname(folder)
     print(f"Wrote {len(written)} clips to {OUT}")

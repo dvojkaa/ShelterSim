@@ -118,7 +118,7 @@ namespace SheltreSim.Audio
 
         private void UpdateHurt()
         {
-            if (enemy.health < previousHealth - 0.01f && Time.unscaledTime >= quietUntil)
+            if (enemy.health < previousHealth - 0.01f && Time.unscaledTime >= quietUntil && Time.unscaledTime - lastVoiceTime >= 0.3f)
             {
                 Voice(Sfx.RaiderHurt, transform.position + Vector3.up * 1.4f, 0.85f);
             }

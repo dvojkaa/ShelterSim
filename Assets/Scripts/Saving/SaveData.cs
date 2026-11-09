@@ -6,7 +6,9 @@ namespace SheltreSim.Saving
     [System.Serializable]
     public class SaveData
     {
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
+        /// <summary>Version 5 has the same world, just no state for the M22 systems, so it stays readable.</summary>
+        public const int MinimumVersion = 5;
 
         // Zero identifies the unversioned M3-M15 format. Missing required values remain
         // invalid because SaveManager deserializes by overwriting a constructed instance.
@@ -31,6 +33,8 @@ namespace SheltreSim.Saving
         public float bunkerBuildElapsed;
         public bool bunkerAnnex;
         public List<string> equippedGear = new List<string>();
+        public int worldGenVersion;
+        public List<SystemState> systemStates = new List<SystemState>();
         public List<SheltreSim.World.ProceduralWorldState.ChunkState> proceduralChunks
             = new List<SheltreSim.World.ProceduralWorldState.ChunkState>();
 
@@ -51,6 +55,15 @@ namespace SheltreSim.Saving
             public float collectionElapsed;
             public int farmStored = -1;
             public float farmElapsed;
+            public string pieceState;
+            public float structureHealth = -1f;
+        }
+
+        [System.Serializable]
+        public class SystemState
+        {
+            public string key;
+            public string json;
         }
 
         [System.Serializable]

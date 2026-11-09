@@ -109,6 +109,11 @@ namespace SheltreSim.EditorTools
             Debug.Log("[BatchSetupAll] Setting up M21 crafting...");
             M21CraftingSetup.Setup();
 
+            // Needs the items and pieces M21 writes. Homestead first: it adds to the same list and the palette.
+            Debug.Log("[BatchSetupAll] Setting up M22 homestead and bunker systems...");
+            M22HomesteadSetup.Setup();
+            M22SystemsSetup.Setup();
+
             Debug.Log("[BatchSetupAll] All milestones wired up successfully.");
         }
     }

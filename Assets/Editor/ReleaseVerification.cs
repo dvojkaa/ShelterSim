@@ -32,7 +32,7 @@ namespace SheltreSim.EditorTools
             var hud = UnityEngine.Object.FindFirstObjectByType<SurvivalHUD>();
             Require(hud != null, "Survival HUD exists");
             var build = save.buildController;
-            Require(build.survivalHud == hud && build.availablePieces.Count >= 12,
+            Require(build.survivalHud == hud && build.availablePieces.Count >= 40,
                 "Build menu has the full set of pieces and HUD wiring");
             Require(build.availablePieces.All(p => p != null && p.prefab != null && !string.IsNullOrEmpty(p.id)) &&
                 build.availablePieces.Select(p => p.id).Distinct().Count() == build.availablePieces.Count,

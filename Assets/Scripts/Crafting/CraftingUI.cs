@@ -116,6 +116,8 @@ namespace SheltreSim.Crafting
             panel.SetActive(true);
             title.text = RecipeBook.StationName(kind).ToUpperInvariant();
             subtitle.text = kind == StationKind.Hand ? "Hand crafting  /  C or Escape to close" : "Game paused  /  Escape to close";
+            int crates = CraftingSystem.NearbyCrateCount(inventory);
+            if (crates > 0) subtitle.text += crates == 1 ? "  /  Also using 1 crate nearby" : $"  /  Also using {crates} crates nearby";
             status.text = "Missing ingredients are shown in red.";
             Refresh();
             return true;
@@ -209,10 +211,13 @@ namespace SheltreSim.Crafting
                 {
                     Ingredient ing = r.recipe.inputs[i];
                     int owned = inventory != null ? inventory.GetCount(ing.id) : 0;
-                    bool ok = owned >= ing.amount;
+                    int inCrates = CraftingSystem.CountInCrates(inventory, ing.id);
+                    bool ok = (long)owned + inCrates >= ing.amount;
                     if (i > 0) text.Append("   ");
                     if (!ok) text.Append("<color=#ff6459>");
-                    text.Append(ItemCatalog.NameOf(ing.id)).Append(' ').Append(owned).Append(':').Append(ing.amount);
+                    text.Append(ItemCatalog.NameOf(ing.id)).Append(' ').Append(owned);
+                    if (inCrates > 0) text.Append(" + ").Append(inCrates).Append(" in crates");
+                    text.Append(':').Append(ing.amount);
                     if (!ok) text.Append("</color>");
                 }
                 r.inputs.text = text.ToString();

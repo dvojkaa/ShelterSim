@@ -27,7 +27,7 @@ namespace SheltreSim.EditorTools
         private const string PrefabsPath = "Assets/Prefabs/Building/";
         private const string ModelsPath = "Assets/Art/Models/";
 
-        private sealed class PieceSpec
+        internal sealed class PieceSpec
         {
             public string id, name, prefabName, assetName;
             public Vector3 size;
@@ -107,7 +107,7 @@ namespace SheltreSim.EditorTools
             throw new InvalidOperationException("M21: no ResourceDefinition for " + id);
         }
 
-        private static List<CraftingCost> CostFor(string pieceId)
+        internal static List<CraftingCost> CostFor(string pieceId)
         {
             List<CraftingCost> cost = new List<CraftingCost>();
             foreach (Ingredient i in RecipeBook.PieceCosts[pieceId]) cost.Add(new CraftingCost { resource = Def(i.id), amount = i.amount });
@@ -182,7 +182,7 @@ namespace SheltreSim.EditorTools
         }
 
         /// <summary>Root = footprint box collider + PlacedPiece (like M2's pieces); the model (or a coloured box if it is missing) is a collider-free child standing on the footprint floor.</summary>
-        private static GameObject BuildPrefab(PieceSpec spec, Material atlas)
+        internal static GameObject BuildPrefab(PieceSpec spec, Material atlas)
         {
             GameObject root = new GameObject(spec.prefabName);
             try

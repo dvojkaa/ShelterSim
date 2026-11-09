@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using SheltreSim.Items;
+using SheltreSim.Objectives;
 using UnityEngine;
 
 namespace SheltreSim.World
@@ -9,22 +11,112 @@ namespace SheltreSim.World
     {
         static readonly string[] Kinds = { "Hospital", "Factory", "FuelStation", "Farm", "MilitaryOutpost", "AbandonedBunker" };
         static readonly string[] Titles = { "Field hospital", "Ironworks factory", "Last stop fuel station", "Overgrown farm", "Military relay outpost", "Abandoned bunker" };
+        static readonly string[] ShortNames = { "Hospital", "Factory", "Fuel", "Farm", "Military", "Bunker" };
+        static readonly string[] Tables = { "hospital", "factory", "fuel", "farm", "military", "bunker" };
         const float HalfWidth = 21f, HalfDepth = 18f, RampLength = 30f;
+        public const int KindHospital = 0, KindFactory = 1, KindFuel = 2, KindFarm = 3, KindMilitary = 4, KindBunker = 5, KindCount = 6;
+
+        // What each kind is known for: literal, independent of every random draw, added after the rolled rows.
+        static readonly (string id, int amount)[][] FirstCacheRewards = {
+            new[] { ("first_aid", 2) },
+            new[] { ("electronics", 3) },
+            new[] { ("fuel", 6) },
+            new[] { ("seeds", 6) },
+            new[] { ("ammo_rifle", 12), ("expedition_parts", 1) },
+            new (string, int)[0],
+        };
+
+        public static string KindName(int kind) => kind >= 0 && kind < KindCount ? Kinds[kind] : "";
+        public static string ShortName(int kind) => kind >= 0 && kind < KindCount ? ShortNames[kind] : "";
+        public static string Title(int kind) => kind >= 0 && kind < KindCount ? Titles[kind] : "";
+        public static string TableName(int kind) => kind >= 0 && kind < KindCount ? Tables[kind] : "";
+        /// <summary>The rows added to a kind's first cache (Cache_00). Slot 3 of factories and bunkers also holds one part.</summary>
+        public static IReadOnlyList<(string id, int amount)> GuaranteedRewards(int kind) =>
+            kind >= 0 && kind < KindCount ? FirstCacheRewards[kind] : new (string, int)[0];
+
+        /// <summary>Pure metadata: answers from the seed alone and never builds a chunk.</summary>
+        public static bool TryGetKind(Vector2Int coordinate, int seed, out int kind)
+        {
+            kind = -1;
+            if (!HasLandmark(coordinate, seed)) return false;
+            kind = KindAt(coordinate, seed);
+            return true;
+        }
+
+        public static string StableId(Vector2Int coordinate, int seed) => "landmark:" + seed + ":" + coordinate.x + ":" + coordinate.y;
+
+        public static bool TryParseStableId(string id, out Vector2Int coordinate, out int seed)
+        {
+            coordinate = default;
+            seed = 0;
+            if (string.IsNullOrEmpty(id)) return false;
+            string[] parts = id.Split(':');
+            if (parts.Length != 4 || parts[0] != "landmark" || !int.TryParse(parts[1], out seed) ||
+                !int.TryParse(parts[2], out int x) || !int.TryParse(parts[3], out int z)) return false;
+            coordinate = new Vector2Int(x, z);
+            return true;
+        }
+
+        public static Vector3 WorldCenter(Vector2Int coordinate) => new Vector3(coordinate.x * 128f + 64f, 0f, coordinate.y * 128f + 64f);
+
+        public static Vector2Int? FindNearest(int kind, Vector3 fromPosition, int seed, int maxChunkRadius, Func<string, bool> exclude = null) =>
+            FindNearest(new[] { kind }, fromPosition, seed, maxChunkRadius, exclude);
+
+        /// <summary>
+        /// The nearest matching landmark, by rings outward, from hash functions only: no chunk is generated.
+        /// Null kinds means any kind. Exclude receives the stable id and returns true to skip that landmark.
+        /// </summary>
+        public static Vector2Int? FindNearest(int[] kinds, Vector3 fromPosition, int seed, int maxChunkRadius, Func<string, bool> exclude = null)
+        {
+            Vector2Int center = WorldLayout.Coordinate(fromPosition);
+            Vector2 origin = new Vector2(fromPosition.x, fromPosition.z);
+            Vector2Int? best = null;
+            float bestDistance = float.PositiveInfinity;
+            for (int ring = 0; ring <= maxChunkRadius; ring++)
+            {
+                // A chunk centre in this ring is at least this far along one axis, so nothing further out can win.
+                if (best.HasValue && ring * 128f - 64f > bestDistance) break;
+                for (int dz = -ring; dz <= ring; dz++)
+                {
+                    int step = dz == -ring || dz == ring ? 1 : ring * 2;
+                    for (int dx = -ring; dx <= ring; dx += Mathf.Max(1, step))
+                    {
+                        var coordinate = new Vector2Int(center.x + dx, center.y + dz);
+                        if (Math.Abs((long)coordinate.x) > WorldLayout.MaximumChunkCoordinate ||
+                            Math.Abs((long)coordinate.y) > WorldLayout.MaximumChunkCoordinate) continue;
+                        if (!IsForced(coordinate) && WorldLayout.Hash(coordinate.x, coordinate.y, seed + 4069) % 13 != 0) continue;
+                        Vector3 world = WorldCenter(coordinate);
+                        float distance = Vector2.Distance(origin, new Vector2(world.x, world.z));
+                        if (distance >= bestDistance) continue;
+                        if (kinds != null && Array.IndexOf(kinds, KindAt(coordinate, seed)) < 0) continue;
+                        if (exclude != null && exclude(StableId(coordinate, seed))) continue;
+                        if (!HasLandmark(coordinate, seed)) continue;
+                        best = coordinate;
+                        bestDistance = distance;
+                    }
+                }
+            }
+            return best;
+        }
+
+        static bool IsForced(Vector2Int coordinate) => coordinate == new Vector2Int(-2, -3) || coordinate == new Vector2Int(3, -4) ||
+            coordinate == new Vector2Int(-4, -5);
+
+        static int KindAt(Vector2Int coordinate, int seed) =>
+            coordinate == new Vector2Int(-2, -3) ? 0 : coordinate == new Vector2Int(3, -4) ? 2 :
+            coordinate == new Vector2Int(-4, -5) ? 1 : WorldLayout.Hash(coordinate.x, coordinate.y, seed + 809) % Kinds.Length;
 
         public static bool HasLandmark(Vector2Int coordinate, int seed)
         {
             if (WorldLayout.IsTownChunk(coordinate, seed)) return false;
-            bool forced = coordinate == new Vector2Int(-2, -3) || coordinate == new Vector2Int(3, -4) ||
-                coordinate == new Vector2Int(-4, -5);
-            if (!forced && WorldLayout.Hash(coordinate.x, coordinate.y, seed + 4069) % 13 != 0) return false;
+            if (!IsForced(coordinate) && WorldLayout.Hash(coordinate.x, coordinate.y, seed + 4069) % 13 != 0) return false;
             return TryDeck(coordinate, seed, out _, out _);
         }
 
         public static GameObject Build(Transform parent, Vector2Int coordinate, int seed, ProceduralWorldAssets assets, bool ruined)
         {
             if (assets == null || !HasLandmark(coordinate, seed) || !TryDeck(coordinate, seed, out float deck, out float toe)) return null;
-            int kind = coordinate == new Vector2Int(-2, -3) ? 0 : coordinate == new Vector2Int(3, -4) ? 2 :
-                coordinate == new Vector2Int(-4, -5) ? 1 : WorldLayout.Hash(coordinate.x, coordinate.y, seed + 809) % Kinds.Length;
+            int kind = KindAt(coordinate, seed);
             var root = new GameObject("Landmark_" + Kinds[kind]);
             root.SetActive(false);
             root.transform.SetParent(parent, false);
@@ -65,8 +157,10 @@ namespace SheltreSim.World
                     Cache(t, "Cache_" + i.ToString("D2"), position, kind, i, assets, random);
                 }
                 var discovery = root.AddComponent<LandmarkDiscovery>();
-                discovery.stableId = "landmark:" + seed + ":" + coordinate.x + ":" + coordinate.y;
+                discovery.stableId = StableId(coordinate, seed);
                 discovery.title = Titles[kind];
+                // Consumes no draw: the relay is the same object on every military landmark.
+                if (kind == KindMilitary) RelayPoint(t, discovery.stableId, assets);
             }
             root.SetActive(true);
             return root;
@@ -251,12 +345,36 @@ namespace SheltreSim.World
             collider.center = Vector3.up * .45f;
             collider.size = new Vector3(1.2f, .9f, .9f);
             var loot = root.AddComponent<LootContainer>();
-            string[] tables = { "hospital", "factory", "fuel", "farm", "military", "bunker" };
-            SheltreSim.Crafting.LootTables.Fill(loot, tables[kind], random);
+            SheltreSim.Crafting.LootTables.Fill(loot, Tables[kind], random);
             // One guaranteed component in industrial/bunker caches; others occasionally have a salvageable part.
             if ((slot == 3 && (kind == 1 || kind == 5)) || random.NextDouble() < .12)
                 Add(loot, assets.expeditionParts, 1);
+            // The key reward is guaranteed: appended after the rolled rows, so it draws nothing and shifts nothing.
+            if (slot == 0)
+                foreach (var reward in FirstCacheRewards[kind])
+                {
+                    ResourceDefinition resource = SheltreSim.Crafting.ItemCatalog.Def(reward.id);
+                    if (resource == null && reward.id == "expedition_parts") resource = assets.expeditionParts;
+                    Add(loot, resource, reward.amount);
+                }
             loot.hasLoot = loot.entries.Count > 0;
+        }
+
+        // Beside the mast's legs, on the open east side of the outpost.
+        static void RelayPoint(Transform parent, string landmarkId, ProceduralWorldAssets assets)
+        {
+            var root = new GameObject("RelayRepairPoint");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = new Vector3(14f, 0f, 6.4f);
+            Box(root.transform, "RelayCabinet", Vector3.up * .75f, new Vector3(1.3f, 1.5f, .7f), assets.structureMaterial, false);
+            Box(root.transform, "RelayPanel", new Vector3(0f, .95f, -.37f), new Vector3(.9f, .6f, .05f), assets.roadMaterial, false);
+            GameObject lamp = Box(root.transform, "RelayLamp", Vector3.up * 1.58f, Vector3.one * .16f, assets.roadMaterial, false);
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = Vector3.up * .8f;
+            collider.size = new Vector3(1.4f, 1.6f, .8f);
+            var point = root.AddComponent<RelayRepairPoint>();
+            point.landmarkId = landmarkId;
+            point.lamp = lamp.GetComponent<Renderer>();
         }
 
         static void Add(LootContainer loot, ResourceDefinition resource, int amount)

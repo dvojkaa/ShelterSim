@@ -7,20 +7,25 @@ using UnityEngine;
 namespace SheltreSim.Crafting
 {
     /// <summary>
-    /// What the player has equipped (one weapon, one armor, one coat) and what the owned tools are worth.
-    /// Equipping never consumes the item. Equipping a weapon SETS melee damage to the weapon's value (no stacking).
+    /// What the player has equipped (one melee weapon, one ranged weapon, one armor, one coat) and what the owned tools are worth.
+    /// Equipping never consumes the item. Equipping a melee weapon SETS melee damage to the weapon's value (no stacking).
+    /// The ranged slot never touches melee damage: RangedWeaponController reads RangedId.
     /// </summary>
     public sealed class PlayerGear : MonoBehaviour
     {
         public static PlayerGear Active { get; private set; }
 
-        private string weaponId = "", armorId = "", coatId = "";
+        private string weaponId = "", armorId = "", coatId = "", rangedId = "";
         private Inventory inventory;
         private MeleeAttacker melee;
 
         public string WeaponId => weaponId;
         public string ArmorId => armorId;
         public string CoatId => coatId;
+        public string RangedId => rangedId;
+
+        /// <summary>The player chose to equip this item (not fired by a load). Which hand to raise is RangedWeaponController's call.</summary>
+        public event System.Action<GearSlot, string> ItemEquipped;
 
         /// <summary>Adds a PlayerGear to the object if none exists.</summary>
         public static PlayerGear Ensure(GameObject player)
@@ -52,6 +57,7 @@ namespace SheltreSim.Crafting
             if (weaponId.Length > 0 && inventory.GetCount(weaponId) < 1) Unequip(GearSlot.Weapon, true);
             if (armorId.Length > 0 && inventory.GetCount(armorId) < 1) Unequip(GearSlot.Armor, true);
             if (coatId.Length > 0 && inventory.GetCount(coatId) < 1) Unequip(GearSlot.Coat, true);
+            if (rangedId.Length > 0 && inventory.GetCount(rangedId) < 1) Unequip(GearSlot.Ranged, true);
         }
 
         /// <summary>Melee damage of the equipped weapon, or the unarmed base damage.</summary>
@@ -124,9 +130,9 @@ namespace SheltreSim.Crafting
             return name;
         }
 
-        public string Equipped(GearSlot slot) => slot == GearSlot.Weapon ? weaponId : slot == GearSlot.Armor ? armorId : slot == GearSlot.Coat ? coatId : "";
+        public string Equipped(GearSlot slot) => slot == GearSlot.Weapon ? weaponId : slot == GearSlot.Armor ? armorId : slot == GearSlot.Coat ? coatId : slot == GearSlot.Ranged ? rangedId : "";
 
-        public bool IsEquipped(string id) => !string.IsNullOrEmpty(id) && (id == weaponId || id == armorId || id == coatId);
+        public bool IsEquipped(string id) => !string.IsNullOrEmpty(id) && (id == weaponId || id == armorId || id == coatId || id == rangedId);
 
         public bool Equip(string id, out string message)
         {
@@ -136,9 +142,10 @@ namespace SheltreSim.Crafting
             if (inventory == null || inventory.GetCount(id) < 1) { message = $"You don't have a {spec.name}."; return false; }
             SetSlot(spec.slot, id);
             SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Equip, 0.8f);
-            message = spec.slot == GearSlot.Weapon
-                ? $"Equipped {spec.name}. Melee damage: {AttackDamage:0}."
+            message = spec.slot == GearSlot.Weapon ? $"Equipped {spec.name}. Melee damage: {AttackDamage:0}."
+                : spec.slot == GearSlot.Ranged ? $"Equipped {spec.name}. 2: raise it, 1: melee, R: reload."
                 : $"Equipped {spec.name}. Damage reduction: {DamageReduction * 100f:0}%.";
+            ItemEquipped?.Invoke(spec.slot, id);
             return true;
         }
 
@@ -153,6 +160,8 @@ namespace SheltreSim.Crafting
 
         private void SetSlot(GearSlot slot, string id)
         {
+            // Melee damage can carry a saved upgrade, so a gun must not re-derive it.
+            if (slot == GearSlot.Ranged) { rangedId = id; return; }
             if (slot == GearSlot.Weapon) weaponId = id;
             else if (slot == GearSlot.Armor) armorId = id;
             else if (slot == GearSlot.Coat) coatId = id;
@@ -173,13 +182,14 @@ namespace SheltreSim.Crafting
             if (weaponId.Length > 0) list.Add(weaponId);
             if (armorId.Length > 0) list.Add(armorId);
             if (coatId.Length > 0) list.Add(coatId);
+            if (rangedId.Length > 0) list.Add(rangedId);
             return list;
         }
 
         /// <summary>Re-equips the given ids (slot is derived from each item). Unknown ids are ignored. Applies weapon damage to MeleeAttacker.</summary>
         public void RestoreEquipped(List<string> ids)
         {
-            weaponId = armorId = coatId = "";
+            weaponId = armorId = coatId = rangedId = "";
             if (ids != null)
                 foreach (var id in ids)
                 {
@@ -188,13 +198,14 @@ namespace SheltreSim.Crafting
                     if (spec.slot == GearSlot.Weapon) weaponId = id;
                     else if (spec.slot == GearSlot.Armor) armorId = id;
                     else if (spec.slot == GearSlot.Coat) coatId = id;
+                    else if (spec.slot == GearSlot.Ranged) rangedId = id;
                 }
             ApplyWeapon();
         }
 
         public void ResetAll()
         {
-            weaponId = armorId = coatId = "";
+            weaponId = armorId = coatId = rangedId = "";
             ApplyWeapon();
         }
     }
