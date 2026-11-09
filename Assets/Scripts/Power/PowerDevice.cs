@@ -23,6 +23,7 @@ namespace SheltreSim.Power
         private InputAction cancel;
         private bool panelOpen, closeRequested;
         private float nextRefresh;
+        private AudioSource loop;
 
         public abstract string PowerName { get; }
         public abstract string PowerStatus { get; }
@@ -67,6 +68,7 @@ namespace SheltreSim.Power
         {
             LeaveGrid();
             ClosePanel();
+            if (loop != null) loop.Stop();
         }
 
         private void OnDestroy()
@@ -88,6 +90,29 @@ namespace SheltreSim.Power
         private void LateUpdate()
         {
             if (closeRequested) ClosePanel();
+        }
+
+        /// <summary>A positional loop, built the first time it's needed, so a ghost never makes one.</summary>
+        protected void SetLoop(string key, bool playing, float volume)
+        {
+            if (loop == null)
+            {
+                if (!playing) return;
+                AudioClip clip = SheltreSim.Audio.GameAudio.GetClip(key);
+                if (clip == null) return;
+                loop = gameObject.AddComponent<AudioSource>();
+                loop.clip = clip;
+                loop.loop = true;
+                loop.playOnAwake = false;
+                loop.spatialBlend = 1f;
+                loop.dopplerLevel = 0f;
+                loop.rolloffMode = AudioRolloffMode.Linear;
+                loop.minDistance = 2f;
+                loop.maxDistance = 25f;
+            }
+            loop.volume = volume * SheltreSim.Audio.GameAudio.EffectsVolume;
+            if (playing && !loop.isPlaying) loop.Play();
+            else if (!playing && loop.isPlaying) loop.Stop();
         }
 
         protected bool OpenPanel(GameObject interactor)

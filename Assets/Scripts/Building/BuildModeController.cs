@@ -52,6 +52,17 @@ namespace SheltreSim.Building
         private BuildInputActions input;
         private int lastCancelFrame = -1;
 
+        // V and X only do anything while in build mode. BuildInputActions stays as it is.
+        private UnityEngine.InputSystem.InputAction repairAction;
+        private UnityEngine.InputSystem.InputAction dismantleAction;
+        private PlacedPiece aimedPiece;
+        private PlacedPiece dismantleArmed;
+        private float dismantleArmedAt;
+        private const float DismantleConfirmSeconds = 2f;
+        // Session only, by design: a loaded piece was not placed just now.
+        private readonly Dictionary<PlacedPiece, float> placedAt = new Dictionary<PlacedPiece, float>();
+        private Ray? debugAim;
+
         private bool isBuildModeActive;
         private int currentPieceIndex;
         private float currentYawDegrees;
@@ -68,6 +79,8 @@ namespace SheltreSim.Building
         private void Awake()
         {
             input = new BuildInputActions();
+            repairAction = new UnityEngine.InputSystem.InputAction("RepairPiece", UnityEngine.InputSystem.InputActionType.Button, "<Keyboard>/v");
+            dismantleAction = new UnityEngine.InputSystem.InputAction("DismantlePiece", UnityEngine.InputSystem.InputActionType.Button, "<Keyboard>/x");
             materialPropertyBlock = new MaterialPropertyBlock();
         }
 
@@ -78,6 +91,10 @@ namespace SheltreSim.Building
             input.CancelBuild.performed += OnCancelBuild;
             input.RotatePiece.performed += OnRotatePiece;
             input.PlacePiece.performed += OnPlacePiece;
+            repairAction.Enable();
+            dismantleAction.Enable();
+            repairAction.performed += OnRepair;
+            dismantleAction.performed += OnDismantle;
         }
 
         private void OnDisable()
@@ -87,6 +104,10 @@ namespace SheltreSim.Building
             input.RotatePiece.performed -= OnRotatePiece;
             input.PlacePiece.performed -= OnPlacePiece;
             input.Disable();
+            repairAction.performed -= OnRepair;
+            dismantleAction.performed -= OnDismantle;
+            repairAction.Disable();
+            dismantleAction.Disable();
             ExitBuildMode();
         }
 
@@ -104,6 +125,8 @@ namespace SheltreSim.Building
         public void ExitBuildMode()
         {
             isBuildModeActive = false;
+            aimedPiece = null;
+            dismantleArmed = null;
             DestroyGhost();
             ClearBuildReadout();
         }
@@ -164,30 +187,41 @@ namespace SheltreSim.Building
                 return;
             }
 
+            TryPlaceCurrent(out _);
+        }
+
+        private bool TryPlaceCurrent(out GameObject placed)
+        {
+            placed = null;
             // Input callbacks run before Update: validate the current view, never last frame's ghost.
             RefreshPlacement();
             if (!placementValid || currentGhost == null)
             {
                 SheltreSim.UI.GameMessageBus.Post(placementFeedback);
-                return;
+                return false;
             }
 
             BuildPieceDefinition piece = GetActivePiece();
             if (piece == null)
             {
-                return;
+                return false;
             }
 
             if (!SheltreSim.Crafting.CraftingSystem.TrySpend(inventory, piece.craftingCost))
             {
-                SheltreSim.UI.GameMessageBus.Post($"Cannot afford '{piece.displayName}'.");
-                return;
+                placementFeedback = $"Cannot afford '{piece.displayName}'.";
+                SheltreSim.UI.GameMessageBus.Post(placementFeedback);
+                return false;
             }
 
-
-            Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
+            placed = Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
+            PlacedPiece tag = placed.GetComponent<PlacedPiece>();
+            if (tag != null) placedAt[tag] = Time.time;
+            Physics.SyncTransforms();
+            HomesteadWorldGuard.ClearFootprint(placed);
             SheltreSim.UI.GameMessageBus.Post($"Placed {piece.displayName}.");
             RefreshPlacement();
+            return true;
         }
 
         private void Update()
@@ -201,6 +235,8 @@ namespace SheltreSim.Building
             HandleCycleInput();
             RefreshPlacement();
         }
+
+        private Ray AimRay => debugAim ?? new Ray(raycastCamera.transform.position, raycastCamera.transform.forward);
 
         private void RefreshPlacement()
         {
@@ -248,7 +284,16 @@ namespace SheltreSim.Building
                 return;
             }
 
-            if (!Physics.Raycast(raycastCamera.transform.position, raycastCamera.transform.forward, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore) || hit.normal.y < 0.7f)
+            aimedPiece = HomesteadTools.PieceUnderRay(AimRay, placementRange, groundMask);
+
+            if (activePiece.placementRule != BuildPlacementRule.Free)
+            {
+                RefreshStructural(activePiece);
+                return;
+            }
+
+            Ray aim = AimRay;
+            if (!Physics.Raycast(aim.origin, aim.direction, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore) || hit.normal.y < 0.7f)
             {
                 DestroyGhost();
                 placementFeedback = "Aim at a level surface within build range.";
@@ -304,6 +349,127 @@ namespace SheltreSim.Building
             UpdateBuildReadout(activePiece);
         }
 
+        /// <summary>Structural pieces position themselves by rule. Same preview, tint and readout as the Free path.</summary>
+        private void RefreshStructural(BuildPieceDefinition activePiece)
+        {
+            HomesteadPose pose = HomesteadPlacement.Evaluate(activePiece, AimRay, placementRange, currentYawDegrees, groundMask, obstructionMask);
+            if (!pose.hasPose)
+            {
+                DestroyGhost();
+                placementFeedback = pose.reason;
+                UpdateBuildReadout(activePiece);
+                return;
+            }
+
+            EnsureGhostForPiece(activePiece);
+            currentGhost.transform.SetPositionAndRotation(pose.position, pose.rotation);
+            placementValid = pose.valid;
+            bool affordable = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
+            placementFeedback = !placementValid ? pose.reason
+                : !affordable ? "Need supplies: gather the missing resources." : "Ready: click to place.";
+            TintGhost(!placementValid ? Color.red : affordable ? Color.green : Color.yellow);
+            UpdateBuildReadout(activePiece);
+        }
+
+        private void OnRepair(UnityEngine.InputSystem.InputAction.CallbackContext context)
+        {
+            if (!isBuildModeActive || !CanBuild) return;
+            RepairPiece(HomesteadTools.PieceUnderRay(AimRay, placementRange, groundMask));
+        }
+
+        private void OnDismantle(UnityEngine.InputSystem.InputAction.CallbackContext context)
+        {
+            if (!isBuildModeActive || !CanBuild) return;
+            RequestDismantle(HomesteadTools.PieceUnderRay(AimRay, placementRange, groundMask));
+        }
+
+        private bool RepairPiece(PlacedPiece piece)
+        {
+            bool repaired = HomesteadTools.TryRepair(inventory, piece, out string message);
+            SheltreSim.UI.GameMessageBus.Post(message);
+            return repaired;
+        }
+
+        /// <summary>The first press names the refund, a second press on the same piece within 2 seconds takes it apart.</summary>
+        private bool RequestDismantle(PlacedPiece piece)
+        {
+            if (!HomesteadTools.CanDismantle(inventory, piece, out string reason))
+            {
+                dismantleArmed = null;
+                SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiDeny, 0.35f);
+                SheltreSim.UI.GameMessageBus.Post(reason);
+                return false;
+            }
+
+            BuildPieceDefinition definition = DefinitionFor(piece.pieceId);
+            bool forgiven = IsForgiven(piece);
+            if (dismantleArmed != piece || Time.unscaledTime - dismantleArmedAt > DismantleConfirmSeconds)
+            {
+                dismantleArmed = piece;
+                dismantleArmedAt = Time.unscaledTime;
+                SheltreSim.UI.GameMessageBus.Post($"Press X again to dismantle. Refund: {HomesteadTools.DescribeRefund(definition, piece, forgiven)}.");
+                return false;
+            }
+
+            dismantleArmed = null;
+            placedAt.Remove(piece);
+            string refund = HomesteadTools.Dismantle(inventory, definition, piece, forgiven);
+            SheltreSim.UI.GameMessageBus.Post($"Dismantled. Got back: {refund}.");
+            aimedPiece = null;
+            return true;
+        }
+
+        private bool IsForgiven(PlacedPiece piece)
+        {
+            StructureHealth health = piece.GetComponent<StructureHealth>();
+            return placedAt.TryGetValue(piece, out float time) && Time.time - time < HomesteadCatalog.ForgivenessSeconds
+                && (health == null || !health.IsDamaged);
+        }
+
+        private BuildPieceDefinition DefinitionFor(string id)
+        {
+            foreach (BuildPieceDefinition definition in availablePieces)
+                if (definition != null && definition.id == id) return definition;
+            return null;
+        }
+
+        // ---------- Test seams: these drive the same paths as the mouse and keyboard ----------
+
+        public string CurrentPieceId => isBuildModeActive ? GetActivePiece()?.id : null;
+        public string PlacementFeedback => placementFeedback;
+        public bool PlacementValid => placementValid;
+
+        /// <summary>Probe only: replaces the camera ray. Null gives the camera back.</summary>
+        public void DebugAim(Ray? ray) => debugAim = ray;
+
+        /// <summary>Probe only: selects a piece and aims, then runs the real preview. Returns whether it would be placed, and why not.</summary>
+        public bool DebugPreview(string id, Ray ray, float yawDegrees, out string reason)
+        {
+            reason = "Unknown piece " + id;
+            int index = availablePieces.FindIndex(p => p != null && p.id == id);
+            if (index < 0 || !CanBuild) return false;
+            if (!isBuildModeActive || currentPieceIndex != index) BeginBuild(index);
+            currentYawDegrees = yawDegrees;
+            debugAim = ray;
+            RefreshPlacement();
+            reason = placementFeedback;
+            return placementValid;
+        }
+
+        /// <summary>Probe only: the real placement path, from a given aim. Returns the placed instance, or null with the reason.</summary>
+        public GameObject DebugPlaceAt(string id, Ray ray, float yawDegrees, out string reason)
+        {
+            DebugPreview(id, ray, yawDegrees, out reason);
+            if (!isBuildModeActive || !CanBuild) return null;
+            TryPlaceCurrent(out GameObject placed);
+            if (placed == null) reason = placementFeedback;
+            return placed;
+        }
+
+        public bool DebugRepair(PlacedPiece piece) => RepairPiece(piece);
+        public bool DebugDismantle(PlacedPiece piece) => RequestDismantle(piece);
+        public void DebugForgetPlacementTimes() => placedAt.Clear();
+
         private void HandleCycleInput()
         {
             if (!isBuildModeActive)
@@ -352,13 +518,20 @@ namespace SheltreSim.Building
                 {
                     if (line == null || line.resource == null || line.amount <= 0) continue;
                     if (hasCost) sb.Append("   ");
-                    int owned = inventory != null ? inventory.GetCount(line.resource.id) : 0;
+                    int owned = SheltreSim.Crafting.CraftingSystem.CountAvailable(inventory, line.resource.id);
                     sb.Append(line.resource.displayName).Append(' ').Append(owned).Append('/').Append(line.amount);
                     hasCost = true;
                 }
             }
             if (!hasCost) sb.Append("Free");
             sb.Append('\n').Append(placementFeedback);
+            if (aimedPiece != null)
+            {
+                StructureHealth aimedHealth = aimedPiece.GetComponent<StructureHealth>();
+                sb.Append('\n');
+                if (aimedHealth != null) sb.Append(Mathf.CeilToInt(aimedHealth.Health)).Append('/').Append(Mathf.CeilToInt(aimedHealth.maxHealth)).Append(" HP   ");
+                sb.Append("V repair  X dismantle");
+            }
 
             // Rebuilt and re-sent every frame while in build mode (not just on piece-change) —
             // affordability can flip without the selected piece changing (gathering/spending
@@ -465,6 +638,8 @@ namespace SheltreSim.Building
         private void OnDestroy()
         {
             input?.Dispose();
+            repairAction?.Dispose();
+            dismantleAction?.Dispose();
             DestroyGhost();
         }
     }

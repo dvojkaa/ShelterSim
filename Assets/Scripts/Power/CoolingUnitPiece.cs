@@ -14,6 +14,8 @@ namespace SheltreSim.Power
         public override float CoolingOutput => Granted ? coolingPerSecond : 0f;
         public override float PowerDemand => HasWork() ? powerKw : 0f;
 
+        public override void Advance(float seconds) => SetLoop(SheltreSim.Audio.Sfx.FanLoop, Granted, 0.4f);
+
         private bool HasWork()
         {
             PowerNetwork network = PowerNetworks.NetworkOf(this);

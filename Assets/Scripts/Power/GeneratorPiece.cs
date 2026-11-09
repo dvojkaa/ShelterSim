@@ -16,7 +16,7 @@ namespace SheltreSim.Power
         public const string FuelId = "fuel";
 
         public float outputKw = 6f;
-        public float heatPerSecond = 4f;
+        public float heatPerSecond = 2.5f; // one is safe on passive cooling, two need a Cooling Unit
         public float fuelCapacity = 10f;
         public float secondsPerFuelUnit = 120f;
 
@@ -49,6 +49,7 @@ namespace SheltreSim.Power
 
         public override void Advance(float seconds)
         {
+            SetLoop(Sfx.GeneratorHum, running, 0.5f);
             if (!running) return;
             fuel -= seconds / Mathf.Max(0.1f, secondsPerFuelUnit);
             if (fuel > 0f) return;

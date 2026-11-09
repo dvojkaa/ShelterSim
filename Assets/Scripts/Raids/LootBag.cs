@@ -36,7 +36,8 @@ namespace SheltreSim.Raids
             bool boss = tier == LootTier.Warlord;
             Color color = boss ? new Color(1f, 0.8f, 0.2f) : tier == LootTier.Elite ? new Color(0.45f, 0.62f, 0.95f) : new Color(0.5f, 0.38f, 0.22f);
             var mesh = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Object.Destroy(mesh.GetComponent<Collider>());
+            // Inactive would hide it, so only the collider goes; the type reference keeps it from being stripped from a build.
+            Object.Destroy(mesh.GetComponent<SphereCollider>());
             mesh.name = "Visual";
             mesh.transform.SetParent(root.transform, false);
             float size = boss ? 0.8f : 0.55f;

@@ -38,7 +38,6 @@ namespace SheltreSim.Raids
         public int RouteIndex => routeIndex;
         public int RouteCount => route.Count;
         public float StuckSeconds => Time.time - lastProgressTime;
-        public float SecondsWithoutProgress => StuckSeconds;
         public IReadOnlyDictionary<string, int> Stolen => stolen;
         /// <summary>Structures this actor struck, for probe logs.</summary>
         public int StructureHits { get; private set; }
@@ -371,7 +370,7 @@ namespace SheltreSim.Raids
         /// <summary>Picks a direction. If what's straight ahead is something the player built or a closed door, marks it for attack.</summary>
         private Vector3 Choose(Vector3 desired)
         {
-            Probe(desired, ProbeDistance, out float ahead, out Collider blocker);
+            Probe(desired, ProbeDistance, out _, out Collider blocker);
             if (blocker == null) return desired;
 
             StructureHealth structure = blocker.GetComponentInParent<StructureHealth>();

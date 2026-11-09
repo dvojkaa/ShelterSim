@@ -61,7 +61,7 @@ namespace SheltreSim.Power
         public const float LinkRange = 25f;
         public const float TickSeconds = 0.25f;
         public const float HeatCapacity = 100f;
-        public const float PassiveCooling = 1f;     // heat units per second lost with no equipment at all
+        public const float PassiveCooling = 3f;     // heat units per second lost with no equipment: one generator stays safe
         public const float OverheatAt = 100f, RecoverAt = 70f;
         public const float OverheatOutputFactor = 0.5f;
 
@@ -69,7 +69,13 @@ namespace SheltreSim.Power
         private static readonly List<IPowerConsumer> consumers = new List<IPowerConsumer>();
         private static readonly List<IPowerStorage> storage = new List<IPowerStorage>();
         private static readonly List<PowerNetwork> networks = new List<PowerNetwork>();
-        private static readonly Dictionary<Vector3Int, float> heatByAnchor = new Dictionary<Vector3Int, float>();
+        // Heat belongs to devices and a network takes the hottest of its members, so networks rebuilt every tick keep
+        // their heat without sharing it with a neighbour, and a destroyed device simply drops out.
+        private static Dictionary<object, float> heatByDevice = new Dictionary<object, float>();
+        private static HashSet<object> overheatedDevices = new HashSet<object>();
+        private static bool hasPendingHeat;
+        private static Vector3 pendingHeatPosition;
+        private static float pendingHeat;
         private static PowerGrid instance;
         private static bool hooked;
         private float timer;
@@ -94,12 +100,15 @@ namespace SheltreSim.Power
             float bestDistance = LinkRange * LinkRange;
             foreach (PowerNetwork network in networks)
             {
-                foreach (IPowerSource s in network.Sources) Closer(network, s.PowerPosition, position, ref best, ref bestDistance);
-                foreach (IPowerConsumer c in network.Consumers) Closer(network, c.PowerPosition, position, ref best, ref bestDistance);
-                foreach (IPowerStorage b in network.Storage) Closer(network, b.PowerPosition, position, ref best, ref bestDistance);
+                foreach (IPowerSource s in network.Sources) if (Alive(s)) Closer(network, s.PowerPosition, position, ref best, ref bestDistance);
+                foreach (IPowerConsumer c in network.Consumers) if (Alive(c)) Closer(network, c.PowerPosition, position, ref best, ref bestDistance);
+                foreach (IPowerStorage b in network.Storage) if (Alive(b)) Closer(network, b.PowerPosition, position, ref best, ref bestDistance);
             }
             return best;
         }
+
+        // Lists can hold a destroyed device until the next tick, and a paused grid doesn't tick.
+        private static bool Alive(object device) => !(device is Object unityObject) || unityObject != null;
 
         private static void Closer(PowerNetwork network, Vector3 node, Vector3 position, ref PowerNetwork best, ref float bestDistance)
         {
@@ -113,7 +122,7 @@ namespace SheltreSim.Power
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
-            sources.Clear(); consumers.Clear(); storage.Clear(); networks.Clear(); heatByAnchor.Clear();
+            sources.Clear(); consumers.Clear(); storage.Clear(); networks.Clear(); heatByDevice.Clear(); overheatedDevices.Clear(); hasPendingHeat = false;
             instance = null; hooked = false;
         }
 
@@ -144,7 +153,9 @@ namespace SheltreSim.Power
             if (instance != this) return;
             instance = null;
             networks.Clear();
-            heatByAnchor.Clear();
+            heatByDevice.Clear();
+            overheatedDevices.Clear();
+            hasPendingHeat = false;
         }
 
         private void Update()
@@ -196,23 +207,32 @@ namespace SheltreSim.Power
                 else if (nodes[i] is IPowerStorage store) network.Storage.Add(store);
             }
 
-            var nextHeat = new Dictionary<Vector3Int, float>();
-            foreach (PowerNetwork network in networks) Serve(network, seconds, nextHeat);
-            heatByAnchor.Clear();
-            foreach (var pair in nextHeat) heatByAnchor[pair.Key] = pair.Value;
+            var nextHeat = new Dictionary<object, float>();
+            var nextOver = new HashSet<object>();
+            foreach (PowerNetwork network in networks) Serve(network, seconds, nextHeat, nextOver);
+            heatByDevice = nextHeat;
+            overheatedDevices = nextOver;
+            hasPendingHeat = false;
         }
 
-        // Networks are rebuilt every tick, so heat is remembered by a coarse position of the network's area.
-        private static Vector3Int HeatCell(Vector3 p) => new Vector3Int(Mathf.RoundToInt(p.x / 200f), 0, Mathf.RoundToInt(p.z / 200f));
-
-        private static void Serve(PowerNetwork network, float seconds, Dictionary<Vector3Int, float> nextHeat)
+        private static void Serve(PowerNetwork network, float seconds, Dictionary<object, float> nextHeat, HashSet<object> nextOver)
         {
-            Vector3Int cell = HeatCell(network.Anchor);
-            heatByAnchor.TryGetValue(cell, out float heatStored);
-            bool wasOver = heatStored >= OverheatAt;
-            float recoverLatch = wasOver ? 0f : heatStored;
+            var members = new List<object>();
+            members.AddRange(network.Sources); members.AddRange(network.Consumers); members.AddRange(network.Storage);
+            float heatStored = 0f;
+            bool over = false;
+            foreach (object member in members)
+            {
+                if (heatByDevice.TryGetValue(member, out float known)) heatStored = Mathf.Max(heatStored, known);
+                over |= overheatedDevices.Contains(member);
+            }
+            if (hasPendingHeat && NetworkCovers(members, pendingHeatPosition))
+            {
+                heatStored = pendingHeat;
+                over = heatStored >= OverheatAt;
+            }
             network.Heat = heatStored;
-            network.Overheated = overheatedCells.Contains(cell);
+            network.Overheated = over;
 
             float factor = network.Overheated ? OverheatOutputFactor : 1f;
             float heatIn = 0f, coolingIn = PassiveCooling;
@@ -253,39 +273,51 @@ namespace SheltreSim.Power
             float balance = (supply - served) * seconds;
             foreach (IPowerStorage store in network.Storage)
             {
-                if (balance > 0f) balance -= store.Charge(balance);
+                if (balance > 0f) balance -= store.Charge(Mathf.Min(balance, Mathf.Max(0f, store.MaxFlow) * seconds));
                 else if (balance < 0f) balance += store.Discharge(-balance);
             }
 
             float heat = Mathf.Clamp(heatStored + (heatIn - coolingIn) * seconds, 0f, HeatCapacity);
-            if (heat >= OverheatAt) overheatedCells.Add(cell);
-            else if (heat <= RecoverAt) overheatedCells.Remove(cell);
+            if (heat >= OverheatAt) over = true;
+            else if (heat <= RecoverAt) over = false;
             network.Heat = heat;
-            network.Overheated = overheatedCells.Contains(cell);
+            network.Overheated = over;
             network.Supply = supply; network.Demand = demand; network.Served = served;
             network.Stored = 0f; network.Capacity = capacity;
             foreach (IPowerStorage store in network.Storage) network.Stored += store.StoredEnergy;
-            nextHeat[cell] = heat;
+            foreach (object member in members)
+            {
+                nextHeat[member] = heat;
+                if (over) nextOver.Add(member);
+            }
         }
 
-        private static readonly HashSet<Vector3Int> overheatedCells = new HashSet<Vector3Int>();
+        private static bool NetworkCovers(List<object> members, Vector3 position)
+        {
+            foreach (object member in members)
+            {
+                Vector3 p = member is IPowerSource a ? a.PowerPosition : member is IPowerConsumer b ? b.PowerPosition : ((IPowerStorage)member).PowerPosition;
+                if ((p - position).sqrMagnitude <= LinkRange * LinkRange * 4f) return true;
+            }
+            return false;
+        }
 
-        /// <summary>Saved heat for the network covering the bunker. One number is enough: only the base stays resident for long.</summary>
+        /// <summary>Saved heat of the network covering the bunker. One number is enough: only the base stays resident for long.</summary>
         public static float CaptureHeat(Vector3 position)
         {
-            return heatByAnchor.TryGetValue(HeatCell(position), out float heat) ? heat : 0f;
+            PowerNetwork network = NetworkAt(position);
+            return network != null ? network.Heat : 0f;
         }
 
+        /// <summary>Applied on the next tick: restored devices don't exist yet when a load restores this.</summary>
         public static void RestoreHeat(Vector3 position, float heat)
         {
-            heatByAnchor.Clear();
-            overheatedCells.Clear();
-            if (heat > 0f && !float.IsNaN(heat) && !float.IsInfinity(heat))
-            {
-                heat = Mathf.Min(heat, HeatCapacity);
-                heatByAnchor[HeatCell(position)] = heat;
-                if (heat >= OverheatAt) overheatedCells.Add(HeatCell(position));
-            }
+            heatByDevice.Clear();
+            overheatedDevices.Clear();
+            networks.Clear();
+            hasPendingHeat = heat > 0f && !float.IsNaN(heat) && !float.IsInfinity(heat);
+            pendingHeatPosition = position;
+            pendingHeat = hasPendingHeat ? Mathf.Min(heat, HeatCapacity) : 0f;
         }
     }
 }

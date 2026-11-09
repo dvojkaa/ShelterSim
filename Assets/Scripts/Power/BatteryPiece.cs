@@ -28,7 +28,7 @@ namespace SheltreSim.Power
             if (!(kilojoules > 0f)) return 0f;
             float taken = Mathf.Min(kilojoules, capacityKilojoules - stored);
             if (taken <= 0f) return 0f;
-            stored += taken;
+            stored = Mathf.Min(stored + taken, capacityKilojoules);
             return taken;
         }
 
@@ -36,7 +36,7 @@ namespace SheltreSim.Power
         {
             if (!(kilojoules > 0f)) return 0f;
             float given = Mathf.Min(kilojoules, stored);
-            stored -= given;
+            stored = Mathf.Max(0f, stored - given);
             return given;
         }
 

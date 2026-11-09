@@ -237,6 +237,15 @@ namespace SheltreSim.Raids
             StartRaid(RaidNumber);
         }
 
+        /// <summary>Probes: one actor at a known spot, feet on the ground there. It isn't part of a raid's count until a raid is active.</summary>
+        public RaidAgent DebugSpawn(RaidVariant variant, Vector3 feet)
+        {
+            RaidVariantSpec spec = RaidVariantSpec.Of(variant);
+            return SpawnActor(variant, RaidNumber, feet + Vector3.up * (spec.Scale + 0.1f), Quaternion.identity, -1f, null);
+        }
+
+        public string BannerText => bannerPanel != null && bannerPanel.activeSelf ? banner.text : "";
+
         /// <summary>Probes: moves the clock, for example to just before the warning.</summary>
         public void DebugSetCountdown(float seconds)
         {
@@ -258,7 +267,7 @@ namespace SheltreSim.Raids
                     Debug.LogWarning($"[RaidDirector] No spawn point for {variant} in raid {number}.");
                     continue;
                 }
-                SpawnActor(variant, number, position, Quaternion.LookRotation(RaidRoute.GateOutside - position == Vector3.zero ? Vector3.forward : Flat(RaidRoute.GateOutside - position)), -1f, null);
+                SpawnActor(variant, number, position, Quaternion.LookRotation(Flat(RaidRoute.GateOutside - position)), -1f, null);
                 spawned++;
             }
             if (spawned == 0)
@@ -530,11 +539,6 @@ namespace SheltreSim.Raids
 
             foreach (SavedActor actor in saved.actors)
                 SpawnActor((RaidVariant)Mathf.Clamp(actor.variant, 0, 4), RaidNumber, actor.position, Quaternion.Euler(0f, actor.yaw, 0f), actor.health, actor.stolen);
-            if (CurrentPhase == Phase.Active && actors.Count == 0 && saved.actors.Count > 0)
-            {
-                // No raider prefab to restore them with. Never leave an empty raid hanging.
-                Debug.LogWarning("[RaidDirector] A saved raid's actors couldn't be restored.");
-            }
             Physics.SyncTransforms();
         }
     }

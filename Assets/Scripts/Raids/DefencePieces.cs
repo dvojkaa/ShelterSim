@@ -343,7 +343,6 @@ namespace SheltreSim.Raids
                     HitsDealt++;
                     enemy.TakeDamage(damage);
                     if (structure != null && uses > 0) structure.TakeDamage(structure.maxHealth / uses);
-                    if (this == null) return;
                 }
             }
             if (any && hitTime)

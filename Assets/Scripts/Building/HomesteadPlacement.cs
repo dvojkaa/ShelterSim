@@ -25,7 +25,6 @@ namespace SheltreSim.Building
         public const float FoundationHeight = .4f;
         /// <summary>How far a foundation may sink into rising ground, leaving its top above the highest corner.</summary>
         private const float MaxEmbed = .35f;
-        private const float RaisedAboveGround = .05f;
         private const float MaxFloorTileStep = .3f;
         private const float MaxRampLip = .3f;
         private const float Skin = .01f;
@@ -62,7 +61,7 @@ namespace SheltreSim.Building
             Vector3 fallback = new Vector3(cell.x, hit.point.y + half, cell.z);
 
             if (InWater(cell)) return Refused(fallback, rotation, "Foundations can't stand in water.");
-            if (!SampleGround(cell, BuildGrid.CellSize / 2f, BuildGrid.CellSize / 2f, Quaternion.identity, hit.point.y + 3f, groundMask, out float min, out float max))
+            if (!SampleGround(cell, BuildGrid.CellSize / 2f, BuildGrid.CellSize / 2f, hit.point.y + 3f, groundMask, out float min, out float max))
                 return Refused(fallback, rotation, "A foundation needs solid ground under all 4 corners.");
             if (max - min > MaxFoundationStep)
                 return Refused(fallback, rotation, $"Too steep: the corners differ by {max - min:F1} m, the limit is {MaxFoundationStep:F0} m.");
@@ -82,8 +81,7 @@ namespace SheltreSim.Building
             else
             {
                 // Flat ground: the slab rests on it. On a slope it sinks into the high side, so its legs on the low side stay short.
-                bottom = Mathf.Max(min, max + RaisedAboveGround - piece.footprintSize.y);
-                bottom = Mathf.Max(bottom, max - MaxEmbed);
+                bottom = Mathf.Max(min, max - MaxEmbed);
             }
 
             Vector3 position = new Vector3(cell.x, bottom + half, cell.z);
@@ -111,7 +109,7 @@ namespace SheltreSim.Building
                 return Refused(new Vector3(aimed.x, hit.point.y + half, aimed.z), rotation, HomesteadCatalog.IsWallBase(under.pieceId)
                     ? "There's already a floor here." : "Floor tiles need level ground, or walls to rest on.");
             if (InWater(aimed)) return Refused(new Vector3(aimed.x, hit.point.y + half, aimed.z), rotation, "Floor tiles can't lie in water.");
-            if (!SampleGround(aimed, BuildGrid.CellSize / 2f, BuildGrid.CellSize / 2f, Quaternion.identity, hit.point.y + 3f, groundMask, out float min, out float max) || max - min > MaxFloorTileStep)
+            if (!SampleGround(aimed, BuildGrid.CellSize / 2f, BuildGrid.CellSize / 2f, hit.point.y + 3f, groundMask, out float min, out float max) || max - min > MaxFloorTileStep)
                 return Refused(new Vector3(aimed.x, hit.point.y + half, aimed.z), rotation, "Floor tiles need level ground, or walls to rest on. Use a foundation on a slope.");
             return Finish(new Vector3(aimed.x, max + half, aimed.z), rotation, clearance, obstructionMask);
         }
@@ -141,7 +139,7 @@ namespace SheltreSim.Building
                 if (!supported)
                 {
                     if (InWater(mid)) return Refused(preview, rotation, $"{piece.displayName} can't stand in water.");
-                    if (!SampleGround(mid, alongX ? .9f : .05f, alongX ? .05f : .9f, Quaternion.identity, aim.y + 2f, groundMask, out float min, out float max))
+                    if (!SampleGround(mid, alongX ? .9f : .05f, alongX ? .05f : .9f, aim.y + 2f, groundMask, out float min, out float max))
                         return Refused(preview, rotation, $"{piece.displayName} needs solid ground under both ends.");
                     if (max - min > MaxFoundationStep)
                         return Refused(preview, rotation, $"Too steep here for {piece.displayName}.");
@@ -436,7 +434,7 @@ namespace SheltreSim.Building
             return v.sqrMagnitude > .0001f ? v.normalized : Vector3.zero;
         }
 
-        private static bool SampleGround(Vector3 centre, float halfX, float halfZ, Quaternion rotation, float fromY, int mask, out float min, out float max)
+        private static bool SampleGround(Vector3 centre, float halfX, float halfZ, float fromY, int mask, out float min, out float max)
         {
             min = float.MaxValue;
             max = float.MinValue;
@@ -444,7 +442,7 @@ namespace SheltreSim.Building
             for (int sx = -1; sx <= 1; sx += 2)
                 for (int sz = -1; sz <= 1; sz += 2)
                 {
-                    Vector3 point = centre + rotation * new Vector3(sx * insetX, 0f, sz * insetZ);
+                    Vector3 point = centre + new Vector3(sx * insetX, 0f, sz * insetZ);
                     if (!GroundAt(point, fromY, mask, out float height)) return false;
                     min = Mathf.Min(min, height);
                     max = Mathf.Max(max, height);
@@ -474,8 +472,7 @@ namespace SheltreSim.Building
         }
 
         private static bool IsGround(Collider collider) =>
-            !(collider is CharacterController) && collider.GetComponentInParent<PlacedPiece>() == null && collider.GetComponentInParent<ResourceNode>() == null
-            && !collider.transform.root.name.StartsWith("Ghost_");
+            !(collider is CharacterController) && collider.GetComponentInParent<PlacedPiece>() == null && collider.GetComponentInParent<ResourceNode>() == null;
 
         private static HomesteadPose Refused(Vector3 position, Quaternion rotation, string reason) =>
             new HomesteadPose { hasPose = true, valid = false, position = position, rotation = rotation, reason = reason };
