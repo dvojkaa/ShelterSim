@@ -299,6 +299,8 @@ namespace SheltreSim.EditorTools
         {
             if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Building/ScrapBicyclePiece.prefab") != null)
                 SwapPrefab("ScrapBicyclePiece", "piece_bicycle", 1.3f);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Building/ScoutBuggyPiece.prefab") != null)
+                SwapPrefab("ScoutBuggyPiece", "piece_scout_buggy", 2.1f);
         }
 
         /// <summary>Prefab root is the footprint's centre, and models sit on their floor, so the offset is half the footprint height.</summary>

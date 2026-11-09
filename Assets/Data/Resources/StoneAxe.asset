@@ -15,7 +15,7 @@ MonoBehaviour:
   id: stone_axe
   displayName: Stone Axe
   category: 4
-  description: Wood gathering +1 per harvest.
+  description: Wood and plant fiber gathering +1 per harvest.
   isFood: 0
   hungerRestored: 0
   isDrink: 0
@@ -24,6 +24,7 @@ MonoBehaviour:
   healAmount: 0
   isWeapon: 0
   weaponDamage: 0
+  isBackpackUpgrade: 0
   damageBonus: 0
   toolKind: 1
   toolTier: 1

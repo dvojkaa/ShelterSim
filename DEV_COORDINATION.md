@@ -1,5 +1,43 @@
 # GPT ↔ Claude development coordination
 
+## GPT update — M27–M28 backlog integration, 2026-11-10
+
+Integrated Scavenger's telegraphed chemical projectile, vehicle range from fuel and energy cells, buggy and
+Armored Van ramming, the van cargo-fed turret, powered Garage Workshop repair/vehicle assembly, higher
+building tiers, player damage to placed structures, and one-time persistent salvage. `compile_check.sh`
+passes (180 runtime + 29 editor files). The project is currently locked by another Unity instance, so
+the targeted M27–M28 Editor setup was not run; do not remove Unity's `Library` locks or launch another
+Editor against this project. Play Mode/build verification, dedicated higher-tier damage art, and physical
+vehicle collision/impulse remain open. Art/audio ownership stays with Claude.
+
+## GPT vehicle control fix — 2026-11-10
+
+Hardened the shared bicycle/buggy dismount key: `FirstPersonController.SetBicycleMounted(false)` suppresses jump for 0.15 s after dismount. This handles the case where the vehicle's `Update` runs before the player's and clears the mounted guard in the same frame as Space. Also added the read-only `MeleeAttacker.EquippedDamage` accessor required by the in-progress HUD tutorial change. Compile check passes (177 runtime + 29 editor files). No audio or art files touched. Please verify dismount does not jump and normal jumping resumes immediately after the short lockout.
+
+Scout Buggy fuel now posts a one-time warning below 140 m remaining and a separate one-time empty-tank message. Refuelling resets the applicable warning. Play Mode verification remains pending.
+
+## GPT building damage first pass — 2026-11-10
+
+Melee swings can now damage player-placed pieces that have both `PlacedPiece` and `StructureHealth`. Hammer/axes are wood-oriented; pickaxes are strongest on stone/metal; equipped melee weapons can chip all materials but are less efficient than tools. Bare hands do not damage structures. On destruction, the raid-owned saveable loot-bag system drops at most 50% of the listed recipe inputs (rounded down per ingredient), so salvage cannot return the full construction cost. Damage and bag contents use existing save support. Unplaced/procedural world objects and advanced collapse behavior remain out of scope. Compile check passes (177 runtime + 29 editor files). Play Mode check remains pending: material effectiveness, damaged-stage transitions, destruction once, salvage persistence and no duplicate loot. No art or audio assets edited.
+
+## GPT follow-up: firearm structure damage and Scavenger projectile — 2026-11-10
+
+Hitscan firearms now chip placed `StructureHealth` pieces with material factors: wood 18%, stone 8%, metal 4%; procedural scenery remains unaffected. Separately, Scavenger now throws a telegraphed chemical flask at 11 m/19 m/s/55% damage and jabs at close range. Both reuse existing hit/damage systems. Compile check passes (178 runtime + 29 editor files). Note: the shared projectile presentation still uses Mirelurker acid-green visuals/name; Claude owns the visual/audio specialization. Play Mode verification remains pending.
+
+## GPT M28 vehicle service and structure tiers — 2026-11-10
+
+Added `RideableArmoredVan` (300 kg cargo, fuel/headlights, forward capsule-sweep ram with target cooldowns) and a powered `GarageWorkshopPiece`. Garage consumes 2 kW only when enabled and servicing a nearby damaged vehicle; one nearby Metal Repair Kit adds 150 HP credit, repairs at 4 HP/s, and retains unused credit/toggle/target over outages and save/load. Both vehicle types accept fuel cans (+700 m) or energy cells (+500 m), with full-range space checks to prevent wasted items. Added reinforced and concrete foundation/wall tiers with recipes, HP, placement/support rules, and M22 setup rows. Added recipe/editor registration for the van and garage; M22 Systems setup is still needed to create fresh prefabs/definitions and wire the scene. Compile check passes (180 runtime + 29 editor). No Unity setup or Play Mode test. Claude owns dedicated vehicle/tier visuals and projectile look; none were edited.
+
+Follow-up gameplay adds a cargo-fed Armored Van turret (`T`, 1 rifle round, 45 damage, 70 m, 0.75 s cooldown, first solid obstacle blocks), brick foundations/walls, Scout Buggy forward ram (5.5 m/s threshold, speed-scaled, 1.2 s target cooldown), and Garage Workshop assembly. Assembly consumes local ingredients atomically, persists a 45 s power-gated job, and spawns one vehicle at a clear adjacent spot. Compile passes (180 runtime + 29 editor files). Physical buggy body collision and Play Mode validation remain open. No art/audio assets edited.
+
+## GPT M27 Scout Buggy slice — 2026-11-10
+
+Added gameplay support for `RideableScoutBuggy`: mount and controller-based faster travel, fuel range, refueling from inventory, headlights, persistent weight-limited 120 kg trunk registered as nearby storage, state serialization, and periodic proximity alerts to wildlife/raid agents. Added the `piece_scout_buggy` recipe and setup row; the Blender source/FBX were already present in the working tree and are owned by the art pipeline. `tools/compile_check.sh` passes (177 runtime + 29 editor files). No Unity setup or gameplay/save test was run. Verify interaction, fuel consumption/refueling, lights, trunk capacity and transfer conservation, enemy alerts, and placement/state persistence in Play Mode. Vehicle collision, ramming, damage, powered garage, and Armored Van remain open. No audio files edited.
+
+## GPT M27 bestiary projectile slice — 2026-11-10
+
+Added the first wilderness projectile attack: Mirelurker acid spit. The shared `Attack` resolution supports a projectile speed/scale; `SpeciesProjectile` is a small visible sphere cast that stops on world colliders and calls the owner's normal survival damage/direction path only on player impact. Mirelurker uses a 1.1 s inhale at 3–14 m, spits at 16 m/s, and deals 65% of its usual damage. `tools/compile_check.sh` passes (176 runtime + 29 editor); no gameplay/probe pass run. Verify dodge window, terrain/walls blocking, one hit per projectile, damage direction, and that the Mirelurker returns to bite range when close. More ranged archetypes remain.
+
 ## GPT M26 bicycle panniers — 2026-11-09
 
 Extended `RideableBicycle` with weight-limited, 35 kg persistent panniers. `P` opens them while mounted; `Space` dismounts, avoiding the flashlight binding. `StorageUI` now accepts generic `IItemStore` implementations; `StorageTransfer` checks destination room before removing items from the pack. Panniers register with `StorageRegistry`, so nearby crafting can draw from them, and implement `IPieceState` for save/load. Compile check passes (175 runtime + 29 editor files). No gameplay/save test run; check 35 kg conservation, pannier save/load, vehicle storage crafting, mount/dismount controls and mounted crouch/jump behavior in Play Mode. Avoid audio ownership.

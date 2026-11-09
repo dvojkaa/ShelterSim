@@ -101,7 +101,7 @@ GameObject:
   - component: {fileID: 3472370138458375827}
   - component: {fileID: 3273745158141127379}
   - component: {fileID: 7393511798150176080}
-  - component: {fileID: 846443019817510503}
+  - component: {fileID: 5764362506603727867}
   - component: {fileID: 2364168820914172496}
   m_Layer: 0
   m_Name: ShockTrapPiece
@@ -160,7 +160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_shock_trap
---- !u!114 &846443019817510503
+--- !u!114 &5764362506603727867
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -29,6 +29,9 @@ namespace SheltreSim.EditorTools
         private static readonly (string pieceId, string modelId)[] DamageStagePieces =
         {
             ("wall_segment", "piece_wall"), ("piece_wall_steel", "piece_wall_steel"),
+            ("piece_wall_reinforced", "piece_wall_steel"),
+            ("piece_wall_brick", "piece_wall_steel"),
+            ("piece_wall_concrete", "piece_wall_steel"),
             ("piece_door_wood", "piece_door_wood"), ("piece_door_steel", "piece_door_steel"),
             ("piece_fence", "piece_fence"), ("piece_gate", "piece_gate"),
             ("piece_barricade", "piece_barricade"), ("piece_palisade", "piece_palisade"),
@@ -46,6 +49,12 @@ namespace SheltreSim.EditorTools
 
         private static readonly Row[] Rows =
         {
+            new Row("piece_foundation_reinforced", "Reinforced Foundation", "ReinforcedFoundation", null, 2f, .5f, 2f, new Color(.42f, .44f, .43f), 1100f),
+            new Row("piece_wall_reinforced", "Reinforced Wall", "ReinforcedWall", null, 2f, 3f, .2f, new Color(.48f, .49f, .46f), 1250f),
+            new Row("piece_foundation_concrete", "Concrete Foundation", "ConcreteFoundation", null, 2f, .6f, 2f, new Color(.53f, .55f, .54f), 2200f),
+            new Row("piece_wall_concrete", "Concrete Wall", "ConcreteWall", null, 2f, 3f, .2f, new Color(.58f, .59f, .57f), 2400f),
+            new Row("piece_foundation_brick", "Brick Foundation", "BrickFoundation", null, 2f, .45f, 2f, new Color(.52f, .3f, .22f), 850f),
+            new Row("piece_wall_brick", "Brick Wall", "BrickWall", null, 2f, 3f, .2f, new Color(.58f, .32f, .24f), 900f),
             new Row("piece_armory", "Armory", "Armory", "SheltreSim.Building.WorkbenchStation", 1.6f, 1.1f, .8f, new Color(.4f, .3f, .2f), 150f),
             new Row("piece_console", "Power Console", "PowerConsole", "SheltreSim.Power.PowerConsolePiece", .8f, 1.4f, .4f, Power, 80f),
             new Row("piece_solar", "Solar Panel", "SolarPanel", "SheltreSim.Power.SolarPanelPiece", 2f, 1.2f, 2f, new Color(.15f, .2f, .4f), 80f),
@@ -56,8 +65,11 @@ namespace SheltreSim.EditorTools
             new Row("piece_irrigator", "Irrigator", "Irrigator", "SheltreSim.Power.IrrigatorPiece", .6f, 1.5f, .6f, new Color(.3f, .55f, .4f), 60f),
             new Row("piece_fabricator", "Fabricator", "Fabricator", "SheltreSim.Power.FabricatorPiece", 1.6f, 1.6f, 1f, Machine, 200f),
             new Row("piece_repair", "Repair Station", "RepairStation", "SheltreSim.Power.RepairStationPiece", 1f, 1.8f, 1f, new Color(.8f, .5f, .15f), 150f),
+            new Row("piece_garage_bay", "Garage Workshop", "GarageBay", "SheltreSim.Power.GarageWorkshopPiece", 6f, 2.5f, 6f, new Color(.38f, .4f, .39f), 500f),
             new Row("piece_radio_console", "Radio Console", "RadioConsole", "SheltreSim.Objectives.RadioConsolePiece", 1.2f, 1.4f, .7f, new Color(.3f, .35f, .25f), 80f),
             new Row("piece_bicycle", "Scrap Bicycle", "ScrapBicycle", "SheltreSim.World.RideableBicycle", 1.8f, 1.3f, .65f, new Color(.25f, .3f, .28f), 100f),
+            new Row("piece_scout_buggy", "Scout Buggy", "ScoutBuggy", "SheltreSim.World.RideableScoutBuggy", 3.8f, 2.1f, 4.6f, new Color(.36f, .38f, .30f), 420f),
+            new Row("piece_armored_van", "Armored Van", "ArmoredVan", "SheltreSim.World.RideableArmoredVan", 5f, 2.5f, 6.5f, new Color(.28f, .32f, .30f), 1500f),
             new Row("piece_sandbag", "Sandbag Wall", "SandbagWall", null, 2f, 1.1f, .6f, Sand, 260f),
             new Row("piece_spike_trap", "Spike Trap", "SpikeTrap", "SheltreSim.Raids.SpikeTrapPiece", 2f, .25f, 2f, Danger, 300f, true),
             new Row("piece_shock_trap", "Shock Trap", "ShockTrap", "SheltreSim.Raids.ShockTrapPiece", 2f, .2f, 2f, new Color(.7f, .7f, .2f), 200f, true),
@@ -101,6 +113,72 @@ namespace SheltreSim.EditorTools
             Debug.Log($"[M22] systems setup complete: {added.Count} new pieces.");
         }
 
+        /// <summary>
+        /// Incremental setup for M27-M28 additions. It only creates these new prefabs/definitions and appends them to the
+        /// scene's build catalogue, preserving existing prefab and art work from other owners.
+        /// </summary>
+        [MenuItem("Tools/SheltreSim/Setup M27-M28 Backlog Content")]
+        public static void SetupBacklogContent()
+        {
+            const string scenePath = "Assets/Scenes/M1_BunkerShell.unity";
+            EditorSceneManager.OpenScene(scenePath);
+            Material atlas = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/SS_Atlas.mat");
+            var backlogIds = new HashSet<string>
+            {
+                "piece_foundation_brick", "piece_wall_brick",
+                "piece_foundation_reinforced", "piece_wall_reinforced",
+                "piece_foundation_concrete", "piece_wall_concrete",
+                "piece_scout_buggy", "piece_armored_van", "piece_garage_bay",
+            };
+            var added = new List<BuildPieceDefinition>();
+            foreach (Row row in Rows)
+            {
+                if (!backlogIds.Contains(row.id)) continue;
+                string definitionPath = PiecesPath + row.asset + ".asset";
+                BuildPieceDefinition definition = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>(definitionPath);
+                if (definition == null || definition.prefab == null)
+                {
+                    definition = BuildPiece(row, atlas);
+                }
+                else
+                {
+                    // Preserve an already-built prefab (including future visual-owner edits) on repeated setup runs.
+                    definition.id = row.id;
+                    definition.displayName = row.name;
+                    definition.footprintSize = row.size;
+                    definition.placementRule = HomesteadCatalog.RuleFor(row.id);
+                    definition.craftingCost = M21CraftingSetup.CostFor(row.id);
+                    EditorUtility.SetDirty(definition);
+                }
+                if (definition != null) added.Add(definition);
+            }
+
+            // The stage assets remain art-owned. New walls only read the existing damage stages at runtime;
+            // if those resources have not been provided yet, the visual component falls back gracefully.
+            foreach (var entry in DamageStagePieces)
+            {
+                if (!backlogIds.Contains(entry.pieceId)) continue;
+                BuildPieceDefinition definition = added.Find(candidate => candidate.id == entry.pieceId);
+                if (definition == null || definition.prefab == null) continue;
+                string prefabPath = AssetDatabase.GetAssetPath(definition.prefab);
+                GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+                try
+                {
+                    if (root.GetComponent<StructureHealth>() == null) continue;
+                    StructureDamageVisual visual = root.GetComponent<StructureDamageVisual>();
+                    if (visual == null) visual = root.AddComponent<StructureDamageVisual>();
+                    visual.modelId = entry.modelId;
+                    PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                }
+                finally { PrefabUtility.UnloadPrefabContents(root); }
+            }
+
+            WireScene(added);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[M22] Incremental backlog setup wired {added.Count} M27-M28 build pieces without rebuilding existing prefabs.");
+        }
+
         private static Type ResolveType(string name)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -138,6 +216,7 @@ namespace SheltreSim.EditorTools
                 AssetDatabase.CreateAsset(def, path);
             }
             def.id = row.id; def.displayName = row.name; def.prefab = prefab; def.footprintSize = row.size;
+            def.placementRule = HomesteadCatalog.RuleFor(row.id);
             def.craftingCost = M21CraftingSetup.CostFor(row.id);
             EditorUtility.SetDirty(def);
             return def;

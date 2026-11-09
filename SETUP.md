@@ -47,7 +47,7 @@ grep -E "(PASSED|FAILED|ERROR)" /tmp/smoke.log
 
 ---
 
-## Full Playtest Checklist (M1 → M26)
+## Full Playtest Checklist (M1 → M28)
 
 Work through each section in a fresh standalone build or Editor Play session. Items marked
 **[AUTO]** are covered by the headless probes above; items marked **[HUMAN]** require eyes.
@@ -156,6 +156,8 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] Attack telegraphs: humanoids ~0.5 s, bosses ~0.65 s. Step sideways to avoid; there must be a window to counter.
 - [HUMAN] Screamer: interrupt inhale to prevent group call. Let it finish → nearby enemies are alerted.
 - [HUMAN] Plated: front takes far less damage than sides/back.
+- [HUMAN] Mirelurker: at mid-range, watch for the inhale before an acid bolt; dodge during the windup or sidestep the visible bolt in flight. Walls and terrain must block it; a hit should apply damage once.
+- [HUMAN] Scavenger: at range, watch its flask wind-up and sidestep the visible projectile; close in to force it back to the melee jab. Solid walls/terrain block the flask, which applies damage once.
 - [HUMAN] Landmark boss defeated → sealed storeroom unlocks.
 - [HUMAN] Raider camps: locked chests keyed to camp boss. Kill boss, open chest.
 - [HUMAN] Save/load mid-fight and after kill: no duplicate loot bag, no revived boss.
@@ -179,6 +181,33 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] `E` to mount → 10.5 m/s walk / 13 m/s sprint speed. Silent (no vehicle noise, no enemy alerts).
 - [HUMAN] `P` opens persistent 35 kg panniers while riding; `Space` dismounts. Supplies stored on the bicycle can support crafting within the nearby-storage radius.
 - [HUMAN] Crouch and jump must be blocked while riding. Bicycle position and pannier contents persist after save/load; transferring beyond 35 kg is prevented.
+- [HUMAN] Dismount shares `Space` with jump. `FirstPersonController` suppresses jump for 0.15 s after dismount; verify a dismount does not launch the player and jump works normally shortly afterward.
+
+### Scout Buggy
+
+- [HUMAN] Craft at Workbench (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape) and place the build piece.
+- [HUMAN] `E` mounts; walk/sprint speeds are 18/22 m/s. `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
+- [HUMAN] Trunk holds up to 120 kg and participates in nearby-storage crafting. Fuel, headlight state, trunk contents and vehicle placement persist after save/load.
+- [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Gameplay ramming damage is implemented; physical body collision and impact impulse are still pending.
+- [HUMAN] At 5.5 m/s forward speed or faster, buggy bumper sweep damages enemies, animals and placed structures once per target every 1.2 s; reverse, sideways and stationary motion must not ram.
+
+### Player Building Damage
+
+- [HUMAN] With a hammer, axe, pickaxe or equipped melee weapon, hit a placed build piece that has `StructureHealth`. HP should decrease and the existing damaged/critical model stage should update; destroying the piece should remove it once and spawn one loot bag.
+- [HUMAN] Compare tool effectiveness: axes are strongest against wood, pickaxes against stone/metal, and weapons are weaker than tools. Bare hands should not damage structures. Damage and dropped bag contents must survive save/load; looting the bag must not duplicate its materials. Unplaced world props are outside this first pass.
+- [HUMAN] Firearms should chip placed wooden structures more than stone/metal (18% / 8% / 4% of normal weapon damage); procedural ruins and scenery must remain unaffected.
+- [HUMAN] Destroy a piece and confirm one salvage bag only. Save/load with the bag unopened, then loot it; its contents must not reroll or duplicate.
+
+### Structural Tiers & Armored Van
+
+- [HUMAN] Reinforced and concrete foundations accept walls and satisfy the same support rules as wood foundations. Reinforced/concrete walls count as full walls; repair and damage stages work.
+- [HUMAN] Craft the Armored Van (24 steel bars, 18 metal plates, 4 electric motors, 6 reinforced frames, 2 energy cells, 8 duct tape); cargo capacity is 300 kg, `H` adds 700 m from fuel, `J` adds 500 m from an energy cell, headlights toggle with `L`, cargo opens with `P`, `T` fires the turret, and `Space` dismounts. Neither fuel source should be consumed when there is insufficient tank room for its full range.
+- [HUMAN] Forward ram at speed damages enemies, wildlife and placed structures once per target cooldown; reversing/standing contact must not repeatedly damage targets. Turret uses one `ammo_rifle` per shot, aims from the camera to 70 m, fires every 0.75 s and is blocked by the first solid obstacle.
+
+### Garage Workshop
+
+- [HUMAN] Place the 6×6 m Garage Workshop and connect a source. Its panel assembles a buggy or van from the stored `PieceCosts`; inputs come from pack plus stores within 8 m. Assembly takes 45 powered seconds and spawns one vehicle only at an unblocked adjacent spot.
+- [HUMAN] Repair toggle consumes one Metal Repair Kit from stores within 8 m for up to 150 HP, repairing the damaged buggy/van within 12 m at 4 HP/s only when the grid grants 2 kW. Outages pause; save/load preserves assembly progress and repair credit. Dismantling with work/credit outstanding is refused.
 
 ---
 

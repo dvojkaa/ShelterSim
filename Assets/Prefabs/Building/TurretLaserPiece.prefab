@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 4383956334243742438}
   - component: {fileID: 4862875517953816491}
   - component: {fileID: 5891125576136599699}
-  - component: {fileID: 2069184997857815832}
+  - component: {fileID: 2553942600547142306}
   - component: {fileID: 4116686537456307359}
   m_Layer: 0
   m_Name: TurretLaserPiece
@@ -193,7 +193,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_turret_laser
---- !u!114 &2069184997857815832
+--- !u!114 &2553942600547142306
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

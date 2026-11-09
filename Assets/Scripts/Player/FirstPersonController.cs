@@ -42,6 +42,7 @@ namespace SheltreSim.Player
         private bool crouched;
         private bool warnedNoHeadroom;
         private readonly Collider[] headroomHits = new Collider[16];
+        private float jumpSuppressedUntil;
 
         public float CameraPitch => pitch;
         public bool IsCrouching => crouched;
@@ -51,6 +52,9 @@ namespace SheltreSim.Player
         public void SetBicycleMounted(bool mounted)
         {
             bicycleMounted = mounted;
+            // Dismount and jump share Space. Vehicle Update may dismount before this
+            // controller processes the same frame, so guard briefly after unmount too.
+            if (!mounted) jumpSuppressedUntil = Time.time + 0.15f;
             if (mounted && crouched) SetCrouched(false);
         }
 
@@ -182,7 +186,7 @@ namespace SheltreSim.Player
                 // Small downward bias instead of 0 keeps isGrounded reporting true on flat ground.
                 verticalVelocity.y = -2f;
 
-                if (!bicycleMounted && !crouched && input.Jump.WasPressedThisFrame())
+                if (!bicycleMounted && Time.time >= jumpSuppressedUntil && !crouched && input.Jump.WasPressedThisFrame())
                 {
                     verticalVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 }

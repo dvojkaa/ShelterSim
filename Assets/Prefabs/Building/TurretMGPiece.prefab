@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 7748923744642961807}
   - component: {fileID: 5123210254749309528}
   - component: {fileID: 684463296382291956}
-  - component: {fileID: 6293866038162962233}
+  - component: {fileID: 9184191004898466585}
   - component: {fileID: 5192537448491792598}
   m_Layer: 0
   m_Name: TurretMGPiece
@@ -193,7 +193,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_turret_mg
---- !u!114 &6293866038162962233
+--- !u!114 &9184191004898466585
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

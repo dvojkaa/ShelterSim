@@ -84,6 +84,9 @@ namespace SheltreSim.Crafting
             { "piece_electronics", In("metal_plate", 4, "steel_bar", 2, "copper_wire", 6, "electronics", 4, "expedition_parts", 2, "reinforced_frame", 1) },
             { "piece_farm", In("planks", 4, "nails", 4, "rope", 2) },
             { "piece_wall_steel", In("metal_plate", 3, "steel_bar", 1) },
+            { "piece_wall_brick", In("stone", 6, "iron_ingot", 3, "nails", 3) },
+            { "piece_wall_reinforced", In("stone", 6, "metal_plate", 3, "steel_bar", 2) },
+            { "piece_wall_concrete", In("stone", 10, "metal_plate", 5, "steel_bar", 3, "chemicals", 2) },
             { "piece_lamp", In("glass", 1, "copper_wire", 2, "scrap_metal", 1) },
             { "piece_shelf", In("planks", 3, "nails", 4) },
             { "piece_filter", In("metal_plate", 2, "glass", 2, "charcoal", 4, "cloth", 2) },
@@ -102,6 +105,9 @@ namespace SheltreSim.Crafting
             { "piece_repair", In("electric_motor", 1, "circuit_board", 1, "metal_plate", 3, "scrap_metal", 4) },
             // Homestead: a 2 m kit for building above ground.
             { "piece_foundation", In("planks", 4, "nails", 4) },
+            { "piece_foundation_brick", In("stone", 8, "iron_ingot", 4, "nails", 4) },
+            { "piece_foundation_reinforced", In("stone", 8, "metal_plate", 4, "reinforced_frame", 2) },
+            { "piece_foundation_concrete", In("stone", 12, "metal_plate", 6, "reinforced_frame", 3, "chemicals", 2) },
             { "piece_wall_half", In("planks", 1, "nails", 2) },
             { "piece_wall_window", In("planks", 2, "nails", 4) },
             { "piece_door_frame", In("planks", 2, "nails", 4) },
@@ -118,6 +124,9 @@ namespace SheltreSim.Crafting
             // Radio.
             { "piece_radio_console", In("circuit_board", 2, "copper_wire", 4, "metal_plate", 2, "electronics", 2) },
             { "piece_bicycle", In("steel_bar", 2, "scrap_metal", 4, "duct_tape", 2, "rope", 1) },
+            { "piece_scout_buggy", In("steel_bar", 10, "metal_plate", 8, "electric_motor", 1, "duct_tape", 4) },
+            { "piece_armored_van", In("steel_bar", 24, "metal_plate", 18, "electric_motor", 4, "reinforced_frame", 6, "energy_cell", 2, "duct_tape", 8) },
+            { "piece_garage_bay", In("steel_bar", 12, "metal_plate", 16, "electric_motor", 4, "circuit_board", 8, "reinforced_frame", 6) },
             // Defence.
             { "piece_sandbag", In("cloth", 3, "stone", 4) },
             { "piece_spike_trap", In("nails", 12, "planks", 2, "scrap_metal", 2) },

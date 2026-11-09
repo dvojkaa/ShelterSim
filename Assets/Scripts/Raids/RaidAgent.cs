@@ -115,6 +115,13 @@ namespace SheltreSim.Raids
             playerStats = controller.GetComponent<SurvivalStats>();
         }
 
+        /// <summary>Engine noise briefly draws this active raider toward the sound, even without line of sight.</summary>
+        public void HearNoise(Vector3 source, float radius)
+        {
+            if (enemy == null || enemy.IsDead || (transform.position - source).sqrMagnitude > radius * radius) return;
+            engageUntil = Mathf.Max(engageUntil, Time.time + 5f);
+        }
+
         private Vector3 PlayerCenter => playerBody != null ? player.TransformPoint(playerBody.center) : player.position + Vector3.up * 0.9f;
 
         // ---------- Top level ----------

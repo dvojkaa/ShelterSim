@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SheltreSim.Audio;
 using SheltreSim.Building;
 using SheltreSim.Core;
+using SheltreSim.Crafting;
 using SheltreSim.Enemies;
 using SheltreSim.Interaction;
 using SheltreSim.Objectives;
@@ -548,8 +549,43 @@ namespace SheltreSim.Raids
 
         private void OnStructureDestroyed(StructureHealth structure)
         {
-            if (!BroadcastActive || structure == null || beacon == null || structure.gameObject != beacon.gameObject) return;
-            FailBroadcast("The radio beacon was destroyed. The broadcast failed. Rebuild it to try again.");
+            if (structure == null) return;
+            DropStructureSalvage(structure);
+            if (BroadcastActive && beacon != null && structure.gameObject == beacon.gameObject)
+                FailBroadcast("The radio beacon was destroyed. The broadcast failed. Rebuild it to try again.");
+        }
+
+        private static void DropStructureSalvage(StructureHealth structure)
+        {
+            PlacedPiece piece = structure.GetComponent<PlacedPiece>();
+            if (piece == null || string.IsNullOrEmpty(piece.pieceId) || !RecipeBook.PieceCosts.TryGetValue(piece.pieceId, out Ingredient[] cost)) return;
+            var salvage = new List<KeyValuePair<string, int>>();
+            foreach (Ingredient ingredient in cost)
+            {
+                if (ingredient.amount <= 0 || !ItemCatalog.Exists(ingredient.id)) continue;
+                // Half-cost salvage is always below the original cost, so building and breaking cannot create materials.
+                int amount = Mathf.FloorToInt(ingredient.amount * 0.5f);
+                if (amount > 0) salvage.Add(new KeyValuePair<string, int>(ingredient.id, amount));
+            }
+            if (salvage.Count == 0) return;
+            Vector3 drop = StructureSalvagePosition(structure);
+            LootBagSystem.Spawn(drop, LootBagSystem.NextId++, LootTier.Ordinary, salvage);
+            GameMessageBus.Post("The destroyed structure left salvage behind.");
+        }
+
+        private static Vector3 StructureSalvagePosition(StructureHealth structure)
+        {
+            Vector3 origin = structure.transform.position + Vector3.up * 2f;
+            RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 20f, ~0, QueryTriggerInteraction.Ignore);
+            Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider.GetComponentInParent<StructureHealth>() == structure ||
+                    hit.collider.GetComponentInParent<CharacterController>() != null ||
+                    hit.collider.GetComponentInParent<LootBag>() != null) continue;
+                return hit.point + Vector3.up * 0.02f;
+            }
+            return structure.transform.position + Vector3.up * 0.02f;
         }
 
         private void FailBroadcast(string message)

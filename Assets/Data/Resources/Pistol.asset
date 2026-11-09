@@ -24,6 +24,7 @@ MonoBehaviour:
   healAmount: 0
   isWeapon: 0
   weaponDamage: 22
+  isBackpackUpgrade: 0
   damageBonus: 0
   toolKind: 0
   toolTier: 0

@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4021962517298323599}
   - component: {fileID: 1821583617527160114}
   - component: {fileID: 1372591756724019928}
-  - component: {fileID: 1462903500834066509}
+  - component: {fileID: 2468782297760417331}
   - component: {fileID: 4861831249412777878}
   m_Layer: 0
   m_Name: SpikeTrapPiece
@@ -70,7 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_spike_trap
---- !u!114 &1462903500834066509
+--- !u!114 &2468782297760417331
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

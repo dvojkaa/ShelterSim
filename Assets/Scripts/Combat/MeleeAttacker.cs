@@ -1,6 +1,10 @@
 using System.Collections;
+using SheltreSim.Building;
+using SheltreSim.Crafting;
 using SheltreSim.Enemies;
+using SheltreSim.Items;
 using SheltreSim.Player;
+using SheltreSim.Saving;
 using SheltreSim.Survival;
 using SheltreSim.UI;
 using UnityEngine;
@@ -17,6 +21,7 @@ namespace SheltreSim.Combat
         public float attackRange = 2.5f;
         public float attackRadius = 0.5f;
         public float attackDamage = 20f;
+        public float EquippedDamage => attackDamage;
 
         /// <summary>Unarmed damage. PlayerGear sets attackDamage to the equipped weapon's value, or back to this.</summary>
         public const float DefaultDamage = 20f;
@@ -44,6 +49,8 @@ namespace SheltreSim.Combat
 
         private MeleeInputActions input;
         private SurvivalStats stats;
+        private Inventory inventory;
+        private PlayerGear gear;
         private FirstPersonController playerController;
         private Transform playerRoot;
         private float lastAttackTime = float.NegativeInfinity;
@@ -63,6 +70,8 @@ namespace SheltreSim.Combat
         {
             input = new MeleeInputActions();
             stats = GetComponentInParent<SurvivalStats>();
+            inventory = stats != null ? stats.GetComponent<Inventory>() : GetComponentInParent<Inventory>();
+            gear = stats != null ? stats.GetComponent<PlayerGear>() : GetComponentInParent<PlayerGear>();
             playerController = GetComponentInParent<FirstPersonController>();
             playerRoot = playerController != null ? playerController.transform : transform.root;
             if (weaponVisual != null)
@@ -134,6 +143,10 @@ namespace SheltreSim.Combat
             {
                 // ResourceNode posts the harvest result and uses the existing gathering sound path.
             }
+            else if (target != null && TryDamageStructure(target))
+            {
+                // The StructureHealth component owns the damage/break presentation and persistence.
+            }
             else
             {
                 if (target != null) SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitBlock, transform.position + transform.forward, 0.75f, 20f);
@@ -143,6 +156,50 @@ namespace SheltreSim.Combat
             ResetSwing();
             swingCoroutine = StartCoroutine(SwingWeapon());
             return true;
+        }
+
+        private bool TryDamageStructure(Collider target)
+        {
+            PlacedPiece piece = target.GetComponentInParent<PlacedPiece>();
+            StructureHealth health = piece != null ? piece.GetComponent<StructureHealth>() : null;
+            if (health == null) return false;
+
+            HomesteadMaterial material = HomesteadCatalog.MaterialFor(piece.pieceId);
+            float damage = 0f;
+            if (inventory != null)
+            {
+                damage = Mathf.Max(damage, ToolDamage("hammer", 24f, material, .8f, .75f, .55f));
+                damage = Mathf.Max(damage, ToolDamage("stone_axe", 26f, material, 1f, .45f, .22f));
+                damage = Mathf.Max(damage, ToolDamage("iron_axe", 38f, material, 1f, .45f, .22f));
+                damage = Mathf.Max(damage, ToolDamage("steel_axe", 52f, material, 1f, .45f, .22f));
+                damage = Mathf.Max(damage, ToolDamage("stone_pickaxe", 24f, material, .3f, 1f, .9f));
+                damage = Mathf.Max(damage, ToolDamage("iron_pickaxe", 38f, material, .3f, 1f, .9f));
+                damage = Mathf.Max(damage, ToolDamage("steel_pickaxe", 52f, material, .3f, 1f, .9f));
+            }
+
+            string weaponId = gear != null ? gear.WeaponId : string.Empty;
+            if (!string.IsNullOrEmpty(weaponId) && attackDamage > MeleeAttacker.DefaultDamage)
+            {
+                float factor = material == HomesteadMaterial.Wood ? .75f : material == HomesteadMaterial.Stone ? .55f : .35f;
+                damage = Mathf.Max(damage, attackDamage * factor);
+            }
+
+            if (damage <= 0f)
+            {
+                GameMessageBus.Post("You need a hammer, axe, pickaxe or melee weapon to damage this structure.");
+                return true;
+            }
+
+            health.TakeDamage(damage);
+            if (health.Health > 0f) GameMessageBus.Post($"Damaged {piece.pieceId.Replace("piece_", "").Replace('_', ' ')} ({health.Health:0}/{health.maxHealth:0} HP).");
+            return true;
+        }
+
+        private float ToolDamage(string id, float baseDamage, HomesteadMaterial material, float wood, float stone, float metal)
+        {
+            if (inventory.GetCount(id) <= 0) return 0f;
+            float factor = material == HomesteadMaterial.Wood ? wood : material == HomesteadMaterial.Stone ? stone : metal;
+            return baseDamage * factor;
         }
 
         /// <summary>

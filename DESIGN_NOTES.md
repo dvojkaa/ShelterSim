@@ -71,16 +71,27 @@ First-person bunker-builder + survival game set in a seeded, streamed wasteland.
 * **Scrap Bicycle (`RideableBicycle`):** Craftable build piece (2 steel bars, 4 scrap metal, 2 duct tape, 1 rope). Mount with `E` for 10.5 m/s walk and 13 m/s sprint speeds; silent propulsion avoids alerting enemies. While mounted, `P` opens persistent 35 kg panniers (usable for nearby crafting) and `Space` dismounts. Pannier transfers use weight-aware capacity checks.
 * **Backpack Frames (`Encumbrance`):** Craftable at Workbench (tiers 1–3). Each frame permanently increases carry capacity by +20 kg (up to 120 kg maximum).
 
+### M27–M28: Projectiles, Vehicles & Structural Progression
+* **Telegraphed ranged enemies:** Mirelurker telegraphs with a 1.1 s inhale before launching acid (14 m, 16 m/s, 65% damage). Scavenger throws a flask after a 0.85 s wind-up (11 m, 19 m/s, 55% damage) and uses its jab up close. World colliders block projectiles.
+* **Scout Buggy:** Craftable mid-game vehicle (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape). Mount with `E`; while mounted, `WASD` movement uses 18 m/s walk and 22 m/s sprint, `H` adds 700 m from a fuel can, `J` adds 500 m from an energy cell, `L` toggles headlights, `P` opens the persistent 120 kg trunk, and `Space` dismounts. Fuel can/cell is not consumed unless the tank has room for its full range. Low fuel and an empty tank produce one-time warnings; engine movement alerts nearby enemies. Forward movement above 5.5 m/s sweeps a 0.72 m bumper capsule and deals speed-scaled damage (1.2 s per-target cooldown). Range, lights and trunk contents persist with the placed piece.
+* **Armored Van:** Craftable late-game, 300 kg cargo vehicle. `E` mounts; `H` adds 700 m from fuel, `J` adds 500 m from an energy cell, `L` headlights, `P` cargo and `Space` dismount. Forward ramming at speed damages enemies, wildlife and placed structures with per-target cooldowns. Range, lights and cargo persist.
+* **Van turret:** While driving, `T` fires one `ammo_rifle` from cargo every 0.75 s. Camera-forward hitscan reaches 70 m, deals 45 damage, and stops at the first solid obstruction; placed structure damage follows the firearm material multipliers.
+* **Garage Workshop:** Powered (2 kW) service station. Its panel toggles repair and starts Scout Buggy/Armored Van assembly. Assembly consumes local pack/storage materials, takes 45 powered seconds and spawns one registered vehicle at a clear adjacent spot; progress persists. Repair uses one nearby Metal Repair Kit for up to 150 HP at 4 HP/s for a damaged vehicle within 12 m. Unused repair credit/target persist through outages and save/load.
+* **Structural tiers:** Added brick, reinforced and concrete 2 m foundations and 3 m walls with increasing HP, recipes and explicit structural placement/support rules. Wall damage uses current steel-wall damage models until dedicated art is available.
+* **Player structure damage:** Melee hits can damage placed pieces with `StructureHealth`. Hammer/axes favor wood, pickaxes favor stone and metal, and equipped melee weapons are less effective than proper tools. Firearms can damage them at reduced rates (18% wood, 8% stone, 4% metal); procedural scenery stays indestructible. Destruction drops a persistent loot bag with up to 50% of the piece's listed recipe inputs; health is already part of piece persistence. Advanced support-collapse behavior remains open.
+* **Current vehicle scope:** Scout Buggy remains controller-driven with gameplay ramming but no physical body collision/impulse. Armored Van also rams and has a cargo-fed turret. Fuel cans and energy cells both add range. Garage assembly and repair are implemented.
+
 ---
 
 ## Active Backlog & Future Proposals
 
-1. **Motorized Vehicles & Garage Workshop:**
-   - Scout Buggy (mid-game, fuel/battery powered, 18-24 m/s, headlights, 120kg trunk) and Armored Van (late-game, heavy ramming bumper, turret mount, massive storage).
-   - Dedicated Garage Station (`piece_garage_bay`, 6×6m) requiring `PowerGrid` connection for assembly and repairs.
-2. **Bestiary Projectile Attacks:**
-   - Add telegraphed ranged attacks for designated mutant/raider archetypes so player-built cover (sandbags, embrasures) serves against wilderness encounters, not just raid Gunners.
-3. **Linux Build Refresh:**
+1. **Motorized Vehicles & Garage Workshop (partial):**
+   - Implemented Scout Buggy ramming, ramming/turret-equipped Armored Van, fuel/energy-cell range, persistent cargo and powered Garage Workshop assembly/repair. Remaining: physical vehicle collision/impulse and Play Mode balance.
+2. **Bestiary Projectile Presentation & Balance:**
+   - Mirelurker acid and Scavenger flask attacks are telegraphed and blocked by world geometry. Claude owns distinct projectile visuals; playtest dodge windows and balance at typical encounter distances.
+3. **Vehicle and structural Play Mode verification:**
+   - Verify same-frame Space dismount, fuel/energy cells, van ram/turret cooldowns, garage power outages, repairs, brick/reinforced/concrete placement, structural damage stages, salvage persistence, and collapse behavior in the live scene.
+4. **Linux Build Refresh:**
    - `Builds/Linux/SheltreSim.x86_64` predates M24/M25 scripts. Run `RebuildVerifyAndBuildLinux` from the Editor (see `SETUP.md`) to produce a build with all milestones baked in.
-4. **Higher Structure Tiers:**
-   - Brick and reinforced concrete walls/foundations for late-game bunker fortresses.
+5. **Higher Structure Tiers (partial):**
+   - Brick, reinforced and concrete walls/foundations are implemented with recipes and HP. Dedicated damage art remains open.

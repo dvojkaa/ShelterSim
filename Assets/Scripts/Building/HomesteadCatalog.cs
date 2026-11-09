@@ -40,9 +40,15 @@ namespace SheltreSim.Building
         public static readonly IReadOnlyList<HomesteadEntry> Pieces = new[]
         {
             new HomesteadEntry("piece_foundation", "Foundation", 2f, .4f, 2f, HomesteadMaterial.Wood, 400f, BuildPlacementRule.Foundation),
+            new HomesteadEntry("piece_foundation_brick", "Brick Foundation", 2f, .45f, 2f, HomesteadMaterial.Stone, 850f, BuildPlacementRule.Foundation),
+            new HomesteadEntry("piece_foundation_reinforced", "Reinforced Foundation", 2f, .5f, 2f, HomesteadMaterial.Stone, 1100f, BuildPlacementRule.Foundation),
+            new HomesteadEntry("piece_foundation_concrete", "Concrete Foundation", 2f, .6f, 2f, HomesteadMaterial.Metal, 2200f, BuildPlacementRule.Foundation),
             new HomesteadEntry("floor_tile", "Floor Tile", 2f, .2f, 2f, HomesteadMaterial.Wood, 150f, BuildPlacementRule.CellFloor),
             new HomesteadEntry("wall_segment", "Wall Segment", 2f, 3f, .2f, HomesteadMaterial.Wood, 180f, BuildPlacementRule.Wall),
             new HomesteadEntry("piece_wall_steel", "Steel Wall", 2f, 3f, .2f, HomesteadMaterial.Metal, 500f, BuildPlacementRule.Wall),
+            new HomesteadEntry("piece_wall_brick", "Brick Wall", 2f, 3f, .2f, HomesteadMaterial.Stone, 900f, BuildPlacementRule.Wall),
+            new HomesteadEntry("piece_wall_reinforced", "Reinforced Wall", 2f, 3f, .2f, HomesteadMaterial.Stone, 1250f, BuildPlacementRule.Wall),
+            new HomesteadEntry("piece_wall_concrete", "Concrete Wall", 2f, 3f, .2f, HomesteadMaterial.Metal, 2400f, BuildPlacementRule.Wall),
             new HomesteadEntry("piece_wall_half", "Half Wall", 2f, 1.5f, .2f, HomesteadMaterial.Wood, 90f, BuildPlacementRule.Wall),
             new HomesteadEntry("piece_wall_window", "Window Wall", 2f, 3f, .2f, HomesteadMaterial.Wood, 150f, BuildPlacementRule.Wall),
             new HomesteadEntry("piece_door_frame", "Door Frame", 2f, 3f, .2f, HomesteadMaterial.Wood, 150f, BuildPlacementRule.Wall),
@@ -63,7 +69,7 @@ namespace SheltreSim.Building
 
         private static readonly Dictionary<string, string> CategoryById = new Dictionary<string, string>
         {
-            { "piece_foundation", "Structure" }, { "floor_tile", "Structure" }, { "wall_segment", "Structure" }, { "piece_wall_steel", "Structure" },
+            { "piece_foundation", "Structure" }, { "piece_foundation_brick", "Structure" }, { "piece_foundation_reinforced", "Structure" }, { "piece_foundation_concrete", "Structure" }, { "floor_tile", "Structure" }, { "wall_segment", "Structure" }, { "piece_wall_steel", "Structure" }, { "piece_wall_brick", "Structure" }, { "piece_wall_reinforced", "Structure" }, { "piece_wall_concrete", "Structure" },
             { "piece_wall_half", "Structure" }, { "piece_wall_window", "Structure" }, { "piece_door_frame", "Structure" }, { "piece_roof_flat", "Structure" },
             { "piece_roof_slope", "Structure" }, { "piece_ramp", "Structure" }, { "piece_stairs", "Structure" },
             { "piece_door_wood", "Doors" }, { "piece_door_steel", "Doors" }, { "piece_gate", "Doors" },
@@ -72,6 +78,7 @@ namespace SheltreSim.Building
             { "piece_electronics", "Stations" }, { "piece_armory", "Stations" },
             { "generator", "Power" }, { "piece_solar", "Power" }, { "piece_battery", "Power" }, { "piece_cooler", "Power" },
             { "piece_console", "Power" }, { "piece_charger", "Power" },
+            { "piece_garage_bay", "Power" },
             { "piece_pump", "Automation" }, { "piece_irrigator", "Automation" }, { "piece_fabricator", "Automation" }, { "piece_repair", "Automation" },
             { "piece_fence", "Defence" }, { "piece_barricade", "Defence" }, { "piece_palisade", "Defence" }, { "piece_sandbag", "Defence" },
             { "piece_spike_trap", "Defence" }, { "piece_shock_trap", "Defence" }, { "piece_turret_mg", "Defence" }, { "piece_turret_laser", "Defence" }, { "piece_alarm", "Defence" },
@@ -83,7 +90,7 @@ namespace SheltreSim.Building
         private static readonly HashSet<string> WoodenPieces = new HashSet<string> { "bed", "storage_crate", "piece_shelf", "workbench", "piece_farm" };
         private static readonly HashSet<string> StonePieces = new HashSet<string> { "piece_stove", "piece_forge", "piece_sandbag" };
 
-        private static readonly HashSet<string> FullWalls = new HashSet<string> { "wall_segment", "piece_wall_steel", "piece_wall_window", "piece_door_frame" };
+        private static readonly HashSet<string> FullWalls = new HashSet<string> { "wall_segment", "piece_wall_steel", "piece_wall_brick", "piece_wall_reinforced", "piece_wall_concrete", "piece_wall_window", "piece_door_frame" };
 
         private static readonly Dictionary<string, HomesteadEntry> byId = BuildIndex();
 
@@ -114,7 +121,7 @@ namespace SheltreSim.Building
         public static bool IsFullWall(string id) => id != null && FullWalls.Contains(id);
 
         /// <summary>A flat surface a wall can stand on.</summary>
-        public static bool IsWallBase(string id) => id == "piece_foundation" || id == "floor_tile" || id == "piece_roof_flat";
+        public static bool IsWallBase(string id) => id == "piece_foundation" || id == "piece_foundation_brick" || id == "piece_foundation_reinforced" || id == "piece_foundation_concrete" || id == "floor_tile" || id == "piece_roof_flat";
 
         /// <summary>
         /// The amount handed back for one cost line. Rounded down, so it can never exceed what went in.

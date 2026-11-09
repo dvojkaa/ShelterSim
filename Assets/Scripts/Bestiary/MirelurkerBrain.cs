@@ -12,6 +12,7 @@ namespace SheltreSim.Bestiary
         public const float EmergeSeconds = 0.9f;
         public const float Range = 30f;
         private Attack bite;
+        private Attack spit;
 
         protected override float LeashOverride => Range;
         protected override PoseKind IdlePose => PoseKind.Low;
@@ -19,10 +20,15 @@ namespace SheltreSim.Bestiary
         protected override void OnStart()
         {
             bite = Melee("bite", 0.7f, Spec.AttackRange, 45f, 1.0f, 1.4f, PoseKind.Paw, PoseKind.Gore, Sfx.BoarGrunt);
+            spit = Melee("acid spit", 1.1f, 14f, 30f, 1.8f, 2.2f, PoseKind.Inhale, PoseKind.Scream, Sfx.BoarGrunt);
+            spit.StartRange = 14f;
+            spit.ProjectileSpeed = 16f;
+            spit.ProjectileScale = 0.65f;
+            spit.StrikeSound = null;
             wanderRadius = 0f;
         }
 
-        protected override Attack ChooseAttack(float distance) => bite;
+        protected override Attack ChooseAttack(float distance) => distance > Spec.AttackRange + 1f && distance <= spit.StartRange ? spit : bite;
 
         protected override void OnEngaged()
         {

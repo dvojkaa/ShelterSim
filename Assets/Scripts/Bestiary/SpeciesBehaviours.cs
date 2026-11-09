@@ -39,6 +39,7 @@ namespace SheltreSim.Bestiary
             switch (spec.Id)
             {
                 case SpeciesId.Runner: return go.AddComponent<RunnerBrain>();
+                case SpeciesId.Scavenger: return go.AddComponent<ScavengerBrain>();
                 case SpeciesId.Screamer: return go.AddComponent<ScreamerBrain>();
                 case SpeciesId.Breacher: return go.AddComponent<BreacherBrain>();
                 case SpeciesId.Mirelurker: return go.AddComponent<MirelurkerBrain>();

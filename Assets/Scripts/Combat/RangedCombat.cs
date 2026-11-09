@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using SheltreSim.Audio;
+using SheltreSim.Building;
+using SheltreSim.Crafting;
 using SheltreSim.Enemies;
+using SheltreSim.Saving;
 using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
@@ -9,8 +12,8 @@ using UnityEngine;
 namespace SheltreSim.Combat
 {
     /// <summary>
-    /// What a shot does to the world: hit finding, damage and plasma bolts. Only raiders and animals can be hurt.
-    /// The player and build pieces have no damage path here at all, including plasma splash.
+    /// What a shot does to the world: hit finding, damage and plasma bolts. Shots can hurt raiders, animals and placed builds.
+    /// The player and procedural scenery remain excluded from weapon damage.
     /// </summary>
     public sealed class RangedCombat
     {
@@ -66,6 +69,20 @@ namespace SheltreSim.Combat
         /// <summary>Hurts what the collider belongs to, if it can be hurt. One line only for a kill: the hit marker covers the rest.</summary>
         public HitKind ApplyDamage(Collider target, float damage, Vector3 from)
         {
+            PlacedPiece piece = target.GetComponentInParent<PlacedPiece>();
+            StructureHealth structure = piece != null ? piece.GetComponent<StructureHealth>() : null;
+            if (structure != null)
+            {
+                float materialFactor = HomesteadCatalog.MaterialFor(piece.pieceId) switch
+                {
+                    HomesteadMaterial.Wood => 0.18f,
+                    HomesteadMaterial.Stone => 0.08f,
+                    _ => 0.04f,
+                };
+                structure.TakeDamage(Mathf.Max(0f, damage) * materialFactor);
+                return HitKind.World;
+            }
+
             EnemyAI enemy = target.GetComponentInParent<EnemyAI>();
             if (enemy != null)
             {

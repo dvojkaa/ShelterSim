@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: CeilingLight
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Ceiling Light
+  id: piece_light_ceiling
+  prefab: {fileID: 1155505150390303471, guid: 7838121b966b1dab4ae5ff9f097b74fa, type: 3}
+  footprintSize: {x: 0.4, y: 0.2, z: 0.4}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: f0b9010cbdf8c3e86bf973f4995f66f8, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: 48a30ed673ebe3f29a4b3123f03a955f, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: 525a0359032f713a5852c32eae53769c, type: 2}
+    amount: 2
+  placementRule: 0

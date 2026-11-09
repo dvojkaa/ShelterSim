@@ -25,7 +25,7 @@ See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic pr
 * **Six biomes:** Wasteland, pine forest, desert, snow, wetlands, and highlands.
 * **Towns & Ruins:** Street grids, abandoned vehicles, searchable buildings, and suburban house ruins.
 * **Six major landmarks:** Hospital, factory, fuel station, farm, military outpost, and abandoned bunker.
-* **Bestiary & Wildlife:** 12 enemy species and landmark bosses with 5-take animations, raider camps with locked chests, plus wander/flee deer, boars, and birds.
+* **Bestiary & Wildlife:** 12 enemy species and landmark bosses with 5-take animations, raider camps with locked chests, dodgeable Mirelurker acid and Scavenger flask projectiles, plus wander/flee deer, boars, and birds.
 * **Atlas (`M`):** Procedural seeded map showing terrain, biomes, roads, town districts, discovered landmarks, and home direction.
 
 ---
@@ -56,7 +56,9 @@ See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic pr
 | **Inventory & Crafting** | `I` or `Tab` (Inventory) / `C` (Hand Crafting) |
 | **Build Mode** | `B` (Toggle) / `Scroll wheel` (Select) / `R` (Rotate) / `Left click` (Place) |
 | **Repair / Dismantle** | `V` (Repair) / `X` (Dismantle, in build mode with Hammer) |
-| **Mount / Dismount Bicycle** | `E` (Mount) / `F` (Dismount) |
+| **Bicycle** | `E` (Mount) / `P` (Panniers) / `Space` (Dismount) |
+| **Scout Buggy** | `E` (Mount) / `H` (Fuel) / `J` (Energy Cell) / `L` (Headlights) / `P` (Trunk) / `Space` (Dismount) |
+| **Armored Van** | `E` (Mount) / `H` (Fuel) / `J` (Energy Cell) / `L` (Headlights) / `T` (Turret) / `P` (Cargo) / `Space` (Dismount) |
 | **Atlas Map** | `M` |
 | **Quick Save / Load** | `F5` / `F9` |
 | **Pause Menu & Settings** | `Escape` (Sensitivity, FOV, FPS toggle, Audio volumes) |
@@ -81,5 +83,5 @@ Fast command-line verification without launching the Unity Editor GUI:
 
 ## Current Scope & Limitations
 
-* **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, 20+ build pieces, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, craftable Scrap Bicycle with 35 kg persistent panniers, craftable backpack upgrades to 120 kg, radiation system, water harvesting, crouch stealth, 100m base-wide storage crafting, audio engine.
-* **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, motor vehicles/trucks (bicycle only), NPC dialogue trees, second-floor building interiors in ruins.
+* **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, brick/reinforced/concrete build tiers, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, telegraphed Mirelurker and Scavenger projectiles, Scrap Bicycle, fuel/energy-cell Scout Buggy with forward ramming, ramming and turret-equipped Armored Van, powered garage vehicle assembly/repair, backpack upgrades to 120 kg, radiation, water harvesting, crouch stealth, nearby-storage crafting and audio. New pieces require the M22 Editor setup before appearing in build mode.
+* **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, NPC dialogue trees, second-floor building interiors in ruins. The Scout Buggy still lacks physical body collision and impact impulse.

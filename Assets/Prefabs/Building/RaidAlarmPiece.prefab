@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 3627450555426141868}
   - component: {fileID: 8690930832316127818}
   - component: {fileID: 3113801537519821660}
-  - component: {fileID: 3131302398891324127}
+  - component: {fileID: 611281256058553666}
   - component: {fileID: 1873540235002643253}
   m_Layer: 0
   m_Name: RaidAlarmPiece
@@ -70,7 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_alarm
---- !u!114 &3131302398891324127
+--- !u!114 &611281256058553666
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

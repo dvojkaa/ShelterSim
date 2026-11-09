@@ -15,7 +15,7 @@ MonoBehaviour:
   id: fire_axe
   displayName: Fire Axe
   category: 5
-  description: Heavy and brutal. Damage 58.
+  description: Heavy and brutal. Damage 58. Can cut plant fiber.
   isFood: 0
   hungerRestored: 0
   isDrink: 0
@@ -24,6 +24,7 @@ MonoBehaviour:
   healAmount: 0
   isWeapon: 1
   weaponDamage: 58
+  isBackpackUpgrade: 0
   damageBonus: 0
   toolKind: 0
   toolTier: 0

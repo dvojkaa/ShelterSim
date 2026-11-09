@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8166643850044572714}
   - component: {fileID: 2790152763332543187}
   - component: {fileID: 1977443405059859804}
+  - component: {fileID: 3564446505124278035}
   m_Layer: 0
   m_Name: FencePiece
   m_TagString: Untagged
@@ -83,6 +84,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 70
   targetPriority: 5
+--- !u!114 &3564446505124278035
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2872305808207386945}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13e1624b07764d44a78b37b787eab49e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureDamageVisual
+  modelId: piece_fence
 --- !u!1 &2899131372406706961
 GameObject:
   m_ObjectHideFlags: 0

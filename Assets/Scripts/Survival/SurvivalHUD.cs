@@ -262,7 +262,8 @@ namespace SheltreSim.Survival
                         ? (foodCount > 0 ? "Open I or Tab and eat food.\n" : "Find berries outside or search crates.\n") + "An empty food bar costs health."
                         : health <= 0.6f ? "Recover before the next supply run.\nUse first aid in your inventory, or rest at a bed away from raiders."
                         : !collector ? "Build a Water Collector for a supply at home.\nGather Scrap Metal, then press B."
-                        : "Keep food and water stocked.\nUse the Workbench to craft a blade, then equip it from your inventory.";
+                        : !HasMeleeWeapon() ? "Keep food and water stocked.\nUse the Workbench to craft a blade, then equip it from your inventory."
+                        : string.Empty;
             }
         }
 
@@ -273,6 +274,20 @@ namespace SheltreSim.Survival
                 if (piece != null && piece.isActiveAndEnabled && piece.pieceId == "water_collector") return true;
             }
             return false;
+        }
+
+        /// <summary>Returns true once the player owns or has previously crafted any melee weapon,
+        /// so the "craft a blade" tutorial tip is dismissed permanently.</summary>
+        private bool HasMeleeWeapon()
+        {
+            if (inventory == null) return false;
+            // Any melee weapon item in inventory counts — wooden club, makeshift blade, spiked club, machete, etc.
+            string[] meleeIds = { "wooden_club", "weapon_upgrade", "spiked_club", "machete", "fire_axe", "steel_sword" };
+            foreach (string id in meleeIds)
+                if (inventory.GetCount(id) > 0) return true;
+            // Also check the equipped weapon slot so the tip stays gone after equipping (count drops to 0).
+            SheltreSim.Combat.MeleeAttacker melee = stats != null ? stats.GetComponent<SheltreSim.Combat.MeleeAttacker>() : null;
+            return melee != null && melee.EquippedDamage > 26f; // fists = 0, wooden club = 26 (starter), blade+ > 26
         }
 
         private void UpdateHomeBearing()

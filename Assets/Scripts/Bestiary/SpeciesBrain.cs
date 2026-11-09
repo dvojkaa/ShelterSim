@@ -26,6 +26,9 @@ namespace SheltreSim.Bestiary
         public PoseKind WindPose = PoseKind.ArmsUp, StrikePose = PoseKind.Slam, RecoverPose = PoseKind.Rest;
         public string WindSound = Sfx.RaiderGrowl, StrikeSound = Sfx.RaiderSwing;
         public float WindVolume = 0.8f;
+        /// <summary>Positive speed turns this attack into a visible, dodgeable projectile released at the strike frame.</summary>
+        public float ProjectileSpeed, ProjectileScale = 1f;
+        public Color ProjectileColor = new Color(.55f, .82f, .28f);
     }
 
     /// <summary>
@@ -416,9 +419,29 @@ namespace SheltreSim.Bestiary
         /// <summary>The end of a wind-up. Default: a melee strike in the front arc.</summary>
         protected virtual void Resolve(Attack attack)
         {
+            if (attack.ProjectileSpeed > 0f)
+            {
+                pose?.Set(attack.StrikePose, 900f);
+                Enemy.BrainPoseWeapon(-1f);
+                Vector3 origin = Enemy.CenterPosition + transform.forward * (Spec.Radius + 0.15f);
+                bool launched = playerVisible && RaidSight.Clear(origin, PlayerCenter, transform, player);
+                if (launched) SpeciesProjectile.Launch(this, origin, PlayerCenter, attack.ProjectileSpeed, Spec.Damage * attack.ProjectileScale);
+                Resolved(false); // The shot is only a hit if its travelling bolt reaches the player.
+                Recover(launched ? attack.RecoverHit : attack.RecoverMiss);
+                OnStruck(attack, false);
+                return;
+            }
             bool hit = Strike(attack);
             Recover(hit ? attack.RecoverHit : attack.RecoverMiss);
             OnStruck(attack, hit);
+        }
+
+        /// <summary>Called by a projectile after its collision; damage uses the same survival and direction path as melee.</summary>
+        public bool ProjectileHit(float damageScale)
+        {
+            bool hit = DealDamage(damageScale);
+            if (hit) LastAttackHit = true;
+            return hit;
         }
 
         protected virtual void OnStruck(Attack attack, bool hit) { }
