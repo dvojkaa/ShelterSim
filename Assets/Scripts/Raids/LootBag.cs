@@ -35,6 +35,22 @@ namespace SheltreSim.Raids
 
             bool boss = tier == LootTier.Warlord;
             Color color = boss ? new Color(1f, 0.8f, 0.2f) : tier == LootTier.Elite ? new Color(0.45f, 0.62f, 0.95f) : new Color(0.5f, 0.38f, 0.22f);
+            // GPT's model when it's there; otherwise a tinted sphere.
+            GameObject model = SheltreSim.Items.PropModels.Spawn(boss ? "loot_boss_cache" : "loot_bag", root.transform, Vector3.zero, (id * 47) % 360);
+            if (model != null)
+            {
+                if (tier == LootTier.Elite)
+                {
+                    var tint = new MaterialPropertyBlock();
+                    tint.SetColor("_Color", new Color(0.75f, 0.85f, 1.2f));
+                    foreach (Renderer r in model.GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(tint);
+                }
+                LootBag made = root.AddComponent<LootBag>();
+                made.Id = id;
+                made.Tier = tier;
+                made.contents = items.Where(p => p.Value > 0).ToList();
+                return made;
+            }
             var mesh = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             // Inactive would hide it, so only the collider goes; the type reference keeps it from being stripped from a build.
             Object.Destroy(mesh.GetComponent<SphereCollider>());

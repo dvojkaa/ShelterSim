@@ -1,0 +1,76 @@
+{
+  "construction": [
+    "piece_foundation",
+    "piece_wall_half",
+    "piece_wall_window",
+    "piece_door_frame",
+    "piece_door_wood",
+    "piece_door_steel",
+    "piece_roof_flat",
+    "piece_roof_slope",
+    "piece_ramp",
+    "piece_stairs",
+    "piece_fence",
+    "piece_gate",
+    "piece_barricade",
+    "piece_palisade"
+  ],
+  "machines": [
+    "piece_armory",
+    "piece_console",
+    "piece_radio_console",
+    "piece_solar",
+    "piece_battery",
+    "piece_cooler",
+    "piece_charger",
+    "piece_pump",
+    "piece_irrigator",
+    "piece_fabricator",
+    "piece_repair"
+  ],
+  "weapons": [
+    "weapon_pistol",
+    "weapon_smg",
+    "weapon_shotgun",
+    "weapon_hunting_rifle",
+    "weapon_assault_rifle",
+    "weapon_laser_pistol",
+    "weapon_laser_rifle",
+    "weapon_plasma_rifle"
+  ],
+  "defence": [
+    "piece_sandbag",
+    "piece_spike_trap",
+    "piece_shock_trap",
+    "piece_turret_mg",
+    "piece_turret_laser",
+    "piece_alarm"
+  ],
+  "loot": [
+    "loot_bag",
+    "loot_boss_cache",
+    "item_fuel_can",
+    "ammo_box_pistol",
+    "ammo_box_rifle",
+    "ammo_box_shell",
+    "energy_cell"
+  ],
+  "enemy_humanoids": [
+    "enemy_wanderer",
+    "enemy_runner",
+    "enemy_scavenger",
+    "enemy_screamer",
+    "enemy_plated",
+    "enemy_breacher"
+  ],
+  "enemy_creatures": [
+    "enemy_rootwalker",
+    "enemy_mirelurker",
+    "enemy_iron_boar"
+  ],
+  "bosses": [
+    "boss_gatekeeper",
+    "boss_root_colossus",
+    "boss_shift_commander"
+  ]
+}

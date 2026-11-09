@@ -22,6 +22,8 @@ namespace SheltreSim.EditorTools
         private const string PrefabsPath = "Assets/Prefabs/Building/";
         private const string WeaponModels = "Assets/Art/Models/";
         private const string WeaponPrefabs = "Assets/Art/Resources/Weapons/";
+        private const string PropPrefabs = "Assets/Art/Resources/Props/";
+        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell" };
 
         private sealed class Row
         {
@@ -70,6 +72,8 @@ namespace SheltreSim.EditorTools
             foreach (Row row in Rows) added.Add(BuildPiece(row, atlas));
             UpgradeOlderPieces();
             BuildWeaponPrefabs(atlas);
+            Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
+            foreach (string id in PropIds) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             WireScene(added);
@@ -144,23 +148,28 @@ namespace SheltreSim.EditorTools
             Directory.CreateDirectory(WeaponPrefabs.TrimEnd('/'));
             foreach (var spec in SheltreSim.Crafting.ItemCatalog.All.Where(s => s.ranged))
             {
-                GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(WeaponModels + "weapon_" + spec.id + ".fbx");
-                string path = WeaponPrefabs + spec.id + ".prefab";
-                if (model == null)
-                {
-                    if (File.Exists(path)) AssetDatabase.DeleteAsset(path);
-                    continue;
-                }
-                GameObject instance = UnityEngine.Object.Instantiate(model);
-                try
-                {
-                    instance.name = spec.id;
-                    foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true)) if (atlas != null) r.sharedMaterial = atlas;
-                    foreach (Collider c in instance.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
-                    PrefabUtility.SaveAsPrefabAsset(instance, path);
-                }
-                finally { UnityEngine.Object.DestroyImmediate(instance); }
+                ModelPrefab(WeaponModels + "weapon_" + spec.id + ".fbx", WeaponPrefabs + spec.id + ".prefab", spec.id, atlas);
             }
+        }
+
+        private static void ModelPrefab(string modelPath, string path, string name, Material atlas)
+        {
+            GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (model == null)
+            {
+                Debug.LogWarning("[M22] no model at " + modelPath + ", the game keeps its fallback");
+                if (File.Exists(path)) AssetDatabase.DeleteAsset(path);
+                return;
+            }
+            GameObject instance = UnityEngine.Object.Instantiate(model);
+            try
+            {
+                instance.name = name;
+                foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true)) if (atlas != null) r.sharedMaterial = atlas;
+                foreach (Collider c in instance.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
+                PrefabUtility.SaveAsPrefabAsset(instance, path);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(instance); }
         }
 
         private static void WireScene(List<BuildPieceDefinition> added)

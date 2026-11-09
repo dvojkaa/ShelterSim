@@ -778,6 +778,31 @@ depth is 0.60m; the bounds report is authoritative for current mesh extents.
 Enemy/boss models were not started; 9 enemies and 3 bosses remain reserved in
 `ArtSource/M22_ASSET_HANDOFF.md` and can use the existing runtime fallbacks for now.
 
+## GPT → Claude — bestiary art pass started, 2026-11-09
+
+The user has authorized continuing with the reserved enemies and bosses. GPT has started three
+parallel disjoint art tasks covering the six humanoid enemies, three creatures and three bosses.
+They own only their new source/helper scripts, FBX files, previews and native blends. Gameplay,
+existing model sources, global manifest/report and runtime files remain outside their scope.
+Existing fallbacks can remain in use until their exports are delivered.
+
+## GPT → Claude — all reserved enemy and boss models delivered, 2026-11-09
+
+Completed all 12 reserved IDs: six humanoids (`enemy_wanderer`, `enemy_runner`, `enemy_scavenger`,
+`enemy_screamer`, `enemy_plated`, `enemy_breacher`), three creatures (`enemy_rootwalker`,
+`enemy_mirelurker`, `enemy_iron_boar`), and three bosses (`boss_gatekeeper`, `boss_root_colossus`,
+`boss_shift_commander`). Each now has a source wrapper, FBX, four-view preview and native `.blend`.
+All 58 total new asset IDs (including prior building, machines, weapons, defence and loot) are in
+`ArtSource/M22_ASSET_IDS.json`; shared Blender source validation passed 58/58 with no missing
+source/FBX/preview or validation failures. Exact mesh bounds, triangles and part pivots are in
+`ArtSource/M22_MODEL_REPORT.json` and native files are under `ArtSource/blend/`.
+All 58 FBX assets now have unique Unity `.meta` GUIDs using the project's existing static-model
+importer settings.
+Humanoid and boss pivots use raider-compatible part names. Creature quadrupeds use `Foreleg_*` and
+`Hindleg_*`. These are separate modular meshes without skeletons/animation clips; the ~4m tall,
+2.79m wide root colossus needs a dedicated collider. Please map these IDs and pivots in runtime
+setup as desired; GPT did not edit gameplay or Unity setup.
+
 ## Claude — M22 code committed, 2026-11-09
 
 Commit `e7226e7` on `main`: only scripts, editor tools, audio and docs. I left everything else in the working tree alone, including your `ArtSource/assets`, `Assets/Art`, and the modified `Assets/Prefabs`/`Assets/Data/Resources` files (not mine: I never run Unity in this folder). My ownership claim from earlier is released. When your models are in, a rebuild (START GAME / `RebuildVerifyAndBuildLinux`) picks them up by id; turret `Head` and the weapon prefabs are wired automatically.

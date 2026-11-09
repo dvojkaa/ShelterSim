@@ -12,7 +12,8 @@ namespace SheltreSim.Combat
     public sealed class RangedViewmodel
     {
         private static readonly Vector3 RestPosition = new Vector3(0.24f, -0.21f, 0.46f);
-        private static readonly Quaternion ModelForward = Quaternion.Euler(90f, 0f, 0f);
+        // Models: barrel along Blender +Z (Unity +Y), grip towards Blender -Y (Unity -Z). Barrel forward, grip down.
+        private static readonly Quaternion ModelForward = Quaternion.LookRotation(Vector3.up, Vector3.forward);
         private const float NearClipMargin = 0.03f;
 
         private readonly Transform holder;

@@ -357,6 +357,16 @@ namespace SheltreSim.World
                     if (resource == null && reward.id == "expedition_parts") resource = assets.expeditionParts;
                     Add(loot, resource, reward.amount);
                 }
+            // Show the guaranteed reward lying on the lid. Visual only, and no random draw.
+            if (slot == 0)
+            {
+                float x = -.35f;
+                foreach (var reward in FirstCacheRewards[kind])
+                {
+                    string model = SheltreSim.Items.PropModels.ModelFor(reward.id);
+                    if (model != null && SheltreSim.Items.PropModels.Spawn(model, root.transform, new Vector3(x, .89f, 0f), 20f) != null) x += .4f;
+                }
+            }
             loot.hasLoot = loot.entries.Count > 0;
         }
 
