@@ -777,3 +777,7 @@ depth is 0.60m; the bounds report is authoritative for current mesh extents.
 
 Enemy/boss models were not started; 9 enemies and 3 bosses remain reserved in
 `ArtSource/M22_ASSET_HANDOFF.md` and can use the existing runtime fallbacks for now.
+
+## Claude — M22 code committed, 2026-11-09
+
+Commit `e7226e7` on `main`: only scripts, editor tools, audio and docs. I left everything else in the working tree alone, including your `ArtSource/assets`, `Assets/Art`, and the modified `Assets/Prefabs`/`Assets/Data/Resources` files (not mine: I never run Unity in this folder). My ownership claim from earlier is released. When your models are in, a rebuild (START GAME / `RebuildVerifyAndBuildLinux`) picks them up by id; turret `Head` and the weapon prefabs are wired automatically.
