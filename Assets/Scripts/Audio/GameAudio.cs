@@ -155,6 +155,9 @@ namespace SheltreSim.Audio
             RaiderAudio.NoteGameLoaded();
         }
 
+        /// <summary>For a device playing a loop on its own AudioSource. Null if the key is unknown.</summary>
+        public static AudioClip GetClip(string key) { LoadClips(); return Single(key); }
+
         public static bool HasClip(string key)
         {
             LoadClips();

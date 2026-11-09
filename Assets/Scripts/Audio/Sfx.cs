@@ -41,5 +41,17 @@ namespace SheltreSim.Audio
         public const string Discovery = "discovery", Upgrade = "upgrade";
 
         public const string MusicExplore = "music_explore", MusicTension = "music_tension";
+
+        public const string GunPistol = "gun_pistol", GunSmg = "gun_smg", GunShotgun = "gun_shotgun", GunRifle = "gun_rifle",
+            GunReload = "gun_reload", GunEmpty = "gun_empty", LaserShot = "laser_shot", PlasmaShot = "plasma_shot",
+            EnergyOverheat = "energy_overheat", BulletImpact = "bullet_impact", PlasmaBurst = "plasma_burst", RaiderGunshot = "raider_gunshot";
+
+        public const string TurretFire = "turret_fire", TurretLaser = "turret_laser", TrapSnap = "trap_snap", TrapShock = "trap_shock",
+            StructureHit = "structure_hit", StructureBreak = "structure_break", RaidHorn = "raid_horn", AlarmKlaxon = "alarm_klaxon";
+
+        public const string GeneratorStart = "generator_start", GeneratorStop = "generator_stop", GeneratorHum = "generator_hum",
+            MachineHum = "machine_hum", FanLoop = "fan_loop", PowerDown = "power_down", RepairTick = "repair_tick";
+
+        public const string RadioStatic = "radio_static", RadioPing = "radio_ping", ObjectiveDone = "objective_done";
     }
 }

@@ -454,3 +454,19 @@ Play `Builds/Linux/SheltreSim.x86_64`. To work in the Editor, first run Tools > 
 - [ ] Hunt a deer. Plant seeds in a farm plot. Save and load in both phases.
 - [ ] Weather: wait for rain, fog and night. Does rain stay out from under roofs?
 - [ ] Balance: are prices and recipe costs fair? How long does reaching the radio beacon feel?
+
+## M22 human checklist (raids, power, weapons, storage, radio, homestead)
+
+Automated probes pass for each system (see DESIGN_NOTES), but nobody has played them. 3D models for the new pieces and weapons come from GPT; until they arrive you see coloured boxes.
+
+- [ ] Weather: does it change on its own every few minutes, outside and (as a message) in the bunker? Is rain visible after the bombs?
+- [ ] First raid about 15 min after the bombs: the warning, the horn, raiders coming down the stairs. Too early, too late, too hard?
+- [ ] Close the blast door: they should break it down over about a minute. Repair it with E and a Metal Repair Kit.
+- [ ] Build a turret with ammo and power, traps on the stairs, sandbags. Do they help? Do turrets ever shoot you? (They shouldn't.)
+- [ ] Kill raiders: a bag on the ground each time, contents worth it?
+- [ ] Generator: fuel in, start, power console. Two generators without a Cooling Unit should overheat.
+- [ ] Guns: 1/2 to switch, R to reload, hold for automatic fire. Laser overheats, plasma bursts.
+- [ ] Storage crate: move items, "Store building materials", craft next to a crate. Heavy pack slows sprint.
+- [ ] Radio Console: scan for fuel, follow the waypoint. Military relay quest end to end.
+- [ ] G palette, build a small house outside: foundation, walls, door frame, door, roof. Rain stays out? V repair, X dismantle (press twice).
+- [ ] Save and load during a raid and with machines running.

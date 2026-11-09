@@ -189,8 +189,8 @@ namespace SheltreSim.Survival
             foreach (Image bar in crosshairBars) bar.color = string.IsNullOrEmpty(interactPrompt) ? Color.white : GameUI.Accent;
             buildReadoutLabel.text = building ? buildReadout : string.Empty;
             controlsLabel.text = building
-                ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
-                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: melee\nI or Tab: inventory   /   C: craft   /   B: build   /   F5: save   /   F9: load   /   M: map   /   Esc: menu";
+                ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   V: repair   /   X: dismantle   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
+                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: attack   /   1/2: melee/gun   /   R: reload\nI or Tab: inventory   /   C: craft   /   B: build   /   G: blueprints   /   F5: save   /   F9: load   /   M: map   /   Esc: menu";
 
             if (Time.unscaledTime >= nextGuidanceUpdate)
             {

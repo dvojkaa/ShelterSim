@@ -242,7 +242,7 @@ namespace SheltreSim.World
             main.maxParticles = isRain ? 2500 : 1700;
             main.startLifetime = isRain ? RainLife : SnowLife;
             main.startSpeed = isRain ? 24f : 1.5f;
-            main.startSize = isRain ? new ParticleSystem.MinMaxCurve(0.016f, 0.026f) : new ParticleSystem.MinMaxCurve(0.07f, 0.15f);
+            main.startSize = isRain ? new ParticleSystem.MinMaxCurve(0.022f, 0.036f) : new ParticleSystem.MinMaxCurve(0.07f, 0.15f);
             main.gravityModifier = 0f;
             main.startColor = Color.white;
 
@@ -431,8 +431,23 @@ namespace SheltreSim.World
         {
             int total = Mathf.FloorToInt(hour * 60f) % 1440;
             if (total == lastMinute && weather == lastWeather) return;
+            // Underground you can't see the sky, so say it. Not on the first frame, not from the probe's override.
+            if (lastWeather != null && weather != lastWeather && !dbgOn && atmosphere != null && Time.frameCount - atmosphere.RestoredAtFrame > 3)
+                SheltreSim.UI.GameMessageBus.Post(ChangeMessage(weather));
             lastMinute = total; lastWeather = weather;
             clockText = (total / 60).ToString("00") + ":" + (total % 60).ToString("00") + "  " + weather;
+        }
+
+        private string ChangeMessage(string weather)
+        {
+            bool under = und > 0.5f;
+            switch (weather)
+            {
+                case "Rain": return under ? "You can hear rain on the hatch above." : "It starts to rain.";
+                case "Snow": return under ? "The air from the vents turns bitterly cold. Snow outside." : "It starts to snow.";
+                case "Fog": return under ? "The vents smell of damp. Fog outside." : "Fog rolls in.";
+                default: return under ? "The sound of the weather above fades." : "The weather clears.";
+            }
         }
 
         private static Color C(float r, float g, float b) { return new Color(r, g, b, 1f); }
@@ -467,7 +482,8 @@ namespace SheltreSim.World
             Color nightHor = Color.Lerp(C(0.035f, 0.05f, 0.10f), C(0.04f, 0.044f, 0.052f), overcast);
             Color zen = Color.Lerp(dayZen, nightZen, nightW);
             Color hor = Color.Lerp(dayHor, nightHor, nightW);
-            float dust = apoc * 0.85f;
+            // The bomb dust tints the sky, but weather must still read through it: rain and snow push it back.
+            float dust = apoc * 0.85f * (1f - 0.7f * overcast);
             float apBright = Mathf.Lerp(0.30f, 1f, dayF);
             zen = Color.Lerp(zen, C(0.44f, 0.27f, 0.15f) * apBright, dust);
             hor = Color.Lerp(hor, C(0.70f, 0.45f, 0.25f) * apBright, dust);
@@ -548,9 +564,10 @@ namespace SheltreSim.World
             aEq = Color.Lerp(aEq, nEq, nightW);
             aGr = Color.Lerp(aGr, nGr, nightW);
             float apAmb = Mathf.Lerp(0.38f, 0.95f, dayF);
-            aSky = Color.Lerp(aSky, C(0.55f, 0.38f, 0.24f) * apAmb, apoc * 0.8f);
-            aEq = Color.Lerp(aEq, C(0.48f, 0.32f, 0.20f) * apAmb, apoc * 0.8f);
-            aGr = Color.Lerp(aGr, C(0.26f, 0.17f, 0.10f) * apAmb, apoc * 0.8f);
+            float apAmbMix = apoc * 0.8f * (1f - 0.6f * overcast); // weather reads through the dust
+            aSky = Color.Lerp(aSky, C(0.55f, 0.38f, 0.24f) * apAmb, apAmbMix);
+            aEq = Color.Lerp(aEq, C(0.48f, 0.32f, 0.20f) * apAmb, apAmbMix);
+            aGr = Color.Lerp(aGr, C(0.26f, 0.17f, 0.10f) * apAmb, apAmbMix);
             Color fl = C(0.55f, 0.6f, 0.8f) * (flash * 1.1f);
             aSky += fl; aEq += fl; aGr += fl * 0.6f;
             Color bunker = C(0.115f, 0.105f, 0.095f);
@@ -603,7 +620,7 @@ namespace SheltreSim.World
             float rainBright = Mathf.Lerp(0.32f, 1f, dayF) + flash * 0.8f;
             float snowBright = Mathf.Lerp(0.40f, 1f, dayF);
             float shelterScale = Mathf.Lerp(1f, 0.25f, shelter) * surface;
-            DriveParticles(rain, rainMat, rainAmt * shelterScale, RainRate, C(0.70f, 0.78f, 0.90f) * rainBright, 0.5f + flash * 0.4f, 14f);
+            DriveParticles(rain, rainMat, rainAmt * shelterScale, RainRate, C(0.70f, 0.78f, 0.90f) * rainBright, 0.72f + flash * 0.28f, 14f);
             DriveParticles(snow, snowMat, snowAmt * shelterScale, SnowRate, C(0.95f, 0.97f, 1f) * snowBright, 0.9f, 12f);
         }
 

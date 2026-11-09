@@ -23,6 +23,21 @@ namespace SheltreSim.Combat
 
         /// <summary>Test hook: lets probes swing without the locked-cursor requirement (batch mode has no real cursor).</summary>
         public bool ignoreCursorLock;
+
+        /// <summary>True while the ranged hand is raised: no swing, and the prop is hidden. Set by RangedWeaponController.</summary>
+        public bool suppressed
+        {
+            get => isSuppressed;
+            set
+            {
+                if (isSuppressed == value) return;
+                isSuppressed = value;
+                ResetSwing();
+                if (weaponVisual != null) weaponVisual.gameObject.SetActive(!value);
+            }
+        }
+        private bool isSuppressed;
+
         public float attackCooldown = 0.6f;
         public float swingDuration = 0.1f;
         public float returnDuration = 0.15f;
@@ -88,7 +103,7 @@ namespace SheltreSim.Combat
         /// <summary>One swing with the real hit-detection path. Returns false when gated (paused, dead, cooldown...).</summary>
         public bool TryAttack()
         {
-            if (!isActiveAndEnabled || Time.timeScale <= 0f || (!ignoreCursorLock && Cursor.lockState != CursorLockMode.Locked) ||
+            if (suppressed || !isActiveAndEnabled || Time.timeScale <= 0f || (!ignoreCursorLock && Cursor.lockState != CursorLockMode.Locked) ||
                 (stats != null && (stats.IsDead || stats.health <= 0f)) ||
                 (playerController != null && !playerController.isActiveAndEnabled) ||
                 (buildModeController != null && buildModeController.IsBuildModeActive) ||

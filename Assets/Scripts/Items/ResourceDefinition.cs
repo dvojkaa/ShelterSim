@@ -6,7 +6,7 @@ namespace SheltreSim.Items
 
     public enum ToolKind { None = 0, Axe = 1, Pickaxe = 2 }
 
-    public enum GearSlot { None = 0, Weapon = 1, Armor = 2, Coat = 3 }
+    public enum GearSlot { None = 0, Weapon = 1, Armor = 2, Coat = 3, Ranged = 4 }
 
     /// <summary>
     /// One asset per item. Written by M21CraftingSetup from the code table in

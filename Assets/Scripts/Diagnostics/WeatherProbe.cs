@@ -162,11 +162,81 @@ namespace SheltreSim.Diagnostics
             Check(WeatherPresentation.ParticleCount == 0, $"no particles underground ({WeatherPresentation.ParticleCount})");
             Shot("11_underground", false);
 
+            yield return CheckLiveSimulation(fps);
+
             Check(maxParticles < 3000, $"max alive particles {maxParticles} < 3000");
             Check(errors == 0, $"no exceptions ({errors})");
             WeatherPresentation.ClearDebugOverride();
             Debug.Log(failures == 0 ? "[WeatherProbe] ALL CHECKS PASSED" : $"[WeatherProbe] {failures} CHECK(S) FAILED");
             Application.Quit(failures == 0 ? 0 : 1);
+        }
+
+        // Every check above uses the debug override, which is how live weather shipped without ever being seen to
+        // change. This one runs the real clock through the real presentation.
+        private IEnumerator CheckLiveSimulation(FirstPersonController fps)
+        {
+            WeatherPresentation.ClearDebugOverride();
+            WeatherPresentation.ApocalypseAmount = 1f;
+            var atmosphere = FindFirstObjectByType<WorldAtmosphere>();
+            int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 20261108;
+            int homeBiome = WorldLayout.BiomeIndexAt(WorldLayout.BunkerCenter.x, WorldLayout.BunkerCenter.z, seed);
+            Debug.Log($"[WeatherProbe] home biome {homeBiome} ({WorldLayout.BiomeNames[homeBiome]})");
+            for (int biome = 0; biome < 6; biome++)
+            {
+                var sequence = new System.Text.StringBuilder();
+                int changes = 0, longest = 1, run = 1, clear = 0;
+                string previous = null;
+                const int periods = 48; // two hours of play
+                for (int k = 0; k < periods; k++)
+                {
+                    string w = WorldAtmosphere.WeatherFor(k, biome, seed);
+                    sequence.Append(w[0]);
+                    if (w == "Clear") clear++;
+                    if (previous != null && w != previous) { changes++; run = 1; }
+                    else if (previous != null) { run++; longest = Mathf.Max(longest, run); }
+                    previous = w;
+                }
+                Debug.Log($"[WeatherProbe] biome {biome} {sequence}: {changes} changes, longest run {longest}, clear {clear}/{periods}");
+                Check(changes >= periods / 2, $"biome {biome} changes weather often ({changes} of {periods} periods)");
+                Check(longest <= 4, $"biome {biome} never holds one weather for more than 10 minutes (longest {longest} periods)");
+                Check(clear >= periods / 8 && clear <= periods * 3 / 5, $"biome {biome} has a sensible share of clear sky ({clear}/{periods})");
+            }
+
+            // Stand outside, on the real clock, in the middle of a rainy or snowy period for this biome.
+            Vector3 p = player.position;
+            int here = WorldLayout.BiomeIndexAt(p.x, p.z, seed);
+            int wet = -1;
+            for (int k = 0; k < 200 && wet < 0; k++)
+            {
+                string w = WorldAtmosphere.WeatherFor(k, here, seed);
+                if (w == "Rain" || w == "Snow") wet = k;
+            }
+            if (here == 2) { Check(wet < 0, "no rain in the red desert"); yield break; }
+            Check(wet >= 0, "a wet period exists here");
+            fps.enabled = true;
+            player.GetComponent<CharacterController>().enabled = true;
+            Move(surfacePoint);
+            atmosphere.RestoreTime((wet + 0.5f) * WorldAtmosphere.WeatherPeriod);
+            yield return Settle(12f);
+            Check(atmosphere.WeatherName == "Rain" || atmosphere.WeatherName == "Snow", $"live weather after the clock moved: {atmosphere.WeatherName}");
+            Check(atmosphere.WeatherIntensity >= 0.65f, $"live intensity {atmosphere.WeatherIntensity:F2}");
+            Check(WeatherPresentation.ParticleCount > 100, $"live particles from the real clock: {WeatherPresentation.ParticleCount}");
+            Color ap = RenderSettings.ambientSkyColor;
+            float wetLum = Shot("12_live_wet_after_bombs");
+            Check(WeatherPresentation.Overcast > 0.5f, $"sky goes overcast through the bomb dust ({WeatherPresentation.Overcast:F2})");
+            Check(ap.r < ap.b * 1.4f, $"ambient reads as weather, not only as dust ({ap.r:F2},{ap.g:F2},{ap.b:F2})");
+
+            // A real change: walk the clock to the next period's fade and see the first weather end by itself.
+            int clearAfter = -1;
+            for (int k = wet + 1; k < wet + 20 && clearAfter < 0; k++)
+                if (WorldAtmosphere.WeatherFor(k, here, seed) == "Clear") clearAfter = k;
+            atmosphere.RestoreTime((clearAfter + 0.5f) * WorldAtmosphere.WeatherPeriod);
+            yield return Settle(14f);
+            Check(atmosphere.WeatherName == "Clear" && WeatherPresentation.ParticleCount == 0, $"it clears by itself ({atmosphere.WeatherName}, {WeatherPresentation.ParticleCount} particles)");
+            float dryLum = Shot("13_live_clear_after_bombs");
+            Debug.Log($"[WeatherProbe] after the bombs: wet luminance {wetLum:F3}, clear {dryLum:F3}");
+            Check(Mathf.Abs(dryLum - wetLum) > 0.02f, $"the change is visible on screen ({wetLum:F3} vs {dryLum:F3})");
+            WeatherPresentation.ApocalypseAmount = 0f;
         }
 
         private IEnumerator Settle(float seconds)

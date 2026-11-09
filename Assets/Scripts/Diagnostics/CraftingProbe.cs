@@ -119,8 +119,8 @@ namespace SheltreSim.Diagnostics
             Debug.Log("[CraftingProbe] " + summary);
             foreach (string e in errors) Debug.LogError("[CraftingProbe] validation: " + e);
             Check(errors.Count == 0, "recipe validation: ids resolve, every item/station reachable from raw sources, no cycles");
-            Check(ItemCatalog.All.Count >= 50 && ItemCatalog.All.Count <= 80, $"item count in range ({ItemCatalog.All.Count})");
-            Check(RecipeBook.All.Count >= 45 && RecipeBook.All.Count <= 60, $"recipe count in range ({RecipeBook.All.Count})");
+            Check(ItemCatalog.All.Count >= 50 && ItemCatalog.All.Count <= 130, $"item count in range ({ItemCatalog.All.Count})");
+            Check(RecipeBook.All.Count >= 45 && RecipeBook.All.Count <= 110, $"recipe count in range ({RecipeBook.All.Count})");
             Check(ItemCatalog.All.All(s => ItemCatalog.Def(s.id) != null && ItemCatalog.Def(s.id).id == s.id), "every catalog item has a ResourceDefinition asset");
             Check(ItemCatalog.All.All(s => { var d = ItemCatalog.Def(s.id); return d != null && d.displayName == s.name && d.category == s.category; }), "assets match the catalog");
             Check(RecipeBook.All.All(r => r.Resolves()), "every recipe resolves to assets");
@@ -183,7 +183,7 @@ namespace SheltreSim.Diagnostics
         {
             var build = FindFirstObjectByType<BuildModeController>();
             string[] newIds = { "piece_stove", "piece_forge", "piece_chemlab", "piece_electronics", "piece_farm", "piece_wall_steel", "piece_lamp", "piece_shelf", "piece_filter", "piece_radio" };
-            Check(build != null && build.availablePieces.Count == 17, $"build menu has 17 pieces ({build?.availablePieces.Count})");
+            Check(build != null && build.availablePieces.Count >= 17 && build.availablePieces.Select(p => p.id).Distinct().Count() == build.availablePieces.Count, $"build menu has every piece once ({build?.availablePieces.Count})");
             var invUi = FindFirstObjectByType<InventoryUI>();
             foreach (string id in newIds)
             {

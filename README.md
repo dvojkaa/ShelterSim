@@ -111,3 +111,13 @@ You start on a building lot at the edge of town with $25,000. A normal day: hous
 ## Weather
 
 Day and night, clouds, rain, snow, fog and lightning are all visible now, and the sky stays dusty after the bombs.
+
+## Raids, defence and power (M22)
+
+About 15 minutes after the bombs, raiders start coming for the bunker: a 60-second warning, then a party down the stairs, breaking doors and anything you built in their way. Raids come every 10 minutes, then every 6, and grow; every fifth has a Warlord. If you're far from home, the raid waits for you. Fight back with turrets (machine gun with ammo, laser on power), spike and shock traps, sandbags, barricades and a steel door; repair with a hammer and repair kits (V in build mode). Every enemy drops a loot bag.
+
+Power has no cables: devices within 25 m form a network. Generators burn fuel, solar panels follow the sun and the weather, batteries store the surplus. Machines make heat: two generators need a Cooling Unit, and an overheated network halves its output and shuts laser turrets off. The Power Console says what runs and why something doesn't. Automation: water pump, irrigator, cell charger, fabricator and repair station work from nearby crates.
+
+Firearms and energy weapons are made at the Armory and Electronics Bench: pistol, SMG, shotgun, rifles, laser pistol and rifle, plasma rifle. Keys 1 and 2 switch melee and gun, R reloads. Energy weapons use cells and overheat.
+
+Storage crates hold your things, crafting draws from crates within 6 m, and carrying over 60 kg slows your sprint (you can always walk). The Radio Console finds a site for what you need and pins it on the HUD and atlas; repairing a military relay is the one big quest. G opens the blueprint palette. Above ground you can build a house: foundations, walls, windows, door frames and doors, roofs, ramps, stairs, fences and gates. X dismantles with a hammer.

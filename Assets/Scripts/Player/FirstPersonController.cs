@@ -11,6 +11,8 @@ namespace SheltreSim.Player
         public float sprintSpeed = 7f;
         public float jumpHeight = 1.2f;
         public float gravity = -18f;
+        /// <summary>Set by other systems (encumbrance). 1 is normal. Never zero: the player can always walk.</summary>
+        [System.NonSerialized] public float sprintMultiplier = 1f;
 
         [Header("Look")]
         public float lookSensitivity = 0.12f;
@@ -116,7 +118,7 @@ namespace SheltreSim.Player
         {
             Vector2 moveInput = Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f);
             bool sprinting = input.Sprint.IsPressed();
-            float speed = sprinting ? sprintSpeed : walkSpeed;
+            float speed = sprinting ? Mathf.Max(walkSpeed, sprintSpeed * Mathf.Clamp01(sprintMultiplier)) : walkSpeed;
 
             Vector3 horizontal = (transform.right * moveInput.x + transform.forward * moveInput.y) * speed;
 

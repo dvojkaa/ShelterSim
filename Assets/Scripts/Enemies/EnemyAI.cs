@@ -7,6 +7,12 @@ using UnityEngine;
 
 namespace SheltreSim.Enemies
 {
+    /// <summary>Takes over an enemy's decisions (raid mode). The patrol logic in EnemyAI doesn't run while one is attached.</summary>
+    public interface IEnemyBrain
+    {
+        void TickBrain();
+    }
+
     /// <summary>
     /// Simple sight-based chase and melee AI. Local obstacle probes and doorway approach
     /// points help with small props and the bunker entrance; this is not a navigation mesh.
@@ -27,8 +33,32 @@ namespace SheltreSim.Enemies
         public float gravity = -18f;
 
         public bool IsDead { get; private set; }
-        public bool IsChasing => chasing;
+        // Raid actors are always hunting, which is what the tension music reads.
+        public bool IsChasing => chasing || brain != null;
         public event System.Action<EnemyAI> OnDeath;
+
+        /// <summary>Every death of every enemy, once, before the object is destroyed. Death loot hangs on this.</summary>
+        public static event System.Action<EnemyAI> AnyDeath;
+
+        private static readonly System.Collections.Generic.List<EnemyAI> live = new System.Collections.Generic.List<EnemyAI>();
+        /// <summary>Enabled, living enemies. Turrets and traps look here, so they can't ever select the player.</summary>
+        public static System.Collections.Generic.IReadOnlyList<EnemyAI> Live => live;
+
+        /// <summary>Hits don't interrupt this enemy's wind-up, so a boss can't be held in place by steady melee.</summary>
+        public bool superArmor;
+        public bool RaidMode => brain != null;
+        public IEnemyBrain Brain => brain;
+        public bool IsStunned => Time.time < stunnedUntil;
+        public float SpeedFactor => Time.time < slowedUntil ? slowFactor : 1f;
+        public CharacterController Body { get { Initialize(); return controller; } }
+        public Vector3 CenterPosition { get { Initialize(); return BodyCenter; } }
+        public Vector3 FeetPosition { get { Initialize(); return BodyCenter - Vector3.up * (controller.height * Mathf.Abs(transform.lossyScale.y) * 0.5f); } }
+
+        private IEnemyBrain brain;
+        private float stunnedUntil = float.NegativeInfinity;
+        private float slowedUntil = float.NegativeInfinity;
+        private float slowFactor = 1f;
+        private bool lootClaimed;
 
         private bool initialized;
         private CharacterController controller;
@@ -64,7 +94,108 @@ namespace SheltreSim.Enemies
             ? playerController.transform.TransformPoint(playerController.center)
             : playerTransform.position + Vector3.up * 0.9f;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            live.Clear();
+            AnyDeath = null;
+        }
+
         private void Awake() => Initialize();
+
+        private void OnEnable()
+        {
+            if (!IsDead && !live.Contains(this)) live.Add(this);
+        }
+
+        private void OnDestroy() => live.Remove(this);
+
+        /// <summary>Puts this enemy in raid mode. Null returns it to patrol behaviour.</summary>
+        public void SetBrain(IEnemyBrain value)
+        {
+            Initialize();
+            brain = value;
+            CancelAttack();
+        }
+
+        /// <summary>Sets stats and resets health to the new maximum. Safe straight after Instantiate.</summary>
+        public void Configure(float newMaxHealth, float newMoveSpeed, float newAttackDamage, float newAttackCooldown, float newAttackWindup, float newAttackRange)
+        {
+            Initialize();
+            maxHealth = Mathf.Max(1f, newMaxHealth);
+            health = maxHealth;
+            moveSpeed = newMoveSpeed;
+            attackDamage = newAttackDamage;
+            attackCooldown = newAttackCooldown;
+            attackWindup = newAttackWindup;
+            attackRange = newAttackRange;
+        }
+
+        /// <summary>
+        /// Scales the whole actor, then sizes the capsule in WORLD units, feet on the ground. The capsule is
+        /// independent of the visual scale, because every doorway limits it: the bunker's opening is 2.3 m high.
+        /// </summary>
+        public void SetBodySize(float visualScale, float worldRadius, float worldHeight)
+        {
+            Initialize();
+            float scale = Mathf.Max(0.1f, visualScale);
+            bool wasEnabled = controller.enabled;
+            controller.enabled = false;
+            transform.localScale = Vector3.one * scale;
+            controller.radius = worldRadius / scale;
+            controller.height = worldHeight / scale;
+            // The model's feet are 1 unit under its origin, so they are `scale` metres under once scaled.
+            controller.center = Vector3.up * ((worldHeight * 0.5f - scale) / scale);
+            controller.enabled = wasEnabled;
+        }
+
+        /// <summary>Multiplies the model's colour. Survives the damage flash, which restores these blocks.</summary>
+        public void ApplyTint(Color tint)
+        {
+            CacheVisuals();
+            for (int i = 0; i < visualRenderers.Length; i++)
+            {
+                if (visualRenderers[i] == null) continue;
+                originalProperties[i].SetColor("_Color", tint);
+                visualRenderers[i].SetPropertyBlock(originalProperties[i]);
+            }
+        }
+
+        public void Stun(float seconds)
+        {
+            stunnedUntil = Mathf.Max(stunnedUntil, Time.time + seconds);
+            CancelAttack();
+        }
+
+        public void ApplySlow(float factor, float seconds)
+        {
+            slowFactor = Mathf.Clamp(factor, 0.05f, 1f);
+            slowedUntil = Time.time + seconds;
+        }
+
+        /// <summary>True exactly once per enemy, so a repeated death callback can't produce a second bag.</summary>
+        public bool TryClaimDeathLoot()
+        {
+            if (!IsDead || lootClaimed) return false;
+            lootClaimed = true;
+            return true;
+        }
+
+        // ---------- What a brain may do. All of it goes through the same movement and attack code as a patrol. ----------
+
+        public void BrainMove(Vector3 horizontal) => Move(horizontal * SpeedFactor);
+        public void BrainFace(Vector3 direction) => FaceDirection(direction);
+        public void BrainMeleePlayer() => TryAttack();
+        public void BrainCancelAttack() => CancelAttack();
+
+        /// <summary>The same raised-arm pose as a melee wind-up, for hits on structures. 1 is fully raised, negative is the strike.</summary>
+        public void BrainPoseWeapon(float windup)
+        {
+            if (weaponVisual == null) return;
+            weaponVisual.localRotation = windup < 0f
+                ? weaponRestRotation * Quaternion.Euler(70f, 0f, 0f)
+                : weaponRestRotation * Quaternion.Euler(0f, 0f, -65f * Mathf.Clamp01(windup));
+        }
 
         private void Initialize()
         {
@@ -131,12 +262,14 @@ namespace SheltreSim.Enemies
             }
             health = Mathf.Clamp(health - amount, 0f, Mathf.Max(1f, maxHealth));
             chasing = true;
-            CancelAttack();
+            if (!superArmor) CancelAttack();
             if (health <= 0f)
             {
                 IsDead = true;
+                live.Remove(this);
                 controller.enabled = false;
                 OnDeath?.Invoke(this);
+                AnyDeath?.Invoke(this);
                 Destroy(gameObject);
                 return;
             }
@@ -164,6 +297,9 @@ namespace SheltreSim.Enemies
             steeringDirection = Vector3.zero;
             nextSteerTime = 0f;
             nextAttackTime = Time.time + 0.5f;
+            stunnedUntil = float.NegativeInfinity;
+            slowedUntil = float.NegativeInfinity;
+            if (!live.Contains(this) && isActiveAndEnabled) live.Add(this);
         }
 
         private IEnumerator FlashDamage()
@@ -208,6 +344,7 @@ namespace SheltreSim.Enemies
 
         private void OnDisable()
         {
+            live.Remove(this);
             ResetDamageFlash();
             CancelAttack();
         }
@@ -232,6 +369,18 @@ namespace SheltreSim.Enemies
             {
                 CancelAttack();
                 verticalSpeed = 0f;
+                return;
+            }
+            if (brain != null)
+            {
+                brain.TickBrain();
+                RelaxWeapon();
+                return;
+            }
+            if (IsStunned)
+            {
+                CancelAttack();
+                Move(Vector3.zero);
                 return;
             }
             Vector3 offset = PlayerCenter - BodyCenter;
@@ -267,7 +416,7 @@ namespace SheltreSim.Enemies
                         nextSteerTime = Time.time + SteeringInterval;
                         steeringDirection = ChooseDirection(direction.normalized);
                     }
-                    motion = steeringDirection * Mathf.Max(0f, moveSpeed);
+                    motion = steeringDirection * Mathf.Max(0f, moveSpeed) * SpeedFactor;
                     // Avoid overshooting a doorway approach point on a long frame.
                     motion = Vector3.ClampMagnitude(motion, direction.magnitude / Mathf.Max(Time.deltaTime, 0.001f));
                     FaceDirection(motion);
@@ -279,6 +428,11 @@ namespace SheltreSim.Enemies
             }
 
             Move(motion);
+            RelaxWeapon();
+        }
+
+        private void RelaxWeapon()
+        {
             if (!attackPending && weaponVisual != null)
             {
                 weaponVisual.localRotation = Quaternion.Slerp(weaponVisual.localRotation,

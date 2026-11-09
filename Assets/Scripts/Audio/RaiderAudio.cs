@@ -116,10 +116,14 @@ namespace SheltreSim.Audio
             UpdateSteps(speed);
         }
 
+        private float lastHurtTime = -10f;
+
         private void UpdateHurt()
         {
-            if (enemy.health < previousHealth - 0.01f && Time.unscaledTime >= quietUntil)
+            // Rate-limited against its own last cry only, so a laser beam can't spam it but a first hit always cries out.
+            if (enemy.health < previousHealth - 0.01f && Time.unscaledTime >= quietUntil && Time.unscaledTime - lastHurtTime >= 0.3f)
             {
+                lastHurtTime = Time.unscaledTime;
                 Voice(Sfx.RaiderHurt, transform.position + Vector3.up * 1.4f, 0.85f);
             }
             previousHealth = enemy.health;

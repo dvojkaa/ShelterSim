@@ -5,7 +5,7 @@ using SheltreSim.Items;
 
 namespace SheltreSim.Crafting
 {
-    public enum StationKind { Hand = 0, Workbench = 1, Stove = 2, Forge = 3, ChemLab = 4, Electronics = 5 }
+    public enum StationKind { Hand = 0, Workbench = 1, Stove = 2, Forge = 3, ChemLab = 4, Electronics = 5, Armory = 6 }
 
     public struct Ingredient
     {
@@ -88,6 +88,42 @@ namespace SheltreSim.Crafting
             { "piece_shelf", In("planks", 3, "nails", 4) },
             { "piece_filter", In("metal_plate", 2, "glass", 2, "charcoal", 4, "cloth", 2) },
             { "piece_radio", In("radio_beacon", 1, "steel_bar", 2, "metal_plate", 4) },
+            { "piece_armory", In("metal_plate", 4, "steel_bar", 2, "planks", 4, "reinforced_frame", 1) },
+            // Power and heat.
+            { "piece_console", In("circuit_board", 1, "metal_plate", 2, "copper_wire", 2) },
+            { "piece_solar", In("solar_cell", 4, "metal_plate", 2, "copper_wire", 4) },
+            { "piece_battery", In("capacitor", 2, "metal_plate", 2, "copper_wire", 4, "chemicals", 2) },
+            { "piece_cooler", In("electric_motor", 1, "metal_plate", 3, "copper_wire", 2, "coolant", 2) },
+            { "piece_charger", In("capacitor", 2, "circuit_board", 1, "metal_plate", 2, "copper_wire", 2) },
+            // Automation.
+            { "piece_pump", In("electric_motor", 1, "metal_plate", 2, "rope", 1, "glass", 1) },
+            { "piece_irrigator", In("metal_plate", 2, "copper_wire", 1, "rope", 2, "glass", 2) },
+            { "piece_fabricator", In("electric_motor", 2, "circuit_board", 2, "steel_bar", 2, "reinforced_frame", 1) },
+            { "piece_repair", In("electric_motor", 1, "circuit_board", 1, "metal_plate", 3, "scrap_metal", 4) },
+            // Homestead: a 2 m kit for building above ground.
+            { "piece_foundation", In("planks", 4, "nails", 4) },
+            { "piece_wall_half", In("planks", 1, "nails", 2) },
+            { "piece_wall_window", In("planks", 2, "nails", 4) },
+            { "piece_door_frame", In("planks", 2, "nails", 4) },
+            { "piece_door_wood", In("planks", 3, "nails", 4) },
+            { "piece_door_steel", In("metal_plate", 3, "steel_bar", 1, "hinges", 2) },
+            { "piece_roof_flat", In("planks", 2, "nails", 2) },
+            { "piece_roof_slope", In("planks", 3, "nails", 3) },
+            { "piece_ramp", In("planks", 3, "nails", 4) },
+            { "piece_stairs", In("planks", 6, "nails", 8) },
+            { "piece_fence", In("planks", 3, "nails", 4) },
+            { "piece_gate", In("planks", 3, "nails", 4, "hinges", 1) },
+            { "piece_barricade", In("planks", 4, "nails", 4, "rope", 1) },
+            { "piece_palisade", In("wood", 6, "rope", 2) },
+            // Radio.
+            { "piece_radio_console", In("circuit_board", 2, "copper_wire", 4, "metal_plate", 2, "electronics", 2) },
+            // Defence.
+            { "piece_sandbag", In("cloth", 3, "stone", 4) },
+            { "piece_spike_trap", In("nails", 12, "planks", 2, "scrap_metal", 2) },
+            { "piece_shock_trap", In("capacitor", 1, "copper_wire", 3, "scrap_metal", 3) },
+            { "piece_turret_mg", In("steel_bar", 2, "metal_plate", 4, "electric_motor", 1, "circuit_board", 1) },
+            { "piece_turret_laser", In("laser_diode", 2, "capacitor", 2, "metal_plate", 3, "circuit_board", 2, "coolant", 1) },
+            { "piece_alarm", In("electronics", 1, "copper_wire", 2, "scrap_metal", 2) },
         };
 
         public static string PieceIdFor(StationKind kind)
@@ -99,6 +135,7 @@ namespace SheltreSim.Crafting
                 case StationKind.Forge: return "piece_forge";
                 case StationKind.ChemLab: return "piece_chemlab";
                 case StationKind.Electronics: return "piece_electronics";
+                case StationKind.Armory: return "piece_armory";
                 default: return null;
             }
         }
@@ -112,6 +149,7 @@ namespace SheltreSim.Crafting
                 case StationKind.Stove: return "Stove";
                 case StationKind.Forge: return "Forge";
                 case StationKind.ChemLab: return "Chem Lab";
+                case StationKind.Armory: return "Armory";
                 default: return "Electronics Bench";
             }
         }
@@ -119,7 +157,7 @@ namespace SheltreSim.Crafting
         static RecipeBook()
         {
             const StationKind H = StationKind.Hand, W = StationKind.Workbench, S = StationKind.Stove,
-                F = StationKind.Forge, C = StationKind.ChemLab, E = StationKind.Electronics;
+                F = StationKind.Forge, C = StationKind.ChemLab, E = StationKind.Electronics, A = StationKind.Armory;
 
             // Hand: basics from raw materials only.
             R(H, "planks", 3, "wood", 2);
@@ -179,6 +217,40 @@ namespace SheltreSim.Crafting
             R(E, "circuit_board", 1, "electronics", 2, "copper_wire", 2, "chemicals", 1);
             R(E, "radio_part", 1, "circuit_board", 2, "copper_wire", 3, "expedition_parts", 1, "metal_plate", 1);
             R(E, "radio_beacon", 1, "radio_part", 3, "steel_bar", 4, "copper_wire", 6, "fuel", 3);
+
+            // Homestead materials and travel food.
+            R(H, "hammer", 1, "wood", 2, "stone", 2, "rope", 1);
+            R(W, "repair_kit_wood", 2, "planks", 2, "nails", 2);
+            R(W, "repair_kit_metal", 2, "metal_plate", 1, "nails", 2);
+            R(F, "hinges", 2, "iron_ingot", 1);
+            R(C, "fertilizer", 2, "plant_fiber", 3, "vegetables", 1, "chemicals", 1);
+            R(S, "dried_meat", 2, "raw_meat", 1, "wood", 1);
+            R(S, "trail_mix", 2, "food_berries", 2, "grain", 1, "sugar", 1);
+            R(S, "vegetable_broth", 2, "vegetables", 1, "water", 1, "wood", 1);
+
+            // Materials for power, automation and energy weapons.
+            R(C, "gunpowder", 4, "chemicals", 1, "sulfur", 1, "charcoal", 2);
+            R(C, "coolant", 2, "chemicals", 2, "water", 1);
+            R(E, "capacitor", 2, "electronics", 1, "copper_wire", 2, "chemicals", 1);
+            R(E, "laser_diode", 1, "electronics", 2, "glass", 2, "copper_wire", 1);
+            R(E, "electric_motor", 1, "copper_wire", 4, "iron_ingot", 2, "scrap_metal", 1);
+            R(E, "solar_cell", 2, "glass", 2, "electronics", 1, "copper_wire", 1);
+            R(E, "energy_cell", 1, "capacitor", 1, "chemicals", 1, "scrap_metal", 1);
+
+            // Armory: rounds and firearms.
+            R(A, "ammo_9mm", 12, "scrap_metal", 2, "gunpowder", 1);
+            R(A, "ammo_rifle", 8, "scrap_metal", 2, "gunpowder", 2);
+            R(A, "ammo_shell", 6, "scrap_metal", 1, "gunpowder", 1, "cloth", 1);
+            R(A, "pistol", 1, "steel_bar", 1, "metal_plate", 2, "nails", 4);
+            R(A, "smg", 1, "steel_bar", 3, "metal_plate", 3, "duct_tape", 2);
+            R(A, "shotgun", 1, "steel_bar", 2, "planks", 3, "metal_plate", 2);
+            R(A, "hunting_rifle", 1, "steel_bar", 3, "planks", 3, "rope", 1);
+            R(A, "assault_rifle", 1, "steel_bar", 5, "metal_plate", 4, "circuit_board", 1, "duct_tape", 2);
+
+            // Energy weapons: the end of the electronics ladder.
+            R(E, "laser_pistol", 1, "laser_diode", 1, "capacitor", 2, "metal_plate", 2, "circuit_board", 1);
+            R(E, "laser_rifle", 1, "laser_diode", 2, "capacitor", 3, "steel_bar", 2, "circuit_board", 2, "coolant", 2);
+            R(E, "plasma_rifle", 1, "laser_diode", 2, "capacitor", 4, "steel_bar", 3, "circuit_board", 3, "coolant", 4, "expedition_parts", 2);
         }
 
         // ---------- Crafting ----------
@@ -198,9 +270,9 @@ namespace SheltreSim.Crafting
 
         public static bool CanCraft(Inventory inventory, Recipe recipe, int times)
         {
-            if (inventory == null || recipe == null) return false;
-            foreach (var i in recipe.inputs) if (inventory.GetCount(i.id) < i.amount * times) return false;
-            return true;
+            // The same checks TryCraft makes, so a button can't promise what the craft would refuse.
+            if (inventory == null || recipe == null || times < 1 || !recipe.Resolves()) return false;
+            return CraftingSystem.TryAfford(inventory, recipe.ToCost(times));
         }
 
         // ---------- Static validation ----------
