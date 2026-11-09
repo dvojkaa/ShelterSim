@@ -7,6 +7,29 @@
   },
   "variants": [
     {
+      "base_id": "piece_wall",
+      "damaged_id": "piece_wall_damaged",
+      "critical_id": "piece_wall_critical",
+      "bounds": {
+        "x": [
+          -1.0,
+          1.0
+        ],
+        "y": [
+          -0.1,
+          0.1
+        ],
+        "z": [
+          0.0,
+          3.0
+        ]
+      },
+      "triangles": {
+        "damaged": 808,
+        "critical": 428
+      }
+    },
+    {
       "base_id": "piece_wall_steel",
       "damaged_id": "piece_wall_steel_damaged",
       "critical_id": "piece_wall_steel_critical",
@@ -73,6 +96,98 @@
       "triangles": {
         "damaged": 524,
         "critical": 348
+      }
+    },
+    {
+      "base_id": "piece_fence",
+      "damaged_id": "piece_fence_damaged",
+      "critical_id": "piece_fence_critical",
+      "bounds": {
+        "x": [
+          -1,
+          1
+        ],
+        "y": [
+          -0.05,
+          0.05
+        ],
+        "z": [
+          0,
+          1.2
+        ]
+      },
+      "triangles": {
+        "damaged": 144,
+        "critical": 140
+      }
+    },
+    {
+      "base_id": "piece_gate",
+      "damaged_id": "piece_gate_damaged",
+      "critical_id": "piece_gate_critical",
+      "bounds": {
+        "x": [
+          -1,
+          1
+        ],
+        "y": [
+          -0.05,
+          0.05
+        ],
+        "z": [
+          0,
+          1.2
+        ]
+      },
+      "triangles": {
+        "damaged": 204,
+        "critical": 140
+      }
+    },
+    {
+      "base_id": "piece_barricade",
+      "damaged_id": "piece_barricade_damaged",
+      "critical_id": "piece_barricade_critical",
+      "bounds": {
+        "x": [
+          -1,
+          1
+        ],
+        "y": [
+          -0.2,
+          0.2
+        ],
+        "z": [
+          0,
+          1.2
+        ]
+      },
+      "triangles": {
+        "damaged": 168,
+        "critical": 152
+      }
+    },
+    {
+      "base_id": "piece_palisade",
+      "damaged_id": "piece_palisade_damaged",
+      "critical_id": "piece_palisade_critical",
+      "bounds": {
+        "x": [
+          -1,
+          1
+        ],
+        "y": [
+          -0.15,
+          0.15
+        ],
+        "z": [
+          0,
+          3
+        ]
+      },
+      "triangles": {
+        "damaged": 464,
+        "critical": 462
       }
     }
   ]

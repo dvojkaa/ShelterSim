@@ -52,7 +52,7 @@ namespace SheltreSim.EditorTools
                 lootModel = Models("loot_crate")[0],
                 wood = Resource("Wood"), stone = Resource("Stone"), iron = Resource("IronOre"),
                 berries = Resource("Berries"), water = Resource("Water"), scrap = Resource("ScrapMetal"),
-                medicine = Resource("FirstAidKit")
+                medicine = Resource("FirstAidKit"), plantFiber = Resource("PlantFiber")
             };
             if (root.GetComponent<WorldMapUI>() == null) root.AddComponent<WorldMapUI>();
             // Preserve hierarchy indices used by older saves; disable the old tiny-map fences.

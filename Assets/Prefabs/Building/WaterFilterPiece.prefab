@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 6392182736415768078}
   - component: {fileID: 4960106874614785096}
   - component: {fileID: 4746914440533555700}
+  - component: {fileID: 1242319188625106412}
   m_Layer: 0
   m_Name: WaterFilterPiece
   m_TagString: Untagged
@@ -81,6 +82,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ca28c8f1f1f1395c9a1b3dffd3c7dbd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.WaterFilterPiece
+--- !u!114 &1242319188625106412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3681823317820302753}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b397585611e29914cb757ef10fb2e190, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
+  maxHealth: 80
+  targetPriority: 5
 --- !u!1 &7288086761933718979
 GameObject:
   m_ObjectHideFlags: 0

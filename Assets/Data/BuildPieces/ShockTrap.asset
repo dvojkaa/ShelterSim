@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: ShockTrap
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Shock Trap
+  id: piece_shock_trap
+  prefab: {fileID: 6909825391428548019, guid: f54c6504f8b44df32a99ebc48bb02ad5, type: 3}
+  footprintSize: {x: 2, y: 0.2, z: 2}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: cc4a3bb1c73128731975e8dcf5047689, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: 525a0359032f713a5852c32eae53769c, type: 2}
+    amount: 3
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 3
+  placementRule: 0

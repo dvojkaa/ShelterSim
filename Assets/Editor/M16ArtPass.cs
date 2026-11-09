@@ -61,6 +61,7 @@ namespace SheltreSim.EditorTools
             ApplyCrates();
             ApplyRaiders();
             ApplyPlayerWeapon();
+            ApplyProceduralNature();
 
             VerifyCollidersUnchanged(before, SnapshotColliders());
 
@@ -293,6 +294,13 @@ namespace SheltreSim.EditorTools
             SwapPrefab("GeneratorPiece", "piece_generator", 1.2f);
         }
 
+        /// <summary>M22 creates the bicycle prefab later than the regular M16 pass in BatchSetupAll.</summary>
+        internal static void ApplyBicycleArt()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Building/ScrapBicyclePiece.prefab") != null)
+                SwapPrefab("ScrapBicyclePiece", "piece_bicycle", 1.3f);
+        }
+
         /// <summary>Prefab root is the footprint's centre, and models sit on their floor, so the offset is half the footprint height.</summary>
         private static void SwapPrefab(string prefabName, string modelId, float footprintHeight)
         {
@@ -437,10 +445,22 @@ namespace SheltreSim.EditorTools
                     "stone" => Variant(t.name, "rock_stone_a", "rock_stone_b"),
                     "iron_ore" => Variant(t.name, "ore_iron_a", "ore_iron_b"),
                     "food_berries" => Variant(t.name, "food_bush_a", "food_bush_b"),
+                    "plant_fiber" => "node_tall_grass",
                     _ => null,
                 };
                 if (model != null) Swap(t.gameObject, model, toGround, yaw);
             }
+        }
+
+        /// <summary>Assigns harvested nature visuals to the streamed-world generator after gameplay setup.</summary>
+        private static void ApplyProceduralNature()
+        {
+            SheltreSim.World.ProceduralWorld world = UnityEngine.Object.FindFirstObjectByType<SheltreSim.World.ProceduralWorld>(FindObjectsInactive.Include);
+            if (world == null || world.assets == null) return;
+            world.assets.tallGrass = LoadModel("node_tall_grass");
+            world.assets.reeds = LoadModel("node_reeds");
+            world.assets.plantFiber = AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/PlantFiber.asset");
+            EditorUtility.SetDirty(world);
         }
 
         // ---------- Ground, perimeter, rubble ----------

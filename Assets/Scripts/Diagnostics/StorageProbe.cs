@@ -341,15 +341,15 @@ namespace SheltreSim.Diagnostics
             ResourceDefinition wood = Fake("wood"), stone = Fake("stone");
             try
             {
-                StorageCratePiece near = MakeCrate(5f), far = MakeCrate(7f);
+                StorageCratePiece near = MakeCrate(5f), far = MakeCrate(120f);
                 pack.SetCount("wood", 2);
                 near.Add("wood", 3);
                 far.Add("wood", 100);
-                Check(CraftingSystem.CountInCrates(pack, "wood") == 3 && CraftingSystem.CountAvailable(pack, "wood") == 5, "A crate 5 m away counts and one 7 m away doesn't");
+                Check(CraftingSystem.CountInCrates(pack, "wood") == 3 && CraftingSystem.CountAvailable(pack, "wood") == 5, "A crate 5 m away counts and one 120 m away doesn't");
                 Check(CraftingSystem.NearbyCrateCount(pack) == 1, "One crate in reach");
-                Check(CraftingSystem.TryAfford(pack, Cost((wood, 5))) && !CraftingSystem.TryAfford(pack, Cost((wood, 6))), "Afford counts pack and near crate only");
+                Check(CraftingSystem.TryAfford(pack, Cost((wood, 5))) && !CraftingSystem.TryAfford(pack, Cost((wood, 6))), "Afford counts pack and in-range crate only");
                 Check(!CraftingSystem.TrySpend(pack, Cost((wood, 6))) && pack.GetCount("wood") == 2 && near.GetCount("wood") == 3 && far.GetCount("wood") == 100,
-                    "Too expensive spends nothing, and the far crate doesn't help");
+                    "Too expensive spends nothing, and the out-of-range crate doesn't help");
                 Check(!CraftingSystem.TrySpend(pack, Cost((wood, 5), (stone, 1))) && pack.GetCount("wood") == 2 && near.GetCount("wood") == 3,
                     "A missing ingredient spends nothing from anywhere");
                 Check(!CraftingSystem.TrySpend(pack, Cost((wood, 3), (wood, 3))) && pack.GetCount("wood") == 2 && near.GetCount("wood") == 3,
@@ -610,6 +610,7 @@ namespace SheltreSim.Diagnostics
             public Vector3 StorePosition => transform.position;
             public IReadOnlyDictionary<string, int> Contents => Empty;
             public int GetCount(string id) => id == "wood" ? count : 0;
+            public int GetAddRoom(string id) => int.MaxValue - GetCount(id);
             public void Add(string id, int amount) { }
             public bool TryTake(string id, int amount) => false;
             private void OnEnable() => StorageRegistry.Register(this);

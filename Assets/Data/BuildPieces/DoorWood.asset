@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: DoorWood
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Wooden Door
+  id: piece_door_wood
+  prefab: {fileID: 4903538303699528772, guid: 15947e168378b5660918c3fc9e488a34, type: 3}
+  footprintSize: {x: 1.6, y: 2.2, z: 0.08}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: f0b9010cbdf8c3e86bf973f4995f66f8, type: 2}
+    amount: 3
+  - resource: {fileID: 11400000, guid: ed90cf100948da0b2b621fbd2852cdc1, type: 2}
+    amount: 4
+  placementRule: 5

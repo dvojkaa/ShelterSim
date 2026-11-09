@@ -104,7 +104,7 @@ namespace SheltreSim.Core
             Canvas canvas = GameUI.CreateCanvas(transform, "PauseCanvas", 100, true);
             panel = GameUI.Backdrop(canvas.transform, "PausePanel");
             Transform card = GameUI.Panel(panel.transform, "Card", new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 735f), GameUI.PanelColor, true).transform;
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 780f), GameUI.PanelColor, true).transform;
             GameUI.Label(card, "Title", "PAUSED", TopLeft, TopLeft, new Vector2(32f, -28f),
                 new Vector2(896f, 50f), 38, GameUI.Accent, bold: true);
             GameUI.Label(card, "Subtitle", "Take a breath. The world is paused.", TopLeft, TopLeft,
@@ -122,14 +122,28 @@ namespace SheltreSim.Core
             GameUI.Label(card, "ControlsHeading", "FIELD CONTROLS", TopLeft, TopLeft,
                 new Vector2(350f, -150f), new Vector2(560f, 30f), 21, GameUI.Accent, bold: true);
             GameUI.Label(card, "Controls",
-                "WASD   Move     /     Mouse   Look\nSpace   Jump     /     Shift   Sprint\nE   Interact     /     Left click   Melee\nI or Tab   Inventory and supplies\nB   Build mode     /     Wheel   Choose piece\nR   Rotate     /     Left click   Place\nEscape   Leave build mode / close menu\nF5   Quick save     /     F9   Quick load",
-                TopLeft, TopLeft, new Vector2(350f, -196f), new Vector2(578f, 240f), 20);
+                "WASD   Move     /     Mouse   Look\n" +
+                "Space   Jump     /     Shift   Sprint\n" +
+                "Left Ctrl   Crouch (hold, harder to spot)\n" +
+                "E   Interact     /     Left click   Attack\n" +
+                "1 / 2   Melee / gun     /     R   Reload\n" +
+                "3 / 4 / 5   Quick use: medicine, food, drink\n" +
+                "F   Flashlight (loads an Energy Cell when empty)\n" +
+                "I or Tab   Inventory     /     C   Craft\n" +
+                "B   Build mode     /     Wheel   Choose piece\n" +
+                "R   Rotate     /     Left click   Place\n" +
+                "V   Repair     /     X   Dismantle (in build mode)\n" +
+                "G   Blueprints     /     M   Map\n" +
+                "Escape   Leave build mode / close menu\n" +
+                "F5   Quick save     /     F9   Quick load",
+                TopLeft, TopLeft, new Vector2(350f, -186f), new Vector2(590f, 310f), 17);
             statusLabel = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
-                new Vector2(32f, -462f), new Vector2(896f, 60f), 19, GameUI.Accent);
+                new Vector2(32f, -500f), new Vector2(896f, 50f), 19, GameUI.Accent);
             GameUI.Label(card, "Advice",
                 "Prepare supplies and a Water Collector before using the red bunker console.\nFood and water stay full during preparation; raiders can still hurt you.\nAfter the alarm, scavenge, return home, eat, drink and rest. Save regularly.",
-                TopLeft, TopLeft, new Vector2(32f, -554f), new Vector2(896f, 96f), 19, GameUI.Muted);
-            SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -664f));
+                TopLeft, TopLeft, new Vector2(32f, -556f), new Vector2(896f, 80f), 18, GameUI.Muted);
+            SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -648f));
+            GameplaySettingsPanel.Build(card, new Vector2(32f, -708f));
             panel.SetActive(false);
         }
 

@@ -129,6 +129,11 @@ namespace SheltreSim.Combat
                 SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitFlesh, animal.transform.position + Vector3.up, 0.9f, 25f);
                 GameMessageBus.Post(animal.TakeHit(attackDamage, transform.position));
             }
+            else if (target != null && target.GetComponentInParent<SheltreSim.Items.ResourceNode>() is SheltreSim.Items.ResourceNode node &&
+                node.Strike(playerRoot != null ? playerRoot.gameObject : gameObject))
+            {
+                // ResourceNode posts the harvest result and uses the existing gathering sound path.
+            }
             else
             {
                 if (target != null) SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitBlock, transform.position + transform.forward, 0.75f, 20f);
@@ -153,7 +158,9 @@ namespace SheltreSim.Combat
             Collider nearestEnemy = null;
             Collider nearestObstacle = null;
             Collider nearestAnimal = null;
+            Collider nearestCuttable = null;
             float animalDistance = float.PositiveInfinity;
+            float cuttableDistance = float.PositiveInfinity;
             float enemyDistance = float.PositiveInfinity;
             float obstacleDistance = float.PositiveInfinity;
 
@@ -178,6 +185,18 @@ namespace SheltreSim.Combat
                         {
                             animalDistance = animalOffset.sqrMagnitude;
                             nearestAnimal = candidate;
+                        }
+                        continue;
+                    }
+                    SheltreSim.Items.ResourceNode resource = candidate.GetComponentInParent<SheltreSim.Items.ResourceNode>();
+                    if (resource != null && resource.CanStrike(playerRoot != null ? playerRoot.gameObject : gameObject))
+                    {
+                        Vector3 forageOffset = candidate.bounds.center - transform.position;
+                        if (Vector3.Dot(forageOffset.normalized, transform.forward) >= 0.25f &&
+                            forageOffset.sqrMagnitude < cuttableDistance)
+                        {
+                            cuttableDistance = forageOffset.sqrMagnitude;
+                            nearestCuttable = candidate;
                         }
                         continue;
                     }
@@ -207,7 +226,9 @@ namespace SheltreSim.Combat
             }
 
             if (nearestEnemy != null) return nearestEnemy;
-            return nearestAnimal != null ? nearestAnimal : nearestObstacle;
+            if (nearestAnimal != null) return nearestAnimal;
+            if (nearestCuttable != null && cuttableDistance <= obstacleDistance) return nearestCuttable;
+            return nearestObstacle;
         }
 
         private bool HasClearStrikeAnimal(Collider target, SheltreSim.World.WorldWildlife animal)

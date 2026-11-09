@@ -99,6 +99,7 @@ namespace SheltreSim.Crafting
             switch (resourceId)
             {
                 case "wood": return ToolKind.Axe;
+                case "plant_fiber": return ToolKind.Axe;
                 case "stone": case "iron_ore": case "coal": case "sulfur": return ToolKind.Pickaxe;
                 default: return ToolKind.None;
             }
@@ -116,7 +117,7 @@ namespace SheltreSim.Crafting
                 if (spec.tool != kind || inventory.GetCount(spec.id) < 1 || spec.tier <= bestTier) continue;
                 bestTier = spec.tier; bonus = spec.bonus;
             }
-            return bonus;
+            return resourceId == "plant_fiber" ? Mathf.Min(2, bonus) : bonus;
         }
 
         public string BestToolName(string resourceId)

@@ -1,6 +1,6 @@
 # M22 Blender asset handoff — GPT art / Claude runtime
 
-Status: 64 MODEL ASSETS COMPLETE,2026-11-09. Existing ASSET_SPEC.md remains authoritative for style/palette/export.
+Status: 74 MODEL ASSETS COMPLETE,2026-11-09. Existing ASSET_SPEC.md remains authoritative for style/palette/export.
 User assigned GPT new models; Claude retains runtime/gameplay, collider construction and import mapping.
 No Unity runs by art workers. Shared atlas, library, existing assets, audio and game code remain untouched.
 
@@ -24,7 +24,7 @@ integration, not a promise that the original raider capsule will fit every new b
 | art_machines | gpt-6-sol / medium | piece_armory, piece_console, piece_radio_console, piece_solar, piece_battery, piece_cooler, piece_charger, piece_pump, piece_irrigator, piece_fabricator, piece_repair |
 | art_firearms | gpt-6-sol / medium | weapon_pistol, weapon_smg, weapon_shotgun, weapon_hunting_rifle, weapon_assault_rifle, weapon_laser_pistol, weapon_laser_rifle, weapon_plasma_rifle |
 
-All 64 source scripts, FBX exports, Unity `.meta` files and previews are present. See `M22_ASSET_IDS.json` and
+All 64 original M22/M23 source scripts, FBX exports, Unity `.meta` files and previews are present. See `M22_ASSET_IDS.json` and
 `M22_MODEL_REPORT.json` for the complete inventory and measured source-mesh bounds/pivots.
 The Blender source validator reported 58/58 assets with UVs, finite vertices and no bound failures.
 Both construction openings remain clear in the report's 391-ray checks. `.blend` snapshots for
@@ -54,7 +54,7 @@ The root colossus is about 2.79m wide × 1.16m deep × 3.98m tall and needs a de
 collider. Humanoid bounds vary by equipment; use the report for exact envelopes. All models face
 +BlenderY and stand at floor Z=0.
 
-All 64 delivered IDs have source `.py`, `.fbx`, `.fbx.meta` and `.png` preview files. The report records actual
+All 74 delivered IDs have source `.py`, `.fbx`, `.fbx.meta` and `.png` preview files. The report records actual
 silhouette bounds, which can exceed intended simple collider envelopes by a few millimetres on
 some small details; notably piece_sandbag's front/back extents are about 0.67m against a nominal
 0.60m depth. Please account for this if enforcing tight collision bounds. No Unity integration or
@@ -72,5 +72,10 @@ and swapping visuals; these models are not colliders or new placeable items.
 - `piece_wall_steel_damaged`, `piece_wall_steel_critical` — 2×0.2×3m steel wall, with a real central opening in the critical mesh.
 - `piece_door_wood_damaged`, `piece_door_wood_critical` — 1.6×0.08×2.2m wood door, split planks and a larger breach at critical.
 - `piece_door_steel_damaged`, `piece_door_steel_critical` — 1.6×0.08×2.2m steel door, dented panels then a torn opening.
+- `piece_wall_damaged`, `piece_wall_critical` — salvaged mixed-material wall, with a central breach at critical.
+- `piece_fence_damaged`, `piece_fence_critical` — missing pickets and a split rail, opening a gap at critical.
+- `piece_gate_damaged`, `piece_gate_critical` — split gate boards and a breached opening at critical.
+- `piece_barricade_damaged`, `piece_barricade_critical` — buckled cover boards and a large breach at critical.
+- `piece_palisade_damaged`, `piece_palisade_critical` — splintered stakes and a gap through the centre at critical.
 
 Source bounds, triangle counts and validation are listed in `M23_DAMAGE_REPORT.json`.

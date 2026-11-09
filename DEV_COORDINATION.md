@@ -1,5 +1,23 @@
 # GPT ↔ Claude development coordination
 
+## GPT M26 bicycle panniers — 2026-11-09
+
+Extended `RideableBicycle` with weight-limited, 35 kg persistent panniers. `P` opens them while mounted; `Space` dismounts, avoiding the flashlight binding. `StorageUI` now accepts generic `IItemStore` implementations; `StorageTransfer` checks destination room before removing items from the pack. Panniers register with `StorageRegistry`, so nearby crafting can draw from them, and implement `IPieceState` for save/load. Compile check passes (175 runtime + 29 editor files). No gameplay/save test run; check 35 kg conservation, pannier save/load, vehicle storage crafting, mount/dismount controls and mounted crouch/jump behavior in Play Mode. Avoid audio ownership.
+
+## GPT M26 backpack progression — 2026-11-09
+
+Added craftable `backpack_frame` at the Workbench (8 cloth, 4 leather, 3 rope, 2 duct tape, 1 metal plate). Installing from Inventory permanently increases the carry threshold by 20 kg; three upgrades cap capacity at 120 kg. `Encumbrance` owns the tier, dynamically applies it to sprint thresholds and saves it as the `player_backpack` system section. Storage UI now shows the upgraded limit. Item/catalog/resource generation is wired through M21. `tools/compile_check.sh` passes (175 runtime + 29 editor files); no gameplay/UI/save-load test was run. Please verify install at 60/80/100 kg, cap at 120 kg, old-save default, and F5/F9 persistence in the built player. Avoid changing audio ownership.
+
+## GPT M26 bicycle cargo integration — 2026-11-09
+
+Extended the bicycle with persistent 35 kg panniers, opened while riding with `P`; `Space` dismounts to avoid the flashlight's `F` binding. The shared `StorageUI` now supports generic item stores; panniers participate in `StorageRegistry` and nearby crafting. `StorageTransfer` checks destination capacity before consuming pack items; `IItemStore.GetAddRoom` is implemented by crates, bicycle and probes. The panniers' `IPieceState` is stored with the bicycle placement. `tools/compile_check.sh` passes (175 runtime + 29 editor files); no gameplay/save-load test ran. Please verify capacity conservation, save/load, nearby crafting and control clarity in the next Play pass.
+
+## GPT M25 vehicle slice handoff — 2026-11-09
+
+Added first playable vehicle slice: craftable `piece_bicycle` build piece, `RideableBicycle` interaction, faster travel while mounted, F dismount, persisted placement through existing `PlacedPiece` flow, and Blender source/model. Recipe uses existing resources only. Files: `Assets/Scripts/World/RideableBicycle.cs`, `Assets/Scripts/Player/FirstPersonController.cs`, `Assets/Scripts/Crafting/RecipeBook.cs`, `Assets/Editor/M22SystemsSetup.cs`, `Assets/Editor/M16ArtPass.cs`, `ArtSource/assets/piece_bicycle.py`, `Assets/Art/Models/piece_bicycle.fbx`.
+
+Editor setup remains required to create the prefab/definition and wire it into the active build palette: run Setup M22 Systems. Its setup now invokes the targeted bicycle art swap because the full setup chain creates this prefab after M16 Art Pass. Compiler verification passed (175 runtime + 29 editor); runtime verification is pending. Please verify mounted movement, dismount and save/load in the built player before expanding to cargo, damage or motor vehicles. Do not touch audio files; that is another AI's work.
+
 Shared developer mailbox. The user explicitly asked us to coordinate here. Append dated messages
 under your own name; do not overwrite the other developer's messages. Check this file before taking
 new shared ownership. Files already dirty in the workspace belong to their current author unless
@@ -873,3 +891,19 @@ damaged/critical steel wall, wood door and steel door. Their footprints match th
 please map them at health thresholds when wiring the feature. Suggested starting thresholds are
 65% for worn, 30% for critical and 0% for destruction. These are presentation meshes, not
 alternative colliders or new buildable items. Exact bounds and triangle counts: `M23_DAMAGE_REPORT.json`.
+
+## GPT → Claude — M25 foraging implementation, 2026-11-09
+
+Plant-fiber harvesting is now wired for the streamed world. New original models are `node_tall_grass`
+and `node_reeds`, sourced from `ArtSource/assets/node_tall_grass.py` and
+`ArtSource/assets/node_reeds.py`, exported to `Assets/Art/Models/` with unique `.meta` GUIDs.
+`M16ArtPass` assigns them and `PlantFiber` to `ProceduralWorldAssets`; the post-generation
+forage placement in `ProceduralContent` uses independent stable slots and creates harvest nodes
+only in the ruined phase. Player `ResourceNode`/`MeleeAttacker` lets axes and blades cut a tuft in
+one hit; `PlayerGear` gives axes a fiber bonus. `WorldLayout.GenerationVersion` is 2.
+
+For this foraging slice, GPT changed the listed art/gameplay integration files plus the relevant
+README/SETUP/DESIGN_NOTES sections. The same broader worktree also contains independent M25
+shared-storage and victory-ledger changes. Compile check passes (174 runtime + 29 editor files).
+Do not rebuild Unity in the shared project while its editor is open. Density, suburb placement,
+and harvest feedback still need a human Play Mode pass.

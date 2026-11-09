@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: BatteryBank
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Battery Bank
+  id: piece_battery
+  prefab: {fileID: 2264588951354915333, guid: 90c75237f11857b0ea7abf63a07ddb74, type: 3}
+  footprintSize: {x: 1, y: 1.3, z: 0.6}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: cc4a3bb1c73128731975e8dcf5047689, type: 2}
+    amount: 2
+  - resource: {fileID: 11400000, guid: a876150a8e97f49298a9d1b258ee277d, type: 2}
+    amount: 2
+  - resource: {fileID: 11400000, guid: 525a0359032f713a5852c32eae53769c, type: 2}
+    amount: 4
+  - resource: {fileID: 11400000, guid: be5bc9f8bc26b88639037411482072d1, type: 2}
+    amount: 2
+  placementRule: 0

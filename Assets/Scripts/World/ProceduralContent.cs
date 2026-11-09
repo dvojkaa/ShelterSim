@@ -28,6 +28,7 @@ namespace SheltreSim.World
                 Suburb(root.transform, x, z, seed, assets, coordinate, ruined);
             else
                 Nature(root.transform, x, z, seed, assets, random, ruined);
+            ForagePatches(root.transform, coordinate, seed, assets, ruined);
             return root;
         }
 
@@ -142,6 +143,88 @@ namespace SheltreSim.World
                 }
                 nodeRoot.SetActive(true);
             }
+        }
+
+        /// <summary>
+        /// Independent seeded slots keep adding grass from changing roads, trees, loot, or existing resource IDs.
+        /// Patches are scenery before the bombs and become harvestable fiber sources in the ruined world.
+        /// </summary>
+        static void ForagePatches(Transform parent, Vector2Int coordinate, int seed,
+            ProceduralWorldAssets assets, bool ruined)
+        {
+            if (assets == null || assets.plantFiber == null || (assets.tallGrass == null && assets.reeds == null)) return;
+            float originX = coordinate.x * (float)WorldLayout.ChunkSize;
+            float originZ = coordinate.y * (float)WorldLayout.ChunkSize;
+            // Dense town cores contain real buildings; leave their streets and interiors to authored urban dressing.
+            if (WorldLayout.IsTownChunk(coordinate, seed)) return;
+            int centerBiome = WorldLayout.BiomeIndexAt(originX + 64f, originZ + 64f, seed);
+            int count = centerBiome == 1 ? 38 : centerBiome == 4 ? 48 : centerBiome == 2 ? 8 : centerBiome == 3 ? 12 : centerBiome == 5 ? 18 : 28;
+            var accepted = new List<Vector2>(count);
+            for (int slot = 0; slot < count; slot++)
+            {
+                System.Random random = SlotRandom(coordinate, seed, 4000 + slot);
+                float x = originX + Range(random, 3.5f, 124.5f);
+                float z = originZ + Range(random, 3.5f, 124.5f);
+                float yaw = Range(random, 0f, 360f);
+                float scale = Range(random, .85f, 1.2f);
+                int charges = 1 + random.Next(2);
+                int yield = 1 + random.Next(2);
+                float seedChance = .06f + (float)random.NextDouble() * .04f;
+                if (WorldLayout.IsHomePlot(x, z) || WorldLayout.IsWater(x, z, seed, 1f) ||
+                    WorldLayout.IsRoad(x, z, 2f) || WorldLayout.IsConnectorRoad(x, z, seed, 2f) ||
+                    !Clear(x, z, .8f, seed) || NearSuburbHouse(x, z, coordinate, seed)) continue;
+
+                int localBiome = WorldLayout.BiomeIndexAt(x, z, seed);
+                bool wetEdge = WorldLayout.IsWater(x, z, seed, 4f);
+                bool useReeds = (localBiome == 4 || wetEdge) && !WorldLayout.IsWater(x, z, seed);
+                GameObject model = useReeds && assets.reeds != null ? assets.reeds : assets.tallGrass;
+                if (model == null) model = assets.reeds;
+                if (model == null) continue;
+                bool crowded = false;
+                float minSeparation = useReeds ? 3.1f : 2.7f;
+                foreach (Vector2 previous in accepted)
+                    if ((new Vector2(x, z) - previous).sqrMagnitude < minSeparation * minSeparation)
+                    { crowded = true; break; }
+                if (crowded) continue;
+                accepted.Add(new Vector2(x, z));
+
+                var root = new GameObject("Node_Grass" + slot.ToString("D2"));
+                root.SetActive(false);
+                root.transform.SetParent(parent, false);
+                root.transform.SetPositionAndRotation(new Vector3(x, WorldLayout.HeightAt(x, z, seed), z), Quaternion.Euler(0f, yaw, 0f));
+                Visual(model, root.transform, Vector3.one * scale, assets.atlasMaterial);
+                if (ruined)
+                {
+                    var collider = root.AddComponent<BoxCollider>();
+                    collider.center = Vector3.up * .14f;
+                    collider.size = new Vector3(.55f, .28f, .55f); // below the player's step height
+                    var node = root.AddComponent<ResourceNode>();
+                    node.resourceType = assets.plantFiber;
+                    node.remainingCharges = charges;
+                    node.quantityPerHarvest = yield;
+                    node.regrowSeconds = 420f;
+                    node.bonusId = "seeds";
+                    node.bonusChance = seedChance;
+                    node.cutOnHit = true;
+                }
+                root.SetActive(true);
+            }
+        }
+
+        private static bool NearSuburbHouse(float x, float z, Vector2Int coordinate, int seed)
+        {
+            if (!WorldLayout.IsSuburbChunk(coordinate, seed)) return false;
+            float originX = coordinate.x * (float)WorldLayout.ChunkSize;
+            float originZ = coordinate.y * (float)WorldLayout.ChunkSize;
+            for (int slot = 0; slot < 6; slot++)
+            {
+                var lot = SlotRandom(coordinate, seed, slot);
+                if (lot.NextDouble() >= .8) continue;
+                float houseX = originX + 24f + (slot % 3) * 40f;
+                float houseZ = originZ + 64f + (slot >= 3 ? 27f : -27f);
+                if (Mathf.Abs(x - houseX) < 13f && Mathf.Abs(z - houseZ) < 16f) return true;
+            }
+            return false;
         }
 
         static void Town(Transform parent, float originX, float originZ, int seed,

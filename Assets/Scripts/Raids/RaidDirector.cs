@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using SheltreSim.Audio;
+using SheltreSim.Building;
 using SheltreSim.Core;
 using SheltreSim.Enemies;
 using SheltreSim.Interaction;
+using SheltreSim.Objectives;
 using SheltreSim.Player;
 using SheltreSim.Saving;
 using SheltreSim.Survival;
@@ -94,6 +96,7 @@ namespace SheltreSim.Raids
             LootBagSystem.NextId = 1;
             SaveableSystems.Register(this);
             EnemyAI.AnyDeath += OnAnyDeath;
+            StructureHealth.Destroyed += OnStructureDestroyed;
             BuildBanner();
         }
 
@@ -103,14 +106,15 @@ namespace SheltreSim.Raids
             Active = null;
             SaveableSystems.Unregister(this);
             EnemyAI.AnyDeath -= OnAnyDeath;
+            StructureHealth.Destroyed -= OnStructureDestroyed;
         }
 
         private void BuildBanner()
         {
             Canvas canvas = GameUI.CreateCanvas(transform, "RaidBannerCanvas", 40, false);
-            Image panel = GameUI.Panel(canvas.transform, "Banner", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -86f), new Vector2(460f, 54f), new Color(0.2f, 0.03f, 0.02f, 0.82f));
+            Image panel = GameUI.Panel(canvas.transform, "Banner", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -86f), new Vector2(640f, 54f), new Color(0.2f, 0.03f, 0.02f, 0.82f));
             bannerPanel = panel.gameObject;
-            banner = GameUI.Label(panel.transform, "Text", "", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(440f, 46f), 28, GameUI.Danger, TextAnchor.MiddleCenter, true);
+            banner = GameUI.Label(panel.transform, "Text", "", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620f, 46f), 28, GameUI.Danger, TextAnchor.MiddleCenter, true);
             bannerPanel.SetActive(false);
         }
 
@@ -138,6 +142,26 @@ namespace SheltreSim.Raids
             if (Time.timeScale <= 0f || !FindScene() || !SystemLive) return;
             if (stats != null && (stats.IsDead || stats.health <= 0f)) return;
             float dt = Time.deltaTime;
+
+            if (BroadcastActive)
+            {
+                TickBroadcast(dt);
+                return;
+            }
+            // Attackers left over from a broadcast hold the ordinary clock until they're dead or gone.
+            if (holdForLeftovers)
+            {
+                actors.RemoveAll(a => a == null);
+                RetreatStuck();
+                if (actors.Count > 0) return;
+                holdForLeftovers = false;
+            }
+            // After a successful broadcast raids are over for good. A raid already under way (an old save) still plays out.
+            if (ObjectiveTracker.Victory && CurrentPhase != Phase.Active)
+            {
+                WarningActive = false;
+                return;
+            }
 
             switch (CurrentPhase)
             {
@@ -185,6 +209,21 @@ namespace SheltreSim.Raids
         private void TickActive()
         {
             actors.RemoveAll(a => a == null);
+            RetreatStuck();
+            if (actors.Count == 0)
+            {
+                FinishRaid();
+                return;
+            }
+            if (Time.time >= nextHorn)
+            {
+                nextHorn = Time.time + 40f;
+                GameAudio.Play2D(Sfx.RaidHorn, 0.45f);
+            }
+        }
+
+        private void RetreatStuck()
+        {
             for (int i = actors.Count - 1; i >= 0; i--)
             {
                 RaidAgent agent = actors[i];
@@ -195,16 +234,6 @@ namespace SheltreSim.Raids
                 Debug.LogWarning($"[RaidDirector] {agent.Variant} gave up at {agent.transform.position}: {agent.LastStuckReason}");
                 actors.RemoveAt(i);
                 DespawnActor(agent);
-            }
-            if (actors.Count == 0)
-            {
-                FinishRaid();
-                return;
-            }
-            if (Time.time >= nextHorn)
-            {
-                nextHorn = Time.time + 40f;
-                GameAudio.Play2D(Sfx.RaidHorn, 0.45f);
             }
         }
 
@@ -232,7 +261,7 @@ namespace SheltreSim.Raids
         /// <summary>Probes: starts a raid right now, whatever the clock says. Does nothing outside Survival or with a raid on.</summary>
         public void DebugStartRaid(int number)
         {
-            if (!FindScene() || !SystemLive || CurrentPhase == Phase.Active) return;
+            if (!FindScene() || !SystemLive || CurrentPhase == Phase.Active || BroadcastActive) return;
             RaidNumber = Mathf.Max(1, number);
             StartRaid(RaidNumber);
         }
@@ -397,6 +426,217 @@ namespace SheltreSim.Raids
 
         private bool HasPoweredAlarm() => AlarmPiece.AnyPoweredNear(RaidRoute.StairHeadCenter, 80f);
 
+        // ---------- The rescue broadcast (the endgame) ----------
+        // Five minutes of game time on a powered, standing Radio Beacon while three waves attack. The clock only runs while
+        // the grid feeds the beacon, waves are due by time left, so they pause with it. Saved in this section with the
+        // actors, and broadcastWave counts waves already sent, so a load can't send one twice.
+
+        public const float BroadcastSeconds = 300f;
+        public const int BroadcastWaves = 3;
+        public const int MaxBroadcastActors = 18;
+        /// <summary>A beacon at the bunker: the waves come by the raid route, so a beacon elsewhere isn't defended by anything.</summary>
+        public const float BeaconHomeRange = 60f;
+
+        public bool BroadcastActive { get; private set; }
+        public float BroadcastRemaining { get; private set; }
+        /// <summary>Waves already sent, 0 to 3.</summary>
+        public int BroadcastWave { get; private set; }
+        public bool BroadcastPowered { get; private set; }
+        /// <summary>The broadcasting beacon, or null (also while it's being found again after a load).</summary>
+        public RadioBeaconPiece BroadcastBeacon => BroadcastActive ? beacon : null;
+
+        private RadioBeaconPiece beacon;
+        private Vector3 beaconPosition;
+        private float beaconMissingSeconds;
+        private float nextWaveTry;
+        private bool holdForLeftovers;
+        private bool wasPowered;
+
+        /// <summary>Starts the broadcast on this beacon, or says why not. Nothing changes on a refusal.</summary>
+        public bool TryBeginBroadcast(RadioBeaconPiece target, out string reason)
+        {
+            reason = null;
+            if (target == null || !target.isActiveAndEnabled) { reason = "The beacon can't broadcast right now."; return false; }
+            if (ObjectiveTracker.Victory) { reason = "The rescue signal is out. Help is on its way."; return false; }
+            if (BroadcastActive) { reason = "The broadcast is already running."; return false; }
+            if (!FindScene() || !SystemLive) { reason = "Nobody would hear it yet. Finish your bunker and survive the bombs first."; return false; }
+            if (stats != null && stats.IsDead) return false;
+            if (Vector3.Distance(target.transform.position, WorldLayout.BunkerCenter) > BeaconHomeRange)
+            {
+                reason = "The beacon must stand at your bunker, where you can defend it.";
+                return false;
+            }
+            actors.RemoveAll(a => a == null);
+            if (CurrentPhase != Phase.Countdown || actors.Count > 0)
+            {
+                reason = "Deal with the raiders at your base before you start the broadcast.";
+                return false;
+            }
+            BroadcastActive = true;
+            BroadcastRemaining = BroadcastSeconds;
+            BroadcastWave = 0;
+            BroadcastPowered = false;
+            beacon = target;
+            beaconPosition = target.transform.position;
+            beaconMissingSeconds = 0f;
+            nextWaveTry = 0f;
+            wasPowered = false;
+            holdForLeftovers = false;
+            WarningActive = false;
+            nextHorn = Time.time + 40f;
+            GameAudio.Play2D(Sfx.RadioPing, 0.9f);
+            GameMessageBus.Post($"Broadcast started. Keep the beacon powered ({target.powerKw:0.#} kW) and standing for 5 minutes. Everyone out there heard it.");
+            return true;
+        }
+
+        private void TickBroadcast(float dt)
+        {
+            actors.RemoveAll(a => a == null);
+            RetreatStuck();
+            if (!ResolveBeacon(dt)) return;
+
+            BroadcastPowered = beacon.Transmitting;
+            if (BroadcastPowered != wasPowered)
+            {
+                if (wasPowered) GameMessageBus.Post("The beacon lost power. The broadcast is paused.");
+                else if (BroadcastRemaining < BroadcastSeconds) GameMessageBus.Post("Power is back. The broadcast continues.");
+                wasPowered = BroadcastPowered;
+            }
+            if (BroadcastPowered) BroadcastRemaining = Mathf.Max(0f, BroadcastRemaining - dt);
+
+            if (BroadcastWave < WavesDue(BroadcastRemaining) && Time.time >= nextWaveTry) SendWave(BroadcastWave + 1);
+            if (BroadcastRemaining <= 0f)
+            {
+                CompleteBroadcast();
+                return;
+            }
+            if (actors.Count > 0 && Time.time >= nextHorn)
+            {
+                nextHorn = Time.time + 40f;
+                GameAudio.Play2D(Sfx.RaidHorn, 0.45f);
+            }
+        }
+
+        /// <summary>Wave 1 at once, wave 2 with 3:20 left, wave 3 with 1:40 left.</summary>
+        public static int WavesDue(float remaining)
+        {
+            float elapsed = BroadcastSeconds - remaining;
+            return Mathf.Clamp(1 + Mathf.FloorToInt(elapsed / (BroadcastSeconds / BroadcastWaves)), 1, BroadcastWaves);
+        }
+
+        /// <summary>
+        /// The beacon reference, found again by position after a load (pieces come back as new objects). Gone for a second,
+        /// say through dismantling, means the broadcast failed. Destruction by damage fails it at once (OnStructureDestroyed).
+        /// </summary>
+        private bool ResolveBeacon(float dt)
+        {
+            if (beacon != null && beacon.isActiveAndEnabled) { beaconMissingSeconds = 0f; return true; }
+            beacon = null;
+            float best = 1.5f * 1.5f;
+            foreach (RadioBeaconPiece candidate in RadioBeaconPiece.All)
+            {
+                if (candidate == null || !candidate.isActiveAndEnabled) continue;
+                float d = (candidate.transform.position - beaconPosition).sqrMagnitude;
+                if (d <= best) { best = d; beacon = candidate; }
+            }
+            if (beacon != null) { beaconMissingSeconds = 0f; return true; }
+            BroadcastPowered = false;
+            beaconMissingSeconds += dt;
+            if (beaconMissingSeconds > 1f) FailBroadcast("The radio beacon is gone. The broadcast failed. Build a new one to try again.");
+            return false;
+        }
+
+        private void OnStructureDestroyed(StructureHealth structure)
+        {
+            if (!BroadcastActive || structure == null || beacon == null || structure.gameObject != beacon.gameObject) return;
+            FailBroadcast("The radio beacon was destroyed. The broadcast failed. Rebuild it to try again.");
+        }
+
+        private void FailBroadcast(string message)
+        {
+            EndBroadcast();
+            // A breather before the ordinary raids pick up again.
+            Countdown = Mathf.Max(Countdown, 300f);
+            GameAudio.Play2D(Sfx.RadioStatic, 0.9f);
+            GameMessageBus.Post(message);
+        }
+
+        private void CompleteBroadcast()
+        {
+            EndBroadcast();
+            ObjectiveTracker.MarkVictory();
+            GameAudio.Play2D(Sfx.Upgrade, 0.9f);
+            GameMessageBus.Post("VICTORY: The broadcast got through. A rescue convoy is on its way and the raids are over. You survived the apocalypse. You can keep playing.");
+            if (actors.Count > 0) GameMessageBus.Post("Some attackers are still at your base. Finish them off.");
+        }
+
+        private void EndBroadcast()
+        {
+            BroadcastActive = false;
+            BroadcastPowered = false;
+            beacon = null;
+            actors.RemoveAll(a => a == null);
+            holdForLeftovers = actors.Count > 0;
+            WarningActive = false;
+        }
+
+        private void SendWave(int wave)
+        {
+            int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 0;
+            List<RaidVariant> roster = BroadcastRoster(wave, seed);
+            var random = new System.Random(unchecked(seed * 31 + 1000003 + wave * 7919));
+            int spawned = 0;
+            foreach (RaidVariant variant in roster)
+            {
+                if (actors.Count >= MaxBroadcastActors) break;
+                RaidVariantSpec spec = RaidVariantSpec.Of(variant);
+                if (!FindSpawnPoint(random, spec, out Vector3 position)) continue;
+                if (SpawnActor(variant, RaidNumber, position, Quaternion.LookRotation(Flat(RaidRoute.GateOutside - position)), -1f, null) != null) spawned++;
+            }
+            if (spawned == 0 && actors.Count < MaxBroadcastActors)
+            {
+                Debug.LogWarning($"[RaidDirector] Broadcast wave {wave} couldn't place anyone, retrying.");
+                nextWaveTry = Time.time + 5f;
+                return;
+            }
+            BroadcastWave = wave;
+            nextHorn = Time.time + 40f;
+            GameAudio.Play2D(Sfx.RaidHorn, 1f);
+            GameMessageBus.Post(wave == BroadcastWaves
+                ? "Final wave: a Warlord leads the assault on your beacon!"
+                : $"Wave {wave} of {BroadcastWaves} is coming for your beacon.");
+            AlarmPiece.NotifyRaidBegan();
+            Debug.Log($"[RaidDirector] Broadcast wave {wave}: {spawned} of {roster.Count} ({string.Join(", ", roster)}).");
+        }
+
+        /// <summary>Fixed parties, shuffled by the world seed. The last one brings a Warlord.</summary>
+        public static List<RaidVariant> BroadcastRoster(int wave, int seed)
+        {
+            var roster = new List<RaidVariant>();
+            void Add(RaidVariant variant, int count) { for (int i = 0; i < count; i++) roster.Add(variant); }
+            switch (wave)
+            {
+                case 1: Add(RaidVariant.Raider, 3); Add(RaidVariant.Scavenger, 2); Add(RaidVariant.Gunner, 1); break;
+                case 2: Add(RaidVariant.Raider, 2); Add(RaidVariant.Gunner, 2); Add(RaidVariant.Brute, 2); Add(RaidVariant.Scavenger, 1); break;
+                default: Add(RaidVariant.Warlord, 1); Add(RaidVariant.Brute, 2); Add(RaidVariant.Gunner, 2); Add(RaidVariant.Raider, 2); break;
+            }
+            var random = new System.Random(unchecked(seed * 17 + 777767 + wave * 104729));
+            // The Warlord stays first so a crowded field never leaves it out.
+            int start = roster[0] == RaidVariant.Warlord ? 1 : 0;
+            for (int i = roster.Count - 1; i > start; i--)
+            {
+                int j = start + random.Next(i - start + 1);
+                (roster[i], roster[j]) = (roster[j], roster[i]);
+            }
+            return roster;
+        }
+
+        /// <summary>Probes: runs the broadcast clock down to this many seconds (waves fall due as usual on the next frames).</summary>
+        public void DebugSetBroadcastRemaining(float seconds)
+        {
+            if (BroadcastActive) BroadcastRemaining = Mathf.Clamp(seconds, 0f, BroadcastSeconds);
+        }
+
         // ---------- Death ----------
 
         private void OnAnyDeath(EnemyAI enemy)
@@ -420,7 +660,11 @@ namespace SheltreSim.Raids
         {
             if (banner == null) return;
             string text = null;
-            if (CurrentPhase == Phase.Active) text = $"RAID {RaidNumber}: {actors.Count} left";
+            if (BroadcastActive)
+                text = $"BROADCAST {Clock(BroadcastRemaining)} / wave {Mathf.Max(1, BroadcastWave)}" + (BroadcastPowered ? "" : " / NO POWER");
+            else if (holdForLeftovers && actors.Count > 0) text = $"ATTACKERS LEFT: {actors.Count}";
+            else if (CurrentPhase == Phase.Active) text = $"RAID {RaidNumber}: {actors.Count} left";
+            else if (ObjectiveTracker.Victory) text = null;
             else if (CurrentPhase == Phase.Pending && pendingFuse >= 0f) text = "RAID INBOUND " + Clock(pendingFuse);
             else if (CurrentPhase == Phase.Countdown && WarningActive) text = "RAID INBOUND " + Clock(Countdown);
             bool show = text != null;
@@ -428,7 +672,7 @@ namespace SheltreSim.Raids
             if (show && banner.text != text) banner.text = text;
         }
 
-        private static string Clock(float seconds)
+        public static string Clock(float seconds)
         {
             int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
             return $"{s / 60}:{s % 60:00}";
@@ -477,6 +721,11 @@ namespace SheltreSim.Raids
             public float pendingFuse;
             public int raidsSurvived;
             public int nextBagId;
+            public bool broadcastActive;
+            public float broadcastRemaining;
+            public int broadcastWave;
+            public Vector3 beaconPosition;
+            public bool holdForLeftovers;
             public List<SavedActor> actors = new List<SavedActor>();
             public List<SavedBag> bags = new List<SavedBag>();
             public List<SavedDoor> doors = new List<SavedDoor>();
@@ -494,6 +743,11 @@ namespace SheltreSim.Raids
                 pendingFuse = pendingFuse,
                 raidsSurvived = RaidsSurvived,
                 nextBagId = LootBagSystem.NextId,
+                broadcastActive = BroadcastActive,
+                broadcastRemaining = BroadcastRemaining,
+                broadcastWave = BroadcastWave,
+                beaconPosition = beaconPosition,
+                holdForLeftovers = holdForLeftovers,
             };
             actors.RemoveAll(a => a == null);
             foreach (RaidAgent agent in actors)
@@ -535,6 +789,17 @@ namespace SheltreSim.Raids
             RaidsSurvived = Mathf.Max(0, saved.raidsSurvived);
             LootBagSystem.NextId = saved.nextBagId;
             nextHorn = Time.time + 40f;
+            // The beacon is found again by position on the next frames: pieces come back as new objects.
+            BroadcastActive = saved.broadcastActive && !float.IsNaN(saved.broadcastRemaining);
+            BroadcastRemaining = BroadcastActive ? Mathf.Clamp(saved.broadcastRemaining, 0f, BroadcastSeconds) : 0f;
+            BroadcastWave = BroadcastActive ? Mathf.Clamp(saved.broadcastWave, 0, BroadcastWaves) : 0;
+            BroadcastPowered = false;
+            beacon = null;
+            beaconPosition = saved.beaconPosition;
+            beaconMissingSeconds = 0f;
+            nextWaveTry = 0f;
+            wasPowered = false;
+            holdForLeftovers = saved.holdForLeftovers && saved.actors.Count > 0;
 
             foreach (SavedBag bag in saved.bags)
             {

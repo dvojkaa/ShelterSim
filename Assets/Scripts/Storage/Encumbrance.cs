@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using SheltreSim.Crafting;
 using SheltreSim.Items;
 using SheltreSim.Player;
+using SheltreSim.Saving;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -15,7 +16,7 @@ namespace SheltreSim.Storage
     /// so the sprint upgrade in sprintSpeed keeps working. Derived from the pack, so nothing is saved. Creates itself
     /// after every scene load, no scene edit.
     /// </summary>
-    public sealed class Encumbrance : MonoBehaviour
+    public sealed class Encumbrance : MonoBehaviour, ISaveableSystem
     {
         public const float SoftLimit = 60f;
         public const float NoSprintAt = 100f;
@@ -36,8 +37,17 @@ namespace SheltreSim.Storage
         private GameObject hud;
         private Text label;
         private float timer;
+        private int backpackTier;
+
+        [System.Serializable]
+        private sealed class SavedBackpack { public int tier; }
 
         public static Encumbrance Active => instance;
+        public const int MaxBackpackTier = 3;
+        public int BackpackTier => backpackTier;
+        public float CarryCapacity => SoftLimit + backpackTier * 20f;
+        public bool CanUpgradeBackpack => backpackTier < MaxBackpackTier;
+        public string SaveKey => "player_backpack";
         public float CurrentLoad { get; private set; }
         public string LabelText { get; private set; } = string.Empty;
         public bool LabelVisible => hud != null && hud.activeSelf;
@@ -75,18 +85,24 @@ namespace SheltreSim.Storage
 
         /// <summary>Exactly 1 at or under the limit, down to the walk/sprint ratio by NoSprintAt. Never zero.</summary>
         public static float SprintFactor(float load, float walkSpeed, float sprintSpeed)
+            => SprintFactor(load, walkSpeed, sprintSpeed, SoftLimit, NoSprintAt);
+
+        public static float SprintFactor(float load, float walkSpeed, float sprintSpeed, float softLimit, float noSprintAt)
         {
-            if (load <= SoftLimit || sprintSpeed <= 0f) return 1f;
+            if (load <= softLimit || sprintSpeed <= 0f) return 1f;
             float worst = Mathf.Clamp(walkSpeed / sprintSpeed, 0.05f, 1f);
-            return Mathf.Lerp(1f, worst, Mathf.InverseLerp(SoftLimit, NoSprintAt, load));
+            return Mathf.Lerp(1f, worst, Mathf.InverseLerp(softLimit, Mathf.Max(softLimit + 0.01f, noSprintAt), load));
         }
 
         /// <summary>The full readout used by the storage screen.</summary>
         public static string Describe(float load)
+            => Describe(load, SoftLimit);
+
+        public static string Describe(float load, float capacity)
         {
-            if (load >= NoSprintAt) return $"Overloaded: no sprint ({load:0.#}/{SoftLimit:0} kg)";
-            if (load > SoftLimit) return $"Overloaded: slower sprint ({load:0.#}/{SoftLimit:0} kg)";
-            return $"Load {load:0.#}/{SoftLimit:0} kg";
+            if (load >= capacity + 40f) return $"Overloaded: no sprint ({load:0.#}/{capacity:0} kg)";
+            if (load > capacity) return $"Overloaded: slower sprint ({load:0.#}/{capacity:0} kg)";
+            return $"Load {load:0.#}/{capacity:0} kg";
         }
 
         // ---------- Lifecycle ----------
@@ -118,11 +134,13 @@ namespace SheltreSim.Storage
         {
             if (instance != null && instance != this) { Destroy(gameObject); return; }
             instance = this;
+            SaveableSystems.Register(this);
             BuildHud();
         }
 
         private void OnDestroy()
         {
+            SaveableSystems.Unregister(this);
             if (instance == this) instance = null;
         }
 
@@ -145,12 +163,35 @@ namespace SheltreSim.Storage
             if (player == null) { ShowLabel(string.Empty, Color.white); return; }
 
             CurrentLoad = PackWeight(pack);
-            player.sprintMultiplier = SprintFactor(CurrentLoad, player.walkSpeed, player.sprintSpeed);
+            player.sprintMultiplier = SprintFactor(CurrentLoad, player.walkSpeed, player.sprintSpeed, CarryCapacity, CarryCapacity + 40f);
 
-            if (CurrentLoad >= NoSprintAt) ShowLabel(Describe(CurrentLoad), GameUI.Danger);
-            else if (CurrentLoad > SoftLimit) ShowLabel(Describe(CurrentLoad), GameUI.Warning);
-            else if (CurrentLoad > SoftLimit * WarnFraction) ShowLabel(Describe(CurrentLoad), GameUI.Muted);
+            if (CurrentLoad >= CarryCapacity + 40f) ShowLabel(Describe(CurrentLoad, CarryCapacity), GameUI.Danger);
+            else if (CurrentLoad > CarryCapacity) ShowLabel(Describe(CurrentLoad, CarryCapacity), GameUI.Warning);
+            else if (CurrentLoad > CarryCapacity * WarnFraction) ShowLabel(Describe(CurrentLoad, CarryCapacity), GameUI.Muted);
             else ShowLabel(string.Empty, Color.white);
+        }
+
+        public bool TryInstallBackpackUpgrade(Inventory inventory, string itemId)
+        {
+            if (!CanUpgradeBackpack || inventory == null || string.IsNullOrEmpty(itemId) ||
+                !(ItemCatalog.Spec(itemId)?.backpackUpgrade ?? false) || !inventory.TryConsume(itemId, 1)) return false;
+            backpackTier++;
+            RefreshNow();
+            return true;
+        }
+
+        public string CaptureState() => JsonUtility.ToJson(new SavedBackpack { tier = backpackTier });
+
+        public void RestoreState(string state)
+        {
+            int tier = 0;
+            if (!string.IsNullOrEmpty(state))
+            {
+                try { tier = JsonUtility.FromJson<SavedBackpack>(state)?.tier ?? 0; }
+                catch { tier = 0; }
+            }
+            backpackTier = Mathf.Clamp(tier, 0, MaxBackpackTier);
+            RefreshNow();
         }
 
         // ---------- HUD ----------

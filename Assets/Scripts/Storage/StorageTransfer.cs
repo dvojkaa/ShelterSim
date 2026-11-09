@@ -56,7 +56,7 @@ namespace SheltreSim.Storage
         public static int Store(Inventory pack, IItemStore crate, string id, int amount)
         {
             if (pack == null || crate == null || string.IsNullOrWhiteSpace(id) || amount <= 0) return 0;
-            int moved = Math.Min(Math.Min(amount, MovableFromPack(pack, id)), int.MaxValue - crate.GetCount(id));
+            int moved = Math.Min(Math.Min(Math.Min(amount, MovableFromPack(pack, id)), int.MaxValue - crate.GetCount(id)), crate.GetAddRoom(id));
             if (moved <= 0 || !pack.TryConsume(id, moved)) return 0;
             crate.Add(id, moved);
             return moved;
@@ -79,6 +79,36 @@ namespace SheltreSim.Storage
             foreach (string id in new List<string>(pack.GetAllCounts().Keys))
                 if (IsBuildingMaterial(id)) total += Store(pack, crate, id, All);
             return total;
+        }
+
+        /// <summary>What quick stack may move: anything but food, drink, medicine and ammo, which you want on you. Equipped copies stay (Store).</summary>
+        public static bool IsQuickStackable(string id)
+        {
+            ItemSpec spec = ItemCatalog.Spec(id);
+            return spec != null && !spec.IsConsumable && !IsAmmo(id);
+        }
+
+        /// <summary>
+        /// Moves each quick-stackable pack item into the first of the crates that already holds some of it (so put the open
+        /// crate first). Every move is one Store call, so nothing is lost or duplicated. Returns items moved and kinds moved.
+        /// </summary>
+        public static (long items, int kinds) QuickStack(Inventory pack, IReadOnlyList<IItemStore> crates)
+        {
+            if (pack == null || crates == null || crates.Count == 0) return (0, 0);
+            long total = 0;
+            int kinds = 0;
+            foreach (string id in new List<string>(pack.GetAllCounts().Keys))
+            {
+                if (!IsQuickStackable(id) || MovableFromPack(pack, id) <= 0) continue;
+                foreach (IItemStore crate in crates)
+                {
+                    if (crate == null || crate.GetCount(id) <= 0) continue;
+                    int moved = Store(pack, crate, id, All);
+                    if (moved > 0) { total += moved; kinds++; }
+                    break;
+                }
+            }
+            return (total, kinds);
         }
 
         public static long TakeAll(Inventory pack, IItemStore crate)

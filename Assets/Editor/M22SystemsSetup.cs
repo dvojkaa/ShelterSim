@@ -24,6 +24,15 @@ namespace SheltreSim.EditorTools
         private const string WeaponPrefabs = "Assets/Art/Resources/Weapons/";
         private const string PropPrefabs = "Assets/Art/Resources/Props/";
         private const string EnemyPrefabs = "Assets/Art/Resources/Enemies/";
+        private const string DamageStagePrefabs = "Assets/Art/Resources/DamageStages/";
+        /// <summary>Piece id to GPT's intact model id, whose _damaged and _critical versions StructureDamageVisual swaps in.</summary>
+        private static readonly (string pieceId, string modelId)[] DamageStagePieces =
+        {
+            ("wall_segment", "piece_wall"), ("piece_wall_steel", "piece_wall_steel"),
+            ("piece_door_wood", "piece_door_wood"), ("piece_door_steel", "piece_door_steel"),
+            ("piece_fence", "piece_fence"), ("piece_gate", "piece_gate"),
+            ("piece_barricade", "piece_barricade"), ("piece_palisade", "piece_palisade"),
+        };
         private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell" };
 
         private sealed class Row
@@ -48,12 +57,15 @@ namespace SheltreSim.EditorTools
             new Row("piece_fabricator", "Fabricator", "Fabricator", "SheltreSim.Power.FabricatorPiece", 1.6f, 1.6f, 1f, Machine, 200f),
             new Row("piece_repair", "Repair Station", "RepairStation", "SheltreSim.Power.RepairStationPiece", 1f, 1.8f, 1f, new Color(.8f, .5f, .15f), 150f),
             new Row("piece_radio_console", "Radio Console", "RadioConsole", "SheltreSim.Objectives.RadioConsolePiece", 1.2f, 1.4f, .7f, new Color(.3f, .35f, .25f), 80f),
+            new Row("piece_bicycle", "Scrap Bicycle", "ScrapBicycle", "SheltreSim.World.RideableBicycle", 1.8f, 1.3f, .65f, new Color(.25f, .3f, .28f), 100f),
             new Row("piece_sandbag", "Sandbag Wall", "SandbagWall", null, 2f, 1.1f, .6f, Sand, 260f),
             new Row("piece_spike_trap", "Spike Trap", "SpikeTrap", "SheltreSim.Raids.SpikeTrapPiece", 2f, .25f, 2f, Danger, 300f, true),
             new Row("piece_shock_trap", "Shock Trap", "ShockTrap", "SheltreSim.Raids.ShockTrapPiece", 2f, .2f, 2f, new Color(.7f, .7f, .2f), 200f, true),
             new Row("piece_turret_mg", "Machine Gun Turret", "TurretMG", "SheltreSim.Raids.MachineGunTurretPiece", 1f, 1.5f, 1f, Danger, 220f),
             new Row("piece_turret_laser", "Laser Turret", "TurretLaser", "SheltreSim.Raids.LaserTurretPiece", 1f, 1.6f, 1f, new Color(.3f, .5f, .8f), 180f),
             new Row("piece_alarm", "Raid Alarm", "RaidAlarm", "SheltreSim.Raids.AlarmPiece", .5f, 1.8f, .5f, Danger, 60f),
+            new Row("piece_light_ceiling", "Ceiling Light", "CeilingLight", "SheltreSim.Power.LightPiece", .4f, .2f, .4f, new Color(1f, .82f, .46f), 40f),
+            new Row("piece_floodlight", "Floodlight", "Floodlight", "SheltreSim.Power.LightPiece", .5f, .5f, .4f, new Color(.7f, .82f, 1f), 60f),
         };
 
         // Pieces made by older milestones: hit points only, plus the behaviour that was missing.
@@ -71,6 +83,7 @@ namespace SheltreSim.EditorTools
             Material atlas = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/SS_Atlas.mat");
             var added = new List<BuildPieceDefinition>();
             foreach (Row row in Rows) added.Add(BuildPiece(row, atlas));
+            M16ArtPass.ApplyBicycleArt();
             UpgradeOlderPieces();
             BuildWeaponPrefabs(atlas);
             Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
@@ -81,6 +94,7 @@ namespace SheltreSim.EditorTools
                 ModelPrefab(WeaponModels + species.ModelId + ".fbx", EnemyPrefabs + species.ModelId + ".prefab", species.ModelId, atlas);
                 AddAnimator(WeaponModels + species.ModelId + ".fbx", EnemyPrefabs + species.ModelId);
             }
+            BuildDamageStages(atlas);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             WireScene(added);
@@ -108,6 +122,8 @@ namespace SheltreSim.EditorTools
                     {
                         Component component = root.AddComponent(ResolveType(row.type));
                         if (component is WorkbenchStation station) station.kind = SheltreSim.Crafting.StationKind.Armory;
+                        if (component is SheltreSim.Power.LightPiece light)
+                            light.fixture = row.id == "piece_floodlight" ? SheltreSim.Power.LightFixture.Floodlight : SheltreSim.Power.LightFixture.Ceiling;
                     }
                     if (row.trigger) root.GetComponent<BoxCollider>().isTrigger = true;
                     root.AddComponent<StructureHealth>().maxHealth = row.hp;
@@ -137,12 +153,59 @@ namespace SheltreSim.EditorTools
                 GameObject root = PrefabUtility.LoadPrefabContents(path);
                 try
                 {
-                    StructureHealth health = root.GetComponent<StructureHealth>() ?? root.AddComponent<StructureHealth>();
+                    StructureHealth health = root.GetComponent<StructureHealth>();
+                    if (health == null) health = root.AddComponent<StructureHealth>(); // not ??: Unity objects fake null
                     health.maxHealth = hp;
                     if (def.id == "generator" && root.GetComponent(ResolveType("SheltreSim.Power.GeneratorPiece")) == null)
                         root.AddComponent(ResolveType("SheltreSim.Power.GeneratorPiece"));
                     if (def.id == "storage_crate" && root.GetComponent(ResolveType("SheltreSim.Storage.StorageCratePiece")) == null)
                         root.AddComponent(ResolveType("SheltreSim.Storage.StorageCratePiece"));
+                    PrefabUtility.SaveAsPrefabAsset(root, path);
+                }
+                finally { PrefabUtility.UnloadPrefabContents(root); }
+            }
+        }
+
+        /// <summary>
+        /// Worn and broken looks for walls, doors and outdoor defenses: a Resources prefab per stage model, and StructureDamageVisual on each piece
+        /// prefab that has both, next to its StructureHealth. Runs after M22HomesteadSetup, which rebuilds the door prefabs.
+        /// </summary>
+        private static void BuildDamageStages(Material atlas)
+        {
+            Directory.CreateDirectory(DamageStagePrefabs.TrimEnd('/'));
+            var defs = new Dictionary<string, BuildPieceDefinition>();
+            foreach (string guid in AssetDatabase.FindAssets("t:BuildPieceDefinition"))
+            {
+                var def = AssetDatabase.LoadAssetAtPath<BuildPieceDefinition>(AssetDatabase.GUIDToAssetPath(guid));
+                if (def != null && !string.IsNullOrEmpty(def.id)) defs[def.id] = def;
+            }
+            foreach (var (pieceId, modelId) in DamageStagePieces)
+            {
+                bool complete = true;
+                foreach (string suffix in new[] { "_damaged", "_critical" })
+                {
+                    string id = modelId + suffix;
+                    ModelPrefab(WeaponModels + id + ".fbx", DamageStagePrefabs + id + ".prefab", id, atlas);
+                    complete &= File.Exists(DamageStagePrefabs + id + ".prefab");
+                }
+                if (!defs.TryGetValue(pieceId, out BuildPieceDefinition piece) || piece.prefab == null)
+                {
+                    Debug.LogWarning($"[M22] no piece {pieceId} for damage stages");
+                    continue;
+                }
+                string path = AssetDatabase.GetAssetPath(piece.prefab);
+                GameObject root = PrefabUtility.LoadPrefabContents(path);
+                try
+                {
+                    StructureDamageVisual visual = root.GetComponent<StructureDamageVisual>();
+                    if (!complete || root.GetComponent<StructureHealth>() == null)
+                    {
+                        if (visual != null) { UnityEngine.Object.DestroyImmediate(visual); PrefabUtility.SaveAsPrefabAsset(root, path); }
+                        Debug.LogWarning($"[M22] {pieceId}: damage stages skipped (models {(complete ? "present" : "missing")}, health {(root.GetComponent<StructureHealth>() != null)})");
+                        continue;
+                    }
+                    if (visual == null) visual = root.AddComponent<StructureDamageVisual>();
+                    visual.modelId = modelId;
                     PrefabUtility.SaveAsPrefabAsset(root, path);
                 }
                 finally { PrefabUtility.UnloadPrefabContents(root); }

@@ -97,13 +97,14 @@ namespace SheltreSim.Objectives
             return instance;
         }
 
-        /// <summary>Set by RadioBeaconPiece: saved with the game, so it comes back on load and resets on a new one.</summary>
+        /// <summary>Set by RaidDirector when the beacon's broadcast completes: saved with the game, so it comes back on load and resets on a new one. Ends the raids for good.</summary>
         public static void MarkVictory() => Ensure().state.victory = true;
 
         private void Awake()
         {
             if (instance != null && instance != this) { Destroy(gameObject); return; }
             instance = this;
+            if (GetComponent<VictoryLedger>() == null) gameObject.AddComponent<VictoryLedger>();
             SaveableSystems.Register(this);
         }
 
@@ -300,6 +301,9 @@ namespace SheltreSim.Objectives
         {
             FindPlayer();
             var lines = new List<string>();
+            SheltreSim.Raids.RaidDirector raids = SheltreSim.Raids.RaidDirector.Active;
+            if (raids != null && raids.BroadcastActive)
+                return "Defend the Radio Beacon and keep it powered until the broadcast ends.";
             RelayStep step = Step;
             if (step == RelayStep.Contact) lines.Add("Relay repaired: contact it from a powered Radio Console.");
             ExpeditionProgression progression = ExpeditionProgression.Active;
@@ -320,7 +324,7 @@ namespace SheltreSim.Objectives
             else if (step == RelayStep.FindOutpost)
                 lines.Add(RadioConsolePiece.AnyPlaced ? "Find a Military relay outpost: scan from a powered Radio Console."
                     : "Build a Radio Console and power it to find a Military relay outpost.");
-            if (lines.Count == 0 && !state.victory) lines.Add("Build the Radio Beacon and broadcast the rescue signal.");
+            if (lines.Count == 0 && !state.victory) lines.Add("Build the Radio Beacon at your bunker, then defend it powered through a 5 minute broadcast.");
             if (lines.Count > 2) lines.RemoveRange(2, lines.Count - 2);
             return string.Join("\n", lines);
         }

@@ -14,6 +14,11 @@ namespace SheltreSim.Player
         /// <summary>Set by other systems (encumbrance). 1 is normal. Never zero: the player can always walk.</summary>
         [System.NonSerialized] public float sprintMultiplier = 1f;
 
+        [Header("Crouch (hold Left Ctrl)")]
+        public float crouchHeight = 1.1f;
+        public float crouchSpeed = 2f;
+        public float crouchCameraSpeed = 12f;
+
         [Header("Look")]
         public float lookSensitivity = 0.12f;
         public float cameraPitchMin = -85f;
@@ -29,8 +34,25 @@ namespace SheltreSim.Player
         private PlayerInputActions input;
         private Vector3 verticalVelocity;
         private float pitch;
+        private Camera viewCamera;
+        private float standingHeight;
+        private Vector3 standingCenter;
+        private float standingEyeY;
+        private float eyeY;
+        private bool crouched;
+        private bool warnedNoHeadroom;
+        private readonly Collider[] headroomHits = new Collider[16];
 
         public float CameraPitch => pitch;
+        public bool IsCrouching => crouched;
+        public Vector2 MoveInput => input != null ? Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
+        private bool bicycleMounted;
+
+        public void SetBicycleMounted(bool mounted)
+        {
+            bicycleMounted = mounted;
+            if (mounted && crouched) SetCrouched(false);
+        }
 
         public void RestoreView(float cameraPitch)
         {
@@ -54,6 +76,27 @@ namespace SheltreSim.Player
             {
                 Debug.LogError($"{nameof(FirstPersonController)} on '{name}' has no cameraPivot assigned — camera pitch will not work.");
             }
+
+            standingHeight = controller.height;
+            standingCenter = controller.center;
+            standingEyeY = eyeY = cameraPivot != null ? cameraPivot.localPosition.y : 1.6f;
+            viewCamera = cameraPivot != null ? cameraPivot.GetComponentInChildren<Camera>(true) : null;
+            // A restart reloads the scene without resetting statics: this player starts standing.
+            PlayerStealth.Crouching = false;
+            ApplySettings();
+            GameplaySettings.Changed += ApplySettings;
+
+            // M24 player kit. Each creates what it needs; the checks keep a rebuilt scene from doubling them.
+            if (GetComponent<Flashlight>() == null) gameObject.AddComponent<Flashlight>();
+            if (GetComponent<QuickSlots>() == null) gameObject.AddComponent<QuickSlots>();
+            if (GetComponent<SheltreSim.UI.PlayerStatusHUD>() == null) gameObject.AddComponent<SheltreSim.UI.PlayerStatusHUD>();
+        }
+
+        /// <summary>Look sensitivity and field of view from the pause menu (PlayerPrefs).</summary>
+        private void ApplySettings()
+        {
+            lookSensitivity = GameplaySettings.LookSensitivity;
+            if (viewCamera != null) viewCamera.fieldOfView = GameplaySettings.FieldOfView;
         }
 
         private void OnEnable()
@@ -65,6 +108,14 @@ namespace SheltreSim.Player
 
         private void OnDisable()
         {
+            if (crouched) SetCrouched(false);
+            eyeY = standingEyeY;
+            if (cameraPivot != null)
+            {
+                Vector3 local = cameraPivot.localPosition;
+                local.y = standingEyeY;
+                cameraPivot.localPosition = local;
+            }
             input.Disable();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -77,6 +128,8 @@ namespace SheltreSim.Player
         // on application quit, so nothing leaks.
         private void OnDestroy()
         {
+            GameplaySettings.Changed -= ApplySettings;
+            PlayerStealth.Crouching = false;
             input?.Dispose();
         }
 
@@ -92,6 +145,7 @@ namespace SheltreSim.Player
             }
 
             HandleLook();
+            if (!bicycleMounted) HandleCrouch();
             HandleMove();
         }
 
@@ -117,8 +171,9 @@ namespace SheltreSim.Player
         private void HandleMove()
         {
             Vector2 moveInput = Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f);
-            bool sprinting = input.Sprint.IsPressed();
-            float speed = sprinting ? Mathf.Max(walkSpeed, sprintSpeed * Mathf.Clamp01(sprintMultiplier)) : walkSpeed;
+            bool sprinting = !crouched && input.Sprint.IsPressed();
+            float speed = crouched ? Mathf.Min(walkSpeed, crouchSpeed)
+                : sprinting ? Mathf.Max(walkSpeed, sprintSpeed * Mathf.Clamp01(sprintMultiplier)) : walkSpeed;
 
             Vector3 horizontal = (transform.right * moveInput.x + transform.forward * moveInput.y) * speed;
 
@@ -127,7 +182,7 @@ namespace SheltreSim.Player
                 // Small downward bias instead of 0 keeps isGrounded reporting true on flat ground.
                 verticalVelocity.y = -2f;
 
-                if (input.Jump.WasPressedThisFrame())
+                if (!bicycleMounted && !crouched && input.Jump.WasPressedThisFrame())
                 {
                     verticalVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 }
@@ -137,6 +192,74 @@ namespace SheltreSim.Player
 
             Vector3 motion = (horizontal + new Vector3(0f, verticalVelocity.y, 0f)) * Time.deltaTime;
             controller.Move(motion);
+        }
+
+        /// <summary>
+        /// Hold to crouch: the capsule shrinks from the top (feet stay put), walk speed drops, no sprint or jump,
+        /// and enemies notice the player at half range (PlayerStealth). Standing up needs headroom.
+        /// </summary>
+        private void HandleCrouch()
+        {
+            bool want = input.Crouch.IsPressed();
+            if (want && !crouched)
+            {
+                SetCrouched(true);
+            }
+            else if (!want && crouched)
+            {
+                if (HasHeadroom())
+                {
+                    SetCrouched(false);
+                }
+                else if (!warnedNoHeadroom)
+                {
+                    warnedNoHeadroom = true;
+                    SheltreSim.UI.GameMessageBus.Post("No room to stand up here.");
+                }
+            }
+
+            if (cameraPivot != null)
+            {
+                float target = crouched ? standingEyeY - (standingHeight - CrouchHeight) : standingEyeY;
+                eyeY = Mathf.Lerp(eyeY, target, 1f - Mathf.Exp(-crouchCameraSpeed * Time.deltaTime));
+                if (Mathf.Abs(eyeY - target) < 0.001f) eyeY = target;
+                Vector3 local = cameraPivot.localPosition;
+                local.y = eyeY;
+                cameraPivot.localPosition = local;
+            }
+        }
+
+        private float CrouchHeight => Mathf.Clamp(crouchHeight, controller.radius * 2f + 0.05f, standingHeight);
+
+        private void SetCrouched(bool value)
+        {
+            crouched = value;
+            warnedNoHeadroom = false;
+            PlayerStealth.Crouching = value;
+            float height = value ? CrouchHeight : standingHeight;
+            // Keep the bottom of the capsule where it is.
+            float feet = standingCenter.y - standingHeight * 0.5f;
+            controller.height = height;
+            controller.center = new Vector3(standingCenter.x, feet + height * 0.5f, standingCenter.z);
+        }
+
+        /// <summary>Is the space between the crouched head and the standing head free of solid colliders (other than the player's own)?</summary>
+        private bool HasHeadroom()
+        {
+            float scale = Mathf.Abs(transform.lossyScale.y);
+            float radius = controller.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z));
+            Vector3 feet = transform.TransformPoint(new Vector3(standingCenter.x, standingCenter.y - standingHeight * 0.5f, standingCenter.z));
+            Vector3 bottom = feet + Vector3.up * (CrouchHeight * scale);
+            Vector3 top = feet + Vector3.up * Mathf.Max(CrouchHeight * scale, standingHeight * scale - radius);
+            int count = Physics.OverlapCapsuleNonAlloc(bottom, top, radius * 0.95f, headroomHits, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider hit = headroomHits[i];
+                if (hit == null || hit.transform == transform || hit.transform.IsChildOf(transform) || hit == controller) continue;
+                if (hit.GetComponentInParent<CharacterController>() == controller) continue;
+                return false;
+            }
+            return true;
         }
     }
 }

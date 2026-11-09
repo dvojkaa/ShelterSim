@@ -76,9 +76,19 @@
   "damage_visuals": [
     "piece_wall_steel_damaged",
     "piece_wall_steel_critical",
+    "piece_wall_damaged",
+    "piece_wall_critical",
     "piece_door_wood_damaged",
     "piece_door_wood_critical",
     "piece_door_steel_damaged",
-    "piece_door_steel_critical"
+    "piece_door_steel_critical",
+    "piece_fence_damaged",
+    "piece_fence_critical",
+    "piece_gate_damaged",
+    "piece_gate_critical",
+    "piece_barricade_damaged",
+    "piece_barricade_critical",
+    "piece_palisade_damaged",
+    "piece_palisade_critical"
   ]
 }

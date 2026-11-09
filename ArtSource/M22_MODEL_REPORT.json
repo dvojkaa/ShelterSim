@@ -2350,5 +2350,295 @@
       }
     ],
     "failures": []
+  },
+  {
+    "id": "piece_wall_damaged",
+    "tris": 808,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.096,
+        0.096
+      ],
+      "z": [
+        0.0,
+        3.0
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_wall_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_wall_critical",
+    "tris": 428,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.09,
+        0.09
+      ],
+      "z": [
+        0.0,
+        3.0
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_wall_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_fence_damaged",
+    "tris": 144,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.05,
+        0.05
+      ],
+      "z": [
+        0.0,
+        1.2
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_fence_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_fence_critical",
+    "tris": 140,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.05,
+        0.05
+      ],
+      "z": [
+        0.0,
+        1.2
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_fence_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_gate_damaged",
+    "tris": 204,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.047,
+        0.047
+      ],
+      "z": [
+        0.02,
+        1.14
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_gate_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_gate_critical",
+    "tris": 140,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.047,
+        0.047
+      ],
+      "z": [
+        0.016,
+        1.14
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_gate_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_barricade_damaged",
+    "tris": 168,
+    "bounds": {
+      "x": [
+        -0.94,
+        0.94
+      ],
+      "y": [
+        -0.19,
+        0.17
+      ],
+      "z": [
+        0.0,
+        1.08
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_barricade_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_barricade_critical",
+    "tris": 152,
+    "bounds": {
+      "x": [
+        -0.909,
+        0.967
+      ],
+      "y": [
+        -0.185,
+        0.15
+      ],
+      "z": [
+        0.0,
+        1.08
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_barricade_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_palisade_damaged",
+    "tris": 464,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.15,
+        0.15
+      ],
+      "z": [
+        0.0,
+        2.96
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_palisade_damaged",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "piece_palisade_critical",
+    "tris": 462,
+    "bounds": {
+      "x": [
+        -1.0,
+        1.0
+      ],
+      "y": [
+        -0.15,
+        0.15
+      ],
+      "z": [
+        0.0,
+        2.96
+      ]
+    },
+    "parts": [
+      {
+        "name": "piece_palisade_critical",
+        "pivot": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "failures": []
   }
 ]

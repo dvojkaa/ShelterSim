@@ -10,7 +10,7 @@ namespace SheltreSim.EditorTools
 {
     /// <summary>
     /// M22: the structural kit. Prefabs with real openings and sloped colliders, definitions from HomesteadCatalog, and placement
-    /// rules on existing pieces. Idempotent. Run after M21. Colliders follow ArtSource/assets/_m22_build.py (window opening 1.08 x 1.2, sill at 1 m).
+    /// rules on existing pieces. Idempotent. Run after M21. Damage-stage looks (StructureDamageVisual) are added by M22SystemsSetup, which runs next. Colliders follow ArtSource/assets/_m22_build.py (window opening 1.08 x 1.2, sill at 1 m).
     /// </summary>
     public static class M22HomesteadSetup
     {
@@ -179,7 +179,8 @@ namespace SheltreSim.EditorTools
             GameObject root = PrefabUtility.LoadPrefabContents(path);
             try
             {
-                StructureHealth health = root.GetComponent<StructureHealth>() ?? root.AddComponent<StructureHealth>();
+                StructureHealth health = root.GetComponent<StructureHealth>();
+                if (health == null) health = root.AddComponent<StructureHealth>(); // not ??: Unity objects fake null
                 health.maxHealth = hp;
                 PrefabUtility.SaveAsPrefabAsset(root, path);
             }

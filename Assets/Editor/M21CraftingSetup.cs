@@ -88,6 +88,7 @@ namespace SheltreSim.EditorTools
                 def.isDrink = spec.drink; def.thirstRestored = spec.thirst;
                 def.isMedicine = spec.medicine; def.healAmount = spec.heal;
                 def.isWeapon = spec.weapon; def.weaponDamage = spec.damage; def.damageBonus = 0f;
+                def.isBackpackUpgrade = spec.backpackUpgrade;
                 def.toolKind = spec.tool; def.toolTier = spec.tier; def.toolBonus = spec.bonus;
                 def.gearSlot = spec.slot; def.damageReduction = spec.reduction; def.warmth = spec.warmth;
                 EditorUtility.SetDirty(def);

@@ -1,128 +1,85 @@
 # SheltreSim
 
-First-person bunker building and survival in a seeded, streamed wasteland. Prepare at home,
-trigger the apocalypse, then explore, scavenge and improve your equipment for longer expeditions.
-Unity6 / C# / Linux / Built-in Render Pipeline / New Input System.
+First-person bunker building and survival in a seeded, streamed wasteland. Prepare at home, trigger the apocalypse, explore, scavenge, build defenses and power grids, and broadcast for rescue.
+**Tech stack:** Unity 6 (6000.6.8f1) / C# / Linux / Built-in Render Pipeline / New Input System.
 
-## Play it (testers)
+---
 
-Linux only for now. No Unity needed:
+## Play it (Linux testers)
 
-```
+No Unity required for standalone testing:
+
+```sh
 git clone git@github.com:dvojkaa/ShelterSim.git
 cd ShelterSim
 ./Builds/Linux/SheltreSim.x86_64
 ```
 
-What to try is in the M20-M21 checklist at the end of `SETUP.md`.
+See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic probes.
 
-## The world
+---
 
-The original bunker and starter ruins remain hand-built. Beyond them, 128m chunks generate as you
-travel and unload at distance. The same seed reconstructs the same terrain and content regardless
-of visit order. Only changed resources, searched caches and damaged/defeated patrols need storing.
+## The World & Exploration
 
-- Six biomes: wasteland, pine forest, desert, snow, wetlands and highlands.
-- Town districts with street grids, cars and searchable ground-floor rooms.
-- River valleys, shallow lakes, mountain passes and highway bridges.
-- Six expedition destinations: hospital, factory, fuel station, farm, military outpost, abandoned bunker.
-  Their silhouettes and loot tables differ; raised sites use walkable access ramps.
-- Deer, boars and birds wander/flee. Patrol encounters and abandoned relief supplies add local activity.
-- The atlas (`M`) shows the local seeded landscape, roads, town districts and bunker direction.
+* **Streamed 128m chunks:** Deterministic terrain, roads, and waterways generated from seed; unloads at distance.
+* **Six biomes:** Wasteland, pine forest, desert, snow, wetlands, and highlands.
+* **Towns & Ruins:** Street grids, abandoned vehicles, searchable buildings, and suburban house ruins.
+* **Six major landmarks:** Hospital, factory, fuel station, farm, military outpost, and abandoned bunker.
+* **Bestiary & Wildlife:** 12 enemy species and landmark bosses with 5-take animations, raider camps with locked chests, plus wander/flee deer, boars, and birds.
+* **Atlas (`M`):** Procedural seeded map showing terrain, biomes, roads, town districts, discovered landmarks, and home direction.
 
-The world has a bounded resident window, not a fixed small map. Extremely remote coordinates
-remain subject to floating-point precision; there is no floating-origin system yet.
+---
 
-## Survival and progression
+## Gameplay Loop
 
-Build seven kinds of bunker pieces with grid-snapped previews and real material costs. Beds heal
-at a food/water cost, workbenches craft blades, and collectors accumulate water. Inventory provides
-food, drink, medicine and permanent melee upgrades. Raiders detect, chase, attack, force doors,
-and collide with structures.
+1. **Pre-Apocalypse:** Start on a suburban lot with **$25,000**. Use the site terminal to contract 4 stages of bunker construction and buy supplies. No raiders, hazards, or loot exist yet.
+2. **Apocalypse:** Completing the final stage triggers sirens (45 seconds to get underground). Bombs drop: surface burns, flash/quake damage above ground, and the world switches to its Ruined state.
+3. **Survival:** 20-minute day/night cycle with dynamic weather (clear, fog, rain, snow, overcast). Manage hunger, thirst, health, temperature exposure, and radiation hot spots.
+4. **Scavenging & Foraging:** Scavenge ruins and vehicle trunks; harvest trees, rocks, berry bushes, tall grass, and river reeds; collect dirty water directly from rivers and lakes.
+5. **Crafting & Homesteading:** 96 items, 71 recipes across 6 stations (Workbench, Stove, Forge, Chem Lab, Electronics Bench, Fabricator). Place 20+ build pieces (walls, doors, stairs, roofs, defenses, farm plots).
+6. **Base Automation & Power:** Proximity power grid (25m wireless link range) with solar panels, fuel generators, batteries, and cooling units to prevent overheating.
+7. **Raids & Base Defense:** Periodic raider assaults with warning sirens. Build sandbags, barricades, spike/shock traps, and automated machine gun / laser turrets.
+8. **Endgame:** Craft and power the Radio Beacon in your bunker. Survive a 5-minute, 3-wave assault to achieve rescue, view your survival ledger, and continue in endless mode.
 
-Discover landmarks and recover **Expedition Parts**. At the **Expedition Workshop** in the bunker,
-install insulated clothing (65% less exposure), efficient rations (20% less passive food/water use)
-and trail training (20% faster sprint). Each requires discoveries, parts and construction materials.
-
-The saved simulation has 20-minute days and seeded clear/fog/rain/snow weather. Biome, night,
-weather and shelter affect modest additional needs; insulation reduces those effects. Weather
-**logic** is owned by the gameplay system; its light/sky/particle/audio presentation is a separate
-collaboration with Claude. See `DEV_COORDINATION.md` for the integration contract.
-
-Save/load covers the player, inventory, built furniture, resource progress, crate states, original
-raider respawns, streamed encounter damage/death, discovered landmarks, upgrades, world seed and clock.
-Older saves are supported; backup recovery protects the last readable save.
-
-## Sound
-
-Everything you hear is generated by code in `ArtSource/audio/`, so there is nothing to license: footsteps
-that follow the surface, raider voices, per-resource gathering, biome ambience, indoor muffling, rain,
-thunder, night insects, wildlife, and music that gives way to a chase layer. Volume is in the pause menu.
-Regenerate with `ArtSource/audio/build_audio.sh`; check in the built player with `--audio-probe <folder>`.
+---
 
 ## Controls
 
 | Action | Key |
 |---|---|
-| Move / look | WASD / mouse |
-| Sprint / jump | Shift / Space |
-| Interact | E |
-| Inventory | I or Tab |
-| Atlas | M |
-| Build / select / rotate | B / wheel / R |
-| Place / melee outside build mode | Left click |
-| Save / load | F5 / F9 |
-| Cancel / pause | Escape |
+| **Move / Look** | `WASD` / Mouse |
+| **Sprint / Jump / Crouch** | `Shift` / `Space` / Hold `Left Ctrl` |
+| **Interact / Gather** | `E` |
+| **Flashlight** | `F` (uses Energy Cells when drained) |
+| **Quick Consumables** | `3` (Medicine) / `4` (Food) / `5` (Drink) |
+| **Weapons & Combat** | `1` Melee / `2` Firearm or Energy / `Left click` Attack / `R` Reload |
+| **Inventory & Crafting** | `I` or `Tab` (Inventory) / `C` (Hand Crafting) |
+| **Build Mode** | `B` (Toggle) / `Scroll wheel` (Select) / `R` (Rotate) / `Left click` (Place) |
+| **Repair / Dismantle** | `V` (Repair) / `X` (Dismantle, in build mode with Hammer) |
+| **Mount / Dismount Bicycle** | `E` (Mount) / `F` (Dismount) |
+| **Atlas Map** | `M` |
+| **Quick Save / Load** | `F5` / `F9` |
+| **Pause Menu & Settings** | `Escape` (Sensitivity, FOV, FPS toggle, Audio volumes) |
 
-## Run and verify
+---
 
-Open `Assets/Scenes/M1_BunkerShell.unity` in Unity, or launch `Builds/Linux/SheltreSim.x86_64`.
-Use the full setup chain in a disposable copy when regenerating: it replaces generated content.
-`Tools > SheltreSim > Setup M19 Expeditions` is the additive gameplay integration step after M18.
+## Verification & Diagnostics
 
-Batch entry point `SheltreSim.EditorTools.ReleaseVerification.RebuildVerifyAndBuildLinux` rebuilds,
-checks construction/economy/loot geometry and builds a Linux player. Do not force Editor Play Mode
-under headless batch mode; use standalone opt-in diagnostics instead:
+Fast command-line verification without launching the Unity Editor GUI:
 
 ```sh
+# Fast Roslyn script compilation check (2 seconds, parallel-safe):
+./tools/compile_check.sh
+
+# Standalone diagnostic probes (run in built Linux player):
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --smoke-test -logFile /tmp/smoke.log
+./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --crafting-probe -logFile /tmp/crafting.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --world-probe -logFile /tmp/world.log
-./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --expedition-probe -logFile /tmp/expedition.log
 ```
 
-These never modify the normal user save. Each reports `ALL CHECKS PASSED` and exits 0 on success.
-Rendered graphics, audio, pacing and the feel of actual play still need human checks. See
-`SETUP.md` and the dated verification records in `DESIGN_NOTES.md` for results and limitations.
+---
 
-## Scope
+## Current Scope & Limitations
 
-A playable prototype with low-poly Blender models and a growing survival loop. Water is shallow
-and walkable; swimming, vehicles, ranged combat, full building interiors upstairs and NPC dialogue
-are not implemented. Storage Crate and Generator remain decorative. No multiplayer.
-
-## The opening
-
-You start on a building lot at the edge of town with $25,000. A normal day: houses and trees, nothing to loot, nobody to fight. Use the laptop at the site to pay crews for four stages of the bunker, and spend what is left on supplies. The stairs and the door go in third. Finishing the last stage sets off the sirens: 45 seconds to get underground before the bombs land. After that the town burns, and loot, raiders and animals are in the world.
-
-## Crafting
-
-66 items, 47 recipes. Press C to craft by hand, or use a station: Workbench, Stove, Forge, Chem Lab, Electronics Bench. Each step needs the one before. Tools gather more, weapons and armor have tiers, deer and boar can be hunted, and farm plots grow food. The long goal is a radio beacon.
-
-## Weather
-
-Day and night, clouds, rain, snow, fog and lightning are all visible now, and the sky stays dusty after the bombs.
-
-## Raids, defence and power (M22)
-
-About 15 minutes after the bombs, raiders start coming for the bunker: a 60-second warning, then a party down the stairs, breaking doors and anything you built in their way. Raids come every 10 minutes, then every 6, and grow; every fifth has a Warlord. If you're far from home, the raid waits for you. Fight back with turrets (machine gun with ammo, laser on power), spike and shock traps, sandbags, barricades and a steel door; repair with a hammer and repair kits (V in build mode). Every enemy drops a loot bag.
-
-Power has no cables: devices within 25 m form a network. Generators burn fuel, solar panels follow the sun and the weather, batteries store the surplus. Machines make heat: two generators need a Cooling Unit, and an overheated network halves its output and shuts laser turrets off. The Power Console says what runs and why something doesn't. Automation: water pump, irrigator, cell charger, fabricator and repair station work from nearby crates.
-
-Firearms and energy weapons are made at the Armory and Electronics Bench: pistol, SMG, shotgun, rifles, laser pistol and rifle, plasma rifle. Keys 1 and 2 switch melee and gun, R reloads. Energy weapons use cells and overheat.
-
-Storage crates hold your things, crafting draws from crates within 6 m, and carrying over 60 kg slows your sprint (you can always walk). The Radio Console finds a site for what you need and pins it on the HUD and atlas; repairing a military relay is the one big quest. G opens the blueprint palette. Above ground you can build a house: foundations, walls, windows, door frames and doors, roofs, ramps, stairs, fences and gates. X dismantles with a hammer.
-
-## Enemies, camps and bosses (M23)
-
-After the bombs the world has twelve kinds of enemy, each with its own place and a readable attack (a wind-up you can see and step away from, then a moment to hit back): Wanderers on roads and in suburbs, Scavengers in towns, Runners that lunge, Screamers that call the rest of their group (hit them mid-scream), front-armoured Plated, Breachers that smash through builds, Rootwalkers with a wide sweep, Mirelurkers in the wetlands, charging Iron Boars in the highlands. Nothing spawns within 200 m of the bunker.
-Raider camps (one is always within about 600 m of home) have tents, a fire and a flag you can see from far away, 4 to 6 raiders, and a Shift Commander holding the key to a chest in the middle. Boss lairs guard a store at landmarks: the Gatekeeper at factories, the Root Colossus at farms, the Shift Commander at military outposts. Bosses sleep until you step into their arena or touch the store, and never leave it. Every kill drops a bag; bosses drop a big cache. Found camps and lairs show on the atlas.
+* **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, 20+ build pieces, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, craftable Scrap Bicycle with 35 kg persistent panniers, craftable backpack upgrades to 120 kg, radiation system, water harvesting, crouch stealth, 100m base-wide storage crafting, audio engine.
+* **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, motor vehicles/trucks (bicycle only), NPC dialogue trees, second-floor building interiors in ruins.

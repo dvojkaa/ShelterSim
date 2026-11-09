@@ -21,6 +21,8 @@ namespace SheltreSim.Building
 
         public static IReadOnlyList<StructureHealth> All => all;
         public static event Action<StructureHealth> Destroyed;
+        /// <summary>Health went up or down on this piece (damage, repair, restore). Not raised for the final, destroying hit.</summary>
+        public event Action OnChanged;
 
         public float Health => health < 0f ? maxHealth : health;
         public float Fraction => maxHealth > 0f ? Mathf.Clamp01(Health / maxHealth) : 1f;
@@ -36,6 +38,7 @@ namespace SheltreSim.Building
         {
             if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f) return;
             health = Mathf.Min(value, maxHealth);
+            OnChanged?.Invoke();
         }
 
         public void TakeDamage(float amount)
@@ -43,7 +46,11 @@ namespace SheltreSim.Building
             if (amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount) || Health <= 0f) return;
             health = Mathf.Max(0f, Health - amount);
             GameAudio.PlayAt(Sfx.StructureHit, transform.position, 0.7f, 30f, 0.08f);
-            if (health > 0f) return;
+            if (health > 0f)
+            {
+                OnChanged?.Invoke();
+                return;
+            }
             GameAudio.PlayAt(Sfx.StructureBreak, transform.position, 1f, 45f);
             var piece = GetComponent<SheltreSim.Saving.PlacedPiece>();
             GameMessageBus.Post($"{Label(piece)} was destroyed!");
@@ -58,6 +65,7 @@ namespace SheltreSim.Building
             if (amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount)) return 0f;
             float before = Health;
             health = Mathf.Min(maxHealth, before + amount);
+            if (health != before) OnChanged?.Invoke();
             return health - before;
         }
 

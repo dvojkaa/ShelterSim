@@ -40,6 +40,9 @@ namespace SheltreSim.Items
         public bool isWeapon = false;
         public float weaponDamage = 0f;
 
+        /// <summary>Inventory action permanently adds a tier to carried capacity.</summary>
+        public bool isBackpackUpgrade = false;
+
         /// <summary>Legacy (pre-M21 stacking weapon bonus). Unused; kept so old assets deserialize.</summary>
         public float damageBonus = 0f;
 

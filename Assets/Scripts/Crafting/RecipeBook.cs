@@ -117,6 +117,7 @@ namespace SheltreSim.Crafting
             { "piece_palisade", In("wood", 6, "rope", 2) },
             // Radio.
             { "piece_radio_console", In("circuit_board", 2, "copper_wire", 4, "metal_plate", 2, "electronics", 2) },
+            { "piece_bicycle", In("steel_bar", 2, "scrap_metal", 4, "duct_tape", 2, "rope", 1) },
             // Defence.
             { "piece_sandbag", In("cloth", 3, "stone", 4) },
             { "piece_spike_trap", In("nails", 12, "planks", 2, "scrap_metal", 2) },
@@ -124,6 +125,9 @@ namespace SheltreSim.Crafting
             { "piece_turret_mg", In("steel_bar", 2, "metal_plate", 4, "electric_motor", 1, "circuit_board", 1) },
             { "piece_turret_laser", In("laser_diode", 2, "capacitor", 2, "metal_plate", 3, "circuit_board", 2, "coolant", 1) },
             { "piece_alarm", In("electronics", 1, "copper_wire", 2, "scrap_metal", 2) },
+            // Grid lighting.
+            { "piece_light_ceiling", In("planks", 1, "glass", 1, "copper_wire", 2) },
+            { "piece_floodlight", In("metal_plate", 1, "glass", 2, "copper_wire", 3) },
         };
 
         public static string PieceIdFor(StationKind kind)
@@ -178,6 +182,7 @@ namespace SheltreSim.Crafting
             R(W, "padded_jacket", 1, "cloth", 8, "plant_fiber", 4, "rope", 1);
             R(W, "leather_armor", 1, "leather", 6, "rope", 3, "nails", 6);
             R(W, "warm_coat", 1, "cloth", 6, "leather", 3, "rope", 2);
+            R(W, "backpack_frame", 1, "cloth", 8, "leather", 4, "rope", 3, "duct_tape", 2, "metal_plate", 1);
 
             // Stove: cooking. Wood is the fuel.
             R(S, "cooked_meat", 1, "raw_meat", 1, "wood", 1);
@@ -250,6 +255,11 @@ namespace SheltreSim.Crafting
             // Energy weapons: the end of the electronics ladder.
             R(E, "laser_pistol", 1, "laser_diode", 1, "capacitor", 2, "metal_plate", 2, "circuit_board", 1);
             R(E, "laser_rifle", 1, "laser_diode", 2, "capacitor", 3, "steel_bar", 2, "circuit_board", 2, "coolant", 2);
+            // Water and radiation.
+            R(H, "empty_bottle", 1, "glass", 1);
+            R(C, "anti_rad", 1, "chemicals", 2, "herbs", 2, "water", 1);
+            R(W, "gas_mask", 1, "cloth", 2, "charcoal", 3, "glass", 1, "duct_tape", 1);
+
             R(E, "plasma_rifle", 1, "laser_diode", 2, "capacitor", 4, "steel_bar", 3, "circuit_board", 3, "coolant", 4, "expedition_parts", 2);
         }
 

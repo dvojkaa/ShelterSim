@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using SheltreSim.Building;
 using SheltreSim.Crafting;
+using SheltreSim.Player;
+using SheltreSim.Storage;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -44,7 +46,7 @@ namespace SheltreSim.Items
         {
             public GameObject root;
             public Text name, effect, buttonLabel;
-            public Button action;
+            public Button action, quickSlot;
         }
 
         private GameObject panel;
@@ -191,6 +193,7 @@ namespace SheltreSim.Items
         public int VisibleItemRowCount { get { int n = 0; foreach (ItemRow r in itemRows.Values) if (r.root.activeSelf) n++; return n; } }
         public bool HasVisibleRow(string id) => itemRows.TryGetValue(id, out ItemRow r) && r.root.activeSelf;
         public Button ActionButton(string id) => itemRows.TryGetValue(id, out ItemRow r) ? r.action : null;
+        public Button QuickSlotButton(string id) => itemRows.TryGetValue(id, out ItemRow r) ? r.quickSlot : null;
         public Button CraftButton => panel != null ? panel.transform.Find("InventoryPanel/CraftButton")?.GetComponent<Button>() : null;
 
         // ---------- Item rows ----------
@@ -203,8 +206,11 @@ namespace SheltreSim.Items
             made.name = GameUI.Label(row, "Count", id, TopLeft, TopLeft, new Vector2(12f, -5f), new Vector2(390f, 26f), 19);
             made.effect = GameUI.Label(row, "Effect", string.Empty, TopLeft, TopLeft, new Vector2(12f, -31f), new Vector2(390f, 22f), 15, GameUI.Muted);
             string captured = id;
-            made.action = GameUI.Button(row, "Use", "Use", Vector2.one, Vector2.one, new Vector2(-10f, -9f), new Vector2(100f, 40f), () => UseItem(captured));
+            made.action = GameUI.Button(row, "Use", "Use", Vector2.one, Vector2.one, new Vector2(-10f, -9f), new Vector2(90f, 40f), () => UseItem(captured));
             made.buttonLabel = made.action.GetComponentInChildren<Text>();
+            made.quickSlot = GameUI.Button(row, "QuickSlot", "Set key", Vector2.one, Vector2.one,
+                new Vector2(-108f, -9f), new Vector2(92f, 40f), () => QuickSlots.CycleSlot(captured));
+            made.quickSlot.gameObject.SetActive(false);
             itemRows[id] = made;
             return made;
         }
@@ -223,6 +229,7 @@ namespace SheltreSim.Items
             if (spec.food) return "Eat";
             if (spec.drink) return "Drink";
             if (spec.medicine) return "Use";
+            if (spec.backpackUpgrade) return "Install";
             if (spec.IsEquippable) return equipped ? "Unequip" : "Equip";
             return null;
         }
@@ -260,6 +267,7 @@ namespace SheltreSim.Items
         {
             if (inventory == null || stats == null || stats.IsDead || stats.health <= 0f || inventory.GetCount(spec.id) < 1) return false;
             if (spec.IsEquippable) return Gear() != null;
+            if (spec.backpackUpgrade) return Encumbrance.Active != null && Encumbrance.Active.CanUpgradeBackpack;
             if (!spec.IsConsumable) return false;
             return (spec.hunger > 0f && stats.hunger < stats.maxHunger) || (spec.thirst > 0f && stats.thirst < stats.maxThirst) ||
                 (spec.heal > 0f && stats.health < stats.maxHealth);
@@ -271,7 +279,13 @@ namespace SheltreSim.Items
             // Guard stale UI events and avoid wasting a consumable at a full vital.
             if (!IsOpen || spec == null || !CanUse(spec)) return;
             string result;
-            if (spec.IsEquippable)
+            if (spec.backpackUpgrade)
+            {
+                Encumbrance encumbrance = Encumbrance.Active;
+                if (encumbrance == null || !encumbrance.TryInstallBackpackUpgrade(inventory, id)) return;
+                result = $"Backpack upgraded: {encumbrance.CarryCapacity:0} kg capacity.";
+            }
+            else if (spec.IsEquippable)
             {
                 PlayerGear gear = Gear();
                 if (gear.IsEquipped(id))
@@ -349,6 +363,17 @@ namespace SheltreSim.Items
                     bool equipped = gear != null && gear.IsEquipped(id);
                     row.name.text = equipped ? $"{spec.name}   x{inventory.GetCount(id)}   [EQUIPPED]" : $"{spec.name}   x{inventory.GetCount(id)}";
                     row.effect.text = Describe(spec);
+                    bool canQuickSlot = QuickSlots.IsQuickUsable(spec.id);
+                    row.quickSlot.gameObject.SetActive(canQuickSlot);
+                    float labelWidth = canQuickSlot ? 300f : 390f;
+                    row.name.rectTransform.sizeDelta = new Vector2(labelWidth, 26f);
+                    row.effect.rectTransform.sizeDelta = new Vector2(labelWidth, 22f);
+                    if (canQuickSlot)
+                    {
+                        int key = QuickSlots.AssignedSlotOf(id);
+                        Text quickLabel = row.quickSlot.GetComponentInChildren<Text>();
+                        if (quickLabel != null) quickLabel.text = key > 0 ? $"Key {key}  >" : "Set key";
+                    }
                     string action = ActionName(spec, equipped);
                     row.action.gameObject.SetActive(action != null);
                     if (action != null)

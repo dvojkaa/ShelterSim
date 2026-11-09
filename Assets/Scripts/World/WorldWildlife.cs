@@ -222,7 +222,9 @@ namespace SheltreSim.World
                 if (away.sqrMagnitude < 1.9f * 1.9f && attackTimer <= 0f && playerStats != null)
                 {
                     attackTimer = 1.3f;
+                    float healthBefore = playerStats.health;
                     playerStats.TakeDamage(10f);
+                    if (playerStats.health < healthBefore) DamageDirection.Report(transform.position);
                     SheltreSim.UI.GameMessageBus.Post("The boar gores you.");
                 }
             }

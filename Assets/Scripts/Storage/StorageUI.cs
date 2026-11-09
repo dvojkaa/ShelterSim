@@ -43,8 +43,10 @@ namespace SheltreSim.Storage
         private Canvas canvas;
         private Text loadLabel, status;
         private Column packColumn, crateColumn;
-        private Button storeMaterials, takeAll, closeButton;
+        private Button storeMaterials, takeAll, quickStack, quickStackNearby, closeButton;
         private StorageCratePiece crate;
+        private IItemStore activeStore;
+        private MonoBehaviour storeHost;
         private Inventory pack;
         private bool open, closeRequested;
         private InputAction cancel;
@@ -59,7 +61,14 @@ namespace SheltreSim.Storage
         {
             if (target == null || inventory == null) return false;
             if (instance == null) new GameObject("StorageUI").AddComponent<StorageUI>();
-            return instance.OpenFor(target, inventory);
+            return instance.OpenFor(target, target, inventory);
+        }
+
+        public static bool Open(IItemStore target, MonoBehaviour host, Inventory inventory)
+        {
+            if (target == null || host == null || inventory == null) return false;
+            if (instance == null) new GameObject("StorageUI").AddComponent<StorageUI>();
+            return instance.OpenFor(target, host, inventory);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -95,10 +104,10 @@ namespace SheltreSim.Storage
         private void LateUpdate()
         {
             if (!open) return;
-            if (closeRequested || crate == null || !crate.isActiveAndEnabled || pack == null) Close();
+            if (closeRequested || storeHost == null || !storeHost.isActiveAndEnabled || pack == null) Close();
         }
 
-        private bool OpenFor(StorageCratePiece target, Inventory inventory)
+        private bool OpenFor(IItemStore target, MonoBehaviour host, Inventory inventory)
         {
             if (open) return false;
             SurvivalStats stats = inventory.GetComponent<SurvivalStats>();
@@ -112,13 +121,19 @@ namespace SheltreSim.Storage
             if (!ModalUI.TryOpen(this, Close)) return false;
 
             if (canvas == null) BuildUI();
-            crate = target;
+            crate = target as StorageCratePiece;
+            activeStore = target;
+            storeHost = host;
             pack = inventory;
             open = true;
             closeRequested = false;
             canvas.gameObject.SetActive(true);
-            status.text = "Store what you don't need to carry. Crafting also uses crates within 6 m of you.";
-            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, target.transform.position, 0.85f, 20f);
+            status.text = crate != null ? "Store what you don't need to carry. Nearby crafting can use this crate." : "Bicycle panniers hold up to 35 kg. Nearby crafting can use these supplies.";
+            if (crate != null) SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, target.StorePosition, 0.85f, 20f);
+            Transform titleTransform = canvas.transform.Find("StorageBackdrop/StoragePanel/Title");
+            Text title = titleTransform != null ? titleTransform.GetComponent<Text>() : null;
+            if (title != null) title.text = crate != null ? "STORAGE CRATE" : "BICYCLE PANNIERS";
+            if (crateColumn != null && crateColumn.header != null) crateColumn.header.text = crate != null ? "Crate" : "Panniers · 35 kg";
             Refresh();
             return true;
         }
@@ -129,6 +144,8 @@ namespace SheltreSim.Storage
             open = false;
             closeRequested = false;
             crate = null;
+            activeStore = null;
+            storeHost = null;
             pack = null;
             if (canvas != null) canvas.gameObject.SetActive(false);
             ModalUI.Close(this);
@@ -138,9 +155,9 @@ namespace SheltreSim.Storage
 
         private void Move(bool fromPack, string id, int amount)
         {
-            if (!open || crate == null || pack == null) return;
+            if (!open || activeStore == null || pack == null) return;
             string name = ItemCatalog.NameOf(id);
-            int moved = fromPack ? StorageTransfer.Store(pack, crate, id, amount) : StorageTransfer.Take(pack, crate, id, amount);
+            int moved = fromPack ? StorageTransfer.Store(pack, activeStore, id, amount) : StorageTransfer.Take(pack, activeStore, id, amount);
             if (moved > 0) status.text = fromPack ? $"Stored {moved} {name}." : $"Took {moved} {name}.";
             else status.text = fromPack && StorageTransfer.IsEquipped(pack, id) ? $"Unequip the {name} to store it." : "Nothing to move.";
             Refresh();
@@ -148,18 +165,42 @@ namespace SheltreSim.Storage
 
         private void StoreMaterials()
         {
-            if (!open || crate == null || pack == null) return;
-            long moved = StorageTransfer.StoreBuildingMaterials(pack, crate);
+            if (!open || activeStore == null || pack == null) return;
+            long moved = StorageTransfer.StoreBuildingMaterials(pack, activeStore);
             status.text = moved > 0
                 ? $"Stored {moved} building materials. Food, medicine, ammo and gear stay in your pack."
                 : "No building materials in your pack.";
             Refresh();
         }
 
+        /// <summary>Crafting reaches crates this far from the player, so quick stack does too.</summary>
+        public const float NearbyRadius = 6f;
+
+        private void QuickStack(bool nearby)
+        {
+            if (!open || activeStore == null || pack == null) return;
+            var targets = new List<IItemStore> { activeStore };
+            if (nearby)
+            {
+                Vector3 from = pack.transform.position;
+                var others = new List<IItemStore>();
+                foreach (IItemStore store in StorageRegistry.All)
+                    if (store != null && !ReferenceEquals(store, activeStore) && (store.StorePosition - from).sqrMagnitude <= NearbyRadius * NearbyRadius) others.Add(store);
+                others.Sort((a, b) => (a.StorePosition - from).sqrMagnitude.CompareTo((b.StorePosition - from).sqrMagnitude));
+                targets.AddRange(others);
+            }
+            (long moved, int kinds) = StorageTransfer.QuickStack(pack, targets);
+            string where = nearby && targets.Count > 1 ? $"{targets.Count} stores" : crate != null ? "this crate" : "these panniers";
+            status.text = moved > 0
+                ? $"Quick stacked {moved} items ({kinds} kinds) into {where}. Food, medicine, ammo and equipped gear stay in your pack."
+                : $"Nothing in your pack matches a stack in {where}.";
+            Refresh();
+        }
+
         private void TakeAll()
         {
-            if (!open || crate == null || pack == null) return;
-            long moved = StorageTransfer.TakeAll(pack, crate);
+            if (!open || activeStore == null || pack == null) return;
+            long moved = StorageTransfer.TakeAll(pack, activeStore);
             status.text = moved > 0 ? $"Took {moved} items." : "The crate is empty.";
             Refresh();
         }
@@ -180,6 +221,8 @@ namespace SheltreSim.Storage
             storeMaterials = GameUI.Button(card, "StoreMaterials", "Store building materials", TopLeft, TopLeft,
                 new Vector2(28f, -132f), new Vector2(320f, 42f), StoreMaterials, true);
             takeAll = GameUI.Button(card, "TakeAll", "Take all", TopLeft, TopLeft, new Vector2(630f, -132f), new Vector2(180f, 42f), TakeAll);
+            quickStack = GameUI.Button(card, "QuickStack", "Quick stack", TopLeft, TopLeft, new Vector2(818f, -132f), new Vector2(170f, 42f), () => QuickStack(false));
+            quickStackNearby = GameUI.Button(card, "QuickStackNearby", "Quick stack nearby", TopLeft, TopLeft, new Vector2(996f, -132f), new Vector2(216f, 42f), () => QuickStack(true));
 
             packColumn = BuildColumn(card, "Pack", 28f, true);
             crateColumn = BuildColumn(card, "Crate", 630f, false);
@@ -219,12 +262,13 @@ namespace SheltreSim.Storage
 
         private void Refresh()
         {
-            if (!open || crate == null || pack == null) return;
+            if (!open || activeStore == null || pack == null) return;
             float load = Encumbrance.PackWeight(pack);
-            loadLabel.text = Encumbrance.Describe(load);
-            loadLabel.color = load >= Encumbrance.NoSprintAt ? GameUI.Danger : load > Encumbrance.SoftLimit ? GameUI.Warning : Color.white;
+            float capacity = Encumbrance.Active != null ? Encumbrance.Active.CarryCapacity : Encumbrance.SoftLimit;
+            loadLabel.text = Encumbrance.Describe(load, capacity);
+            loadLabel.color = load >= capacity + 40f ? GameUI.Danger : load > capacity ? GameUI.Warning : Color.white;
             RefreshColumn(packColumn, pack.GetAllCounts());
-            RefreshColumn(crateColumn, crate.Contents);
+            RefreshColumn(crateColumn, activeStore.Contents);
             if (Encumbrance.Active != null) Encumbrance.Active.RefreshNow();
         }
 
@@ -272,6 +316,8 @@ namespace SheltreSim.Storage
 
         public Button StoreMaterialsButton => storeMaterials;
         public Button TakeAllButton => takeAll;
+        public Button QuickStackButton => quickStack;
+        public Button QuickStackNearbyButton => quickStackNearby;
         public Button CloseButton => closeButton;
 
         /// <summary>The button of a visible row. which: 0 moves 1, 1 moves 10, 2 moves all. Null if no row is showing.</summary>

@@ -53,5 +53,7 @@ namespace SheltreSim.Audio
             MachineHum = "machine_hum", FanLoop = "fan_loop", PowerDown = "power_down", RepairTick = "repair_tick";
 
         public const string RadioStatic = "radio_static", RadioPing = "radio_ping", ObjectiveDone = "objective_done";
+
+        public const string GeigerClick = "geiger_click";
     }
 }

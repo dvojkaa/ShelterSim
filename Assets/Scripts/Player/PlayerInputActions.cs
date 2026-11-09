@@ -16,6 +16,7 @@ namespace SheltreSim.Player
         public InputAction Jump { get; }
         public InputAction Sprint { get; }
         public InputAction Interact { get; }
+        public InputAction Crouch { get; }
 
         public PlayerInputActions()
         {
@@ -47,6 +48,11 @@ namespace SheltreSim.Player
             Interact = map.AddAction("Interact", InputActionType.Button);
             Interact.AddBinding("<Keyboard>/e");
             Interact.AddBinding("<Gamepad>/buttonWest");
+
+            // Held, not toggled: release to stand (if there's headroom).
+            Crouch = map.AddAction("Crouch", InputActionType.Button);
+            Crouch.AddBinding("<Keyboard>/leftCtrl");
+            Crouch.AddBinding("<Gamepad>/rightStickPress");
         }
 
         public void Enable() => map.Enable();

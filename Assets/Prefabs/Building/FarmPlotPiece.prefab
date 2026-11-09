@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8023492754054898127}
   - component: {fileID: 8522203230504426923}
   - component: {fileID: 2844350464941352468}
+  - component: {fileID: 7864194123929201533}
   m_Layer: 0
   m_Name: FarmPlotPiece
   m_TagString: Untagged
@@ -84,6 +85,20 @@ MonoBehaviour:
   growSeconds: 240
   vegetableYield: 3
   seedYield: 1
+--- !u!114 &7864194123929201533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 272499857581839855}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b397585611e29914cb757ef10fb2e190, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
+  maxHealth: 60
+  targetPriority: 5
 --- !u!1 &6236269153183394047
 GameObject:
   m_ObjectHideFlags: 0

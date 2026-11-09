@@ -120,7 +120,7 @@ namespace SheltreSim.Survival
             Transform controlsCard = GameUI.Panel(canvas.transform, "Controls", new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 64f), GameUI.PanelColor).transform;
             controlsLabel = GameUI.Label(controlsCard, "ControlsLabel", string.Empty, Center, Center,
-                Vector2.zero, new Vector2(1124f, 56f), 18, GameUI.Muted, TextAnchor.MiddleCenter);
+                Vector2.zero, new Vector2(1124f, 56f), 17, GameUI.Muted, TextAnchor.MiddleCenter);
         }
 
         private void OnEnable() => GameMessageBus.OnMessage += ShowMessage;
@@ -182,7 +182,6 @@ namespace SheltreSim.Survival
             previousHealth = stats.health;
             flashAmount = Mathf.MoveTowards(flashAmount, 0f, Time.unscaledDeltaTime * 0.35f);
             damageFlash.color = new Color(0.8f, 0.1f, 0.05f, flashAmount);
-
             bool building = buildController != null && buildController.IsBuildModeActive;
             interactPromptLabel.text = building ? string.Empty : interactPrompt;
             crosshair.SetActive(!building);
@@ -190,7 +189,7 @@ namespace SheltreSim.Survival
             buildReadoutLabel.text = building ? buildReadout : string.Empty;
             controlsLabel.text = building
                 ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   V: repair   /   X: dismantle   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
-                : "WASD: move   /   Shift: sprint   /   E: interact   /   Click: attack   /   1/2: melee/gun   /   R: reload\nI or Tab: inventory   /   C: craft   /   B: build   /   G: blueprints   /   F5: save   /   F9: load   /   M: map   /   Esc: menu";
+                : "WASD: move  /  Shift: sprint  /  Ctrl: crouch  /  E: interact  /  Click: attack  /  1/2: melee/gun  /  R: reload  /  F: light\n3/4/5: quick use  /  I or Tab: inventory  /  C: craft  /  B: build  /  G: blueprints  /  M: map  /  F5/F9: save/load  /  Esc: menu";
 
             if (Time.unscaledTime >= nextGuidanceUpdate)
             {
@@ -213,9 +212,9 @@ namespace SheltreSim.Survival
             float food = stats.maxHunger > 0f ? stats.hunger / stats.maxHunger : 0f;
             float water = stats.maxThirst > 0f ? stats.thirst / stats.maxThirst : 0f;
             float health = stats.maxHealth > 0f ? stats.health / stats.maxHealth : 0f;
-            warningLabel.text = health <= 0.25f ? "LOW HEALTH\nUse first aid or rest at a bed."
-                : water <= 0.2f ? "LOW WATER\nDrink supplies from I or Tab."
-                : food <= 0.2f ? "LOW FOOD\nEat supplies from I or Tab." : string.Empty;
+            warningLabel.text = health <= 0.25f ? "LOW HEALTH\nPress 3 for first aid, or rest at a bed."
+                : water <= 0.2f ? "LOW WATER\nPress 5 to drink, or open I or Tab."
+                : food <= 0.2f ? "LOW FOOD\nPress 4 to eat, or open I or Tab." : string.Empty;
 
             GamePhase phase = gameState != null ? gameState.CurrentPhase : GamePhase.Survival;
             if (phase == GamePhase.Apocalypse)

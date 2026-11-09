@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: RaidAlarm
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Raid Alarm
+  id: piece_alarm
+  prefab: {fileID: 4810916012636651650, guid: dbd77d3204d9f4df8b71676ca96b3ad3, type: 3}
+  footprintSize: {x: 0.5, y: 1.8, z: 0.5}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 09e05cb6a10159f77bb86aab26284125, type: 2}
+    amount: 1
+  - resource: {fileID: 11400000, guid: 525a0359032f713a5852c32eae53769c, type: 2}
+    amount: 2
+  - resource: {fileID: 11400000, guid: 8cdfee3675e8ab88881c4a375d0a4b62, type: 2}
+    amount: 2
+  placementRule: 0

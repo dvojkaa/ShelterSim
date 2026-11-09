@@ -20,7 +20,7 @@ namespace SheltreSim.Crafting
     {
         public string id, name, description;
         public ItemCategory category;
-        public bool food, drink, medicine, weapon;
+        public bool food, drink, medicine, weapon, backpackUpgrade;
         public float hunger, thirst, heal, damage, reduction, warmth;
         public ToolKind tool; public int tier, bonus;
         public GearSlot slot;
@@ -52,6 +52,7 @@ namespace SheltreSim.Crafting
         public ItemSpec Tool(ToolKind kind, int toolTier, int toolBonus) { tool = kind; tier = toolTier; bonus = toolBonus; return this; }
         public ItemSpec Armor(float damageReduction) { slot = GearSlot.Armor; reduction = damageReduction; return this; }
         public ItemSpec Coat(float damageReduction, float warmthFraction) { slot = GearSlot.Coat; reduction = damageReduction; warmth = warmthFraction; return this; }
+        public ItemSpec BackpackUpgrade() { backpackUpgrade = true; return this; }
         public ItemSpec Asset(string name) { assetName = name; return this; }
 
         public bool IsConsumable => food || drink || medicine;
@@ -109,6 +110,7 @@ namespace SheltreSim.Crafting
             I("dirty_water", "Dirty Water", Raw, "Undrinkable. Boil it or run it through a Water Filter.");
             I("herbs", "Herbs", Raw, "Wild medicinal and cooking herbs.");
             I("sugar", "Sugar", Raw, "Sweetener for jam and stimulants.");
+            I("empty_bottle", "Empty Bottle", Raw, "An empty bottle. Fill it at water.");
             I("vegetables", "Vegetables", Food, "Fresh vegetables from a Farm Plot.").Food(18f);
 
             // ---- Refined: crafted materials ----
@@ -124,6 +126,7 @@ namespace SheltreSim.Crafting
             I("hinges", "Hinges", Ref, "For gates and heavy doors.");
             I("repair_kit_wood", "Wood Repair Kit", Ref, "With a hammer, repairs wooden builds. Press V in build mode.");
             I("repair_kit_metal", "Metal Repair Kit", Ref, "With a hammer, repairs metal builds and machines. Press V in build mode.");
+            I("backpack_frame", "Backpack Frame", Ref, "Install from your inventory to raise pack capacity by 20 kg (up to 120 kg).").BackpackUpgrade();
             I("fertilizer", "Fertilizer", Ref, "Use on a Farm Plot: the crop grows twice as fast.");
             I("gunpowder", "Gunpowder", Ref, "Mixed at a Chem Lab. Every round needs it.");
             I("capacitor", "Capacitor", Ref, "Stores a sharp burst of power.");
@@ -156,6 +159,7 @@ namespace SheltreSim.Crafting
             I("first_aid", "First Aid Kit", Med, "A full kit.").Medicine(50f).Asset("FirstAidKit");
             I("antibiotics", "Antibiotics", Med, "Strong medicine.").Medicine(75f);
             I("stimulant", "Stimulant", Med, "Quick heal and a burst of energy.").Medicine(30f, 20f);
+            I("anti_rad", "Rad-Away", Med, "Flushes radiation out of the body: removes 40 rads.").Medicine(10f);
 
             I("dried_meat", "Dried Meat", Food, "Keeps forever. Light and salty.").Food(32f);
             I("trail_mix", "Trail Mix", Food, "Berries and grain for the road.").Food(26f, 0f, 3f);
@@ -163,9 +167,10 @@ namespace SheltreSim.Crafting
 
             // ---- Tools: higher tier wins, never consumed ----
             I("hammer", "Hammer", Tool, "Needed to repair and dismantle builds. Never consumed.");
-            I("stone_axe", "Stone Axe", Tool, "Wood gathering +1 per harvest.").Tool(ToolKind.Axe, 1, 1);
-            I("iron_axe", "Iron Axe", Tool, "Wood gathering +2 per harvest.").Tool(ToolKind.Axe, 2, 2);
-            I("steel_axe", "Steel Axe", Tool, "Wood gathering +3 per harvest.").Tool(ToolKind.Axe, 3, 3);
+            I("gas_mask", "Gas Mask", Tool, "Filters fallout dust. While you carry one, you take in half the radiation.");
+            I("stone_axe", "Stone Axe", Tool, "Wood and plant fiber gathering +1 per harvest.").Tool(ToolKind.Axe, 1, 1);
+            I("iron_axe", "Iron Axe", Tool, "Wood and plant fiber gathering +2 per harvest.").Tool(ToolKind.Axe, 2, 2);
+            I("steel_axe", "Steel Axe", Tool, "Wood and plant fiber gathering +2 per harvest.").Tool(ToolKind.Axe, 3, 3);
             I("stone_pickaxe", "Stone Pickaxe", Tool, "Stone, ore and coal +1 per harvest.").Tool(ToolKind.Pickaxe, 1, 1);
             I("iron_pickaxe", "Iron Pickaxe", Tool, "Stone, ore and coal +2 per harvest.").Tool(ToolKind.Pickaxe, 2, 2);
             I("steel_pickaxe", "Steel Pickaxe", Tool, "Stone, ore and coal +3 per harvest.").Tool(ToolKind.Pickaxe, 3, 3);
@@ -174,8 +179,8 @@ namespace SheltreSim.Crafting
             I("wooden_club", "Wooden Club", Wpn, "Crude but better than fists. Damage 26.").Weapon(26f);
             I("weapon_upgrade", "Makeshift Blade", Wpn, "Sharpened scrap. Damage 32.").Weapon(32f).Asset("WeaponUpgrade");
             I("spiked_club", "Spiked Club", Wpn, "Nails driven through a club. Damage 38.").Weapon(38f);
-            I("machete", "Machete", Wpn, "Long cleaver. Damage 46.").Weapon(46f);
-            I("fire_axe", "Fire Axe", Wpn, "Heavy and brutal. Damage 58.").Weapon(58f);
+            I("machete", "Machete", Wpn, "Long cleaver. Damage 46. Can cut plant fiber.").Weapon(46f);
+            I("fire_axe", "Fire Axe", Wpn, "Heavy and brutal. Damage 58. Can cut plant fiber.").Weapon(58f);
             I("steel_sword", "Steel Sword", Wpn, "The best blade you can make. Damage 72.").Weapon(72f);
 
             // ---- Ranged weapons: damage is per pellet ----

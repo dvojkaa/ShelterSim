@@ -424,7 +424,8 @@ namespace SheltreSim.Enemies
             float distance = offset.magnitude;
             bool visible = HasClearLine(BodyCenter + Vector3.up * 0.25f,
                 PlayerCenter + Vector3.up * 0.25f, playerTransform);
-            if (!chasing && distance <= detectionRadius && visible)
+            float effectiveDetection = detectionRadius * PlayerStealth.DetectionFactor;
+            if (!chasing && distance <= effectiveDetection && visible)
             {
                 chasing = true;
             }
@@ -517,6 +518,7 @@ namespace SheltreSim.Enemies
             float damageDealt = previousHealth - playerStats.health;
             if (damageDealt > 0f)
             {
+                DamageDirection.Report(transform.position);
                 GameMessageBus.Post($"A raider hit you for {damageDealt:0} damage.");
             }
             if (weaponVisual != null)

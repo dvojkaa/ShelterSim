@@ -27,3 +27,4 @@ MonoBehaviour:
     amount: 1
   - resource: {fileID: 11400000, guid: d7915f0ed73f1ee92af2d1e8be4f7e8a, type: 2}
     amount: 1
+  placementRule: 0

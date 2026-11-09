@@ -8,6 +8,7 @@ namespace SheltreSim.Storage
     {
         Vector3 StorePosition { get; }
         int GetCount(string id);
+        int GetAddRoom(string id);
         void Add(string id, int amount);
         bool TryTake(string id, int amount);
         IReadOnlyDictionary<string, int> Contents { get; }

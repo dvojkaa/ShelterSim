@@ -68,6 +68,7 @@ namespace SheltreSim.Storage
         }
 
         public int GetCount(string id) => id != null && contents.TryGetValue(id, out int count) ? count : 0;
+        public int GetAddRoom(string id) => int.MaxValue - GetCount(id);
 
         /// <summary>Adds up to int.MaxValue in a stack. Callers moving items use StorageTransfer, which checks the room first.</summary>
         public void Add(string id, int amount)

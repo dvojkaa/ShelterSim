@@ -8,7 +8,7 @@ namespace SheltreSim.World
     {
         public const int ChunkSize = 128;
         /// <summary>Bump when terrain or placement generation changes, so a save can tell it was made on a different world.</summary>
-        public const int GenerationVersion = 1;
+        public const int GenerationVersion = 2;
         public const int MaximumChunkCoordinate = 100000;
         public static readonly string[] BiomeNames = { "Wasteland", "Pine forest", "Red desert", "Frozen wilderness", "Wetlands", "Highlands" };
 
@@ -215,8 +215,9 @@ namespace SheltreSim.World
         public SheltreSim.Items.ResourceDefinition expeditionParts;
         public Material structureMaterial;
         public GameObject[] trees, rocks, bushes, cars;
+        public GameObject tallGrass, reeds;
         public GameObject lootModel;
-        public SheltreSim.Items.ResourceDefinition wood, stone, iron, berries, water, scrap, medicine;
+        public SheltreSim.Items.ResourceDefinition wood, stone, iron, berries, water, scrap, medicine, plantFiber;
         // Normal-world town dressing. Every one may be null: generation falls back to plain boxes or skips it.
         public GameObject[] houseRoofs, carsClean, rubble, scrapPiles;
         public GameObject houseWindow, houseWindowBroken, houseDoor, fenceWood, hedge, streetLamp, powerPole, mailbox, gardenShed, busStop, dumpster;

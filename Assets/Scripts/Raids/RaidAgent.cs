@@ -143,7 +143,7 @@ namespace SheltreSim.Raids
             if (Variant == RaidVariant.Scavenger && TickStealing(distance)) return;
 
             float engageRange = Spec.Ranged ? Mathf.Max(EngageRange, Spec.RangedRange) : EngageRange;
-            if (playerVisible && distance <= engageRange) engageUntil = Time.time + 1.5f;
+            if (playerVisible && distance <= engageRange * PlayerStealth.DetectionFactor) engageUntil = Time.time + 1.5f;
             bool engaging = Time.time < engageUntil;
             if (engaging)
             {
@@ -234,7 +234,11 @@ namespace SheltreSim.Raids
             if (playerStats == null) return;
             float before = playerStats.health;
             playerStats.TakeDamage(Spec.RangedDamage);
-            if (before - playerStats.health > 0f) GameMessageBus.Post($"A gunner shot you for {before - playerStats.health:0} damage.");
+            if (before - playerStats.health > 0f)
+            {
+                DamageDirection.Report(transform.position);
+                GameMessageBus.Post($"A gunner shot you for {before - playerStats.health:0} damage.");
+            }
         }
 
         // ---------- Route ----------

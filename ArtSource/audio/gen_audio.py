@@ -7,7 +7,7 @@ GUIDs derived from the path, so a re-run never churns Unity references.
 
 Naming: `key.wav` or `key_01.wav`. GameAudio groups `_NN` files into random variants of `key`.
 
-A section can be generated alone: `build_audio.sh m22` writes only the M22 clips and their metas, leaving
+A section can be generated alone: `build_audio.sh m22` (or `m24`) writes only that section's clips and their metas, leaving
 every existing WAV and every .meta Unity has since filled in untouched. Add new clips in their own section.
 """
 import hashlib
@@ -1555,6 +1555,19 @@ def m22_clips():
     device_loops()
 
 
+def geiger_click(rng, i):
+    """One Geiger-Muller tube discharge through a tiny speaker: a sharp broadband tick with a short metallic ring."""
+    n = n_of(0.035)
+    x = band_noise(rng, n, 1500, 12000) * decay(n, 0.0011 * (1 + 0.3 * i), attack=0.0002)
+    x += 0.55 * modal(rng, n, [(3100 + 450 * i, 0.003, 1), (5300, 0.0018, 0.5)], jitter=0.05)
+    x += 0.3 * thump(rng, n, 900, 300, 0.004)
+    return x
+
+
+def m24_clips():
+    clip("geiger_click", geiger_click, 3, 0.7)
+
+
 # ---------------------------------------------------------------- catalogue
 
 def main():
@@ -1638,11 +1651,13 @@ def main():
         music_tension()
     if want("m22"):
         m22_clips()
+    if want("m24"):
+        m24_clips()
 
     # Folder metas with stable GUIDs too, written bottom-up from the generated tree.
     folder = OUT
     assets = os.path.normpath(os.path.join(OUT, "..", "..", ".."))
-    while folder != assets and only != "m22":
+    while folder != assets and only not in ("m22", "m24"):
         write_meta(folder, "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
         folder = os.path.dirname(folder)
     print(f"Wrote {len(written)} clips to {OUT}")

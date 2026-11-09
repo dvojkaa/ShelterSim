@@ -9,6 +9,8 @@ namespace SheltreSim.Items
         public ResourceDefinition resourceType;
         public int quantityPerHarvest = 1;
         public int remainingCharges = 3;
+        /// <summary>When true, a suitable axe/blade swing can cut a full harvest charge at once.</summary>
+        public bool cutOnHit;
 
         /// <summary>
         /// Seconds a fully-depleted node takes to regrow back to its starting charge count.
@@ -41,6 +43,24 @@ namespace SheltreSim.Items
         /// <summary>Exposed for SaveManager, which persists this alongside remainingCharges.</summary>
         public bool IsDepleted => depleted;
         public float RegrowthElapsed => depleted ? regrowTimer : 0f;
+
+        public bool CanStrike(GameObject interactor)
+        {
+            if (!cutOnHit || remainingCharges <= 0 || interactor == null) return false;
+            Inventory inv = interactor.GetComponent<Inventory>() ?? interactor.GetComponentInParent<Inventory>();
+            if (inv == null) return false;
+            SheltreSim.Crafting.PlayerGear gear = inv.GetComponent<SheltreSim.Crafting.PlayerGear>();
+            return inv.GetCount("stone_axe") > 0 || inv.GetCount("iron_axe") > 0 || inv.GetCount("steel_axe") > 0 ||
+                (gear != null && (gear.WeaponId == "machete" || gear.WeaponId == "fire_axe"));
+        }
+
+        public bool Strike(GameObject interactor)
+        {
+            if (!CanStrike(interactor)) return false;
+            remainingCharges = 1;
+            Interact(interactor);
+            return true;
+        }
 
         private void Awake()
         {

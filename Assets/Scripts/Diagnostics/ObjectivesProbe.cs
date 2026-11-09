@@ -12,6 +12,7 @@ using SheltreSim.Items;
 using SheltreSim.Objectives;
 using SheltreSim.Player;
 using SheltreSim.Power;
+using SheltreSim.Raids;
 using SheltreSim.Saving;
 using SheltreSim.Survival;
 using SheltreSim.UI;
@@ -552,10 +553,17 @@ namespace SheltreSim.Diagnostics
         {
             tracker.RestoreState(null);
             Check(!RadioBeaconPiece.VictoryAnnounced, "No victory in a new game");
+            RaidDirector director = RaidDirector.Active;
             var beaconObject = new GameObject("ProbeBeacon");
-            beaconObject.AddComponent<RadioBeaconPiece>().Interact(player.gameObject);
+            beaconObject.transform.position = WorldLayout.BunkerCenter;
+            var beacon = beaconObject.AddComponent<RadioBeaconPiece>();
+            beacon.Interact(player.gameObject);
+            Check(director != null && director.BroadcastActive && director.BroadcastBeacon == beacon && !RadioBeaconPiece.VictoryAnnounced,
+                "Beacon starts the powered defense broadcast without granting immediate victory");
+            director?.RestoreState(null); // end the probe broadcast without spawning its waves
             Destroy(beaconObject);
-            Check(RadioBeaconPiece.VictoryAnnounced, "Beacon announces victory");
+            ObjectiveTracker.MarkVictory(); // completion is owned by RaidDirector; exercise the objective save bit directly
+            Check(RadioBeaconPiece.VictoryAnnounced, "Completed broadcast records victory");
             tracker.SetWaypoint(new Vector3(5000f, 0f, 5000f), "Saved waypoint", "landmark:1:2:3");
 
             var save = FindFirstObjectByType<SaveManager>();

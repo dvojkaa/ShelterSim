@@ -520,7 +520,8 @@ namespace SheltreSim.Diagnostics
             GameMessageBus.OnMessage += listener;
             radio.GetComponent<RadioBeaconPiece>().Interact(player.gameObject);
             GameMessageBus.OnMessage -= listener;
-            Check(heard != null && RadioBeaconPiece.VictoryAnnounced && stats != null && !stats.IsDead && Time.timeScale == 1f, "radio beacon announces victory and keeps the game running");
+            Check(heard == null && !RadioBeaconPiece.VictoryAnnounced && stats != null && !stats.IsDead && Time.timeScale == 1f,
+                "radio beacon cannot grant victory before the endgame broadcast conditions are met");
             Destroy(radio);
             inv.Clear();
         }

@@ -977,6 +977,7 @@ namespace SheltreSim.Diagnostics
             private readonly Dictionary<string, int> items = new Dictionary<string, int>();
             public Vector3 StorePosition => transform.position;
             public int GetCount(string id) => items.TryGetValue(id, out int n) ? n : 0;
+            public int GetAddRoom(string id) => int.MaxValue - GetCount(id);
             public void Add(string id, int amount) { items[id] = GetCount(id) + amount; }
             public bool TryTake(string id, int amount)
             {

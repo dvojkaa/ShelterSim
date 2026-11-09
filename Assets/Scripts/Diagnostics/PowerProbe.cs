@@ -44,6 +44,7 @@ namespace SheltreSim.Diagnostics
             public Vector3 StorePosition { get; set; }
             public IReadOnlyDictionary<string, int> Contents => items;
             public int GetCount(string id) => items.TryGetValue(id, out int count) ? count : 0;
+            public int GetAddRoom(string id) => int.MaxValue - GetCount(id);
             public void Add(string id, int amount) => items[id] = GetCount(id) + amount;
             public bool TryTake(string id, int amount)
             {

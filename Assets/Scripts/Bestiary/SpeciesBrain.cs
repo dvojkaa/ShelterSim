@@ -238,8 +238,9 @@ namespace SheltreSim.Bestiary
             if (!engaged)
             {
                 // EnemyAI.detectionRadius is the live value (Bestiary.Spawn sets it from the spec), so other code can blind or sharpen it.
-                bool sees = playerVisible && distance <= Enemy.detectionRadius;
-                bool touches = Enemy.detectionRadius > 0f && distance <= 2.5f && Mathf.Abs(player.position.y - transform.position.y) < 2.5f;
+                float effectiveDetection = Enemy.detectionRadius * PlayerStealth.DetectionFactor;
+                bool sees = playerVisible && distance <= effectiveDetection;
+                bool touches = Enemy.detectionRadius > 0f && distance <= 2.5f * PlayerStealth.DetectionFactor && Mathf.Abs(player.position.y - transform.position.y) < 2.5f;
                 // A woken boss guards its lair: the player inside the arena is enough.
                 bool inArena = Spec.IsBoss && Flat(player.position - Anchor).magnitude <= GuardRadius && playerVisible;
                 if ((sees || touches || inArena || Time.time < alertedUntil) && PlayerInLeash) Engage();
@@ -465,6 +466,7 @@ namespace SheltreSim.Bestiary
             playerStats.TakeDamage(Spec.Damage * scale);
             float dealt = before - playerStats.health;
             if (dealt <= 0f) return false;
+            DamageDirection.Report(transform.position);
             Hits++;
             LastDamageAt = Time.time;
             LastDamageAfterWindup = Time.time - WindupStartedAt;

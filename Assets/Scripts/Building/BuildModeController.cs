@@ -518,8 +518,12 @@ namespace SheltreSim.Building
                 {
                     if (line == null || line.resource == null || line.amount <= 0) continue;
                     if (hasCost) sb.Append("   ");
+                    int packed = inventory != null ? inventory.GetCount(line.resource.id) : 0;
+                    int stored = SheltreSim.Crafting.CraftingSystem.CountInCrates(inventory, line.resource.id);
                     int owned = SheltreSim.Crafting.CraftingSystem.CountAvailable(inventory, line.resource.id);
-                    sb.Append(line.resource.displayName).Append(' ').Append(owned).Append('/').Append(line.amount);
+                    sb.Append(line.resource.displayName).Append(' ').Append(owned);
+                    if (stored > 0) sb.Append(" (").Append(packed).Append(" pack + ").Append(stored).Append(" storage)");
+                    sb.Append('/').Append(line.amount);
                     hasCost = true;
                 }
             }
