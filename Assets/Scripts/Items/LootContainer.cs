@@ -6,6 +6,14 @@ using UnityEngine;
 
 namespace SheltreSim.Items
 {
+    [System.Serializable]
+    public sealed class LootOpenPart
+    {
+        public Transform part;
+        public Vector3 openLocalPosition;
+        public Vector3 openLocalEulerAngles;
+    }
+
     /// <summary>One rolled item stack inside a loot crate.</summary>
     [System.Serializable]
     public struct LootEntry
@@ -30,8 +38,97 @@ namespace SheltreSim.Items
     {
         public List<LootEntry> entries = new List<LootEntry>();
         public bool hasLoot = true;
+        [Tooltip("Optional authored pivots. If empty, conventional Door_L, Door_R, Drawer_* and Lid children are detected.")]
+        public LootOpenPart[] openParts = System.Array.Empty<LootOpenPart>();
 
         private bool searched;
+        private struct OpenPose
+        {
+            public Transform part;
+            public Vector3 closedPosition, openPosition;
+            public Quaternion closedRotation, openRotation;
+        }
+        private OpenPose[] openPoses = System.Array.Empty<OpenPose>();
+        private float openElapsed;
+        private bool isAnimatingOpen;
+        private const float OpenDuration = .25f;
+
+        private void Awake() => CacheOpenParts();
+
+        private void Update()
+        {
+            if (!isAnimatingOpen) return;
+            openElapsed = Mathf.Min(OpenDuration, openElapsed + Time.deltaTime);
+            float t = Mathf.SmoothStep(0f, 1f, openElapsed / OpenDuration);
+            ApplyOpenPose(t);
+            if (openElapsed >= OpenDuration) isAnimatingOpen = false;
+        }
+
+        private void OnDisable()
+        {
+            if (!isAnimatingOpen) return;
+            isAnimatingOpen = false;
+            ApplyOpenPose(1f);
+        }
+
+        private void CacheOpenParts()
+        {
+            if (openParts == null || openParts.Length == 0)
+            {
+                var detected = new List<LootOpenPart>();
+                foreach (Transform child in GetComponentsInChildren<Transform>(true))
+                {
+                    if (child == transform) continue;
+                    string name = child.name;
+                    if (name == "Door_L") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, -90f, 0f) });
+                    else if (name == "Door_R") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, 90f, 0f) });
+                    else if (name == "Lid") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(-90f, 0f, 0f) });
+                    else if (name.StartsWith("Drawer_", System.StringComparison.Ordinal))
+                        detected.Add(new LootOpenPart { part = child, openLocalPosition = child.localPosition + child.localRotation * Vector3.forward * .25f });
+                }
+                openParts = detected.ToArray();
+            }
+
+            var poses = new List<OpenPose>();
+            foreach (LootOpenPart definition in openParts)
+            {
+                if (definition == null || definition.part == null) continue;
+                poses.Add(new OpenPose
+                {
+                    part = definition.part,
+                    closedPosition = definition.part.localPosition,
+                    openPosition = definition.openLocalPosition,
+                    closedRotation = definition.part.localRotation,
+                    openRotation = definition.part.localRotation * Quaternion.Euler(definition.openLocalEulerAngles)
+                });
+            }
+            openPoses = poses.ToArray();
+            if (searched) ApplyOpenPose(1f);
+        }
+
+        private void BeginOpen(bool animate)
+        {
+            if (openPoses == null || openPoses.Length == 0) CacheOpenParts();
+            if (!animate || !Application.isPlaying || !isActiveAndEnabled)
+            {
+                isAnimatingOpen = false;
+                ApplyOpenPose(1f);
+                return;
+            }
+            openElapsed = 0f;
+            isAnimatingOpen = true;
+        }
+
+        private void ApplyOpenPose(float t)
+        {
+            if (openPoses == null) return;
+            foreach (OpenPose pose in openPoses)
+            {
+                if (pose.part == null) continue;
+                pose.part.SetLocalPositionAndRotation(Vector3.LerpUnclamped(pose.closedPosition, pose.openPosition, t),
+                    Quaternion.SlerpUnclamped(pose.closedRotation, pose.openRotation, t));
+            }
+        }
 
         public string InteractPrompt => searched
             ? "Already searched"
@@ -48,6 +145,13 @@ namespace SheltreSim.Items
         public void RestoreSearchedState(bool isSearched)
         {
             searched = isSearched;
+            if (searched) BeginOpen(false);
+            else
+            {
+                isAnimatingOpen = false;
+                if (openPoses == null || openPoses.Length == 0) CacheOpenParts();
+                ApplyOpenPose(0f);
+            }
         }
 
         public void Interact(GameObject interactor)
@@ -65,6 +169,7 @@ namespace SheltreSim.Items
             if (!hasLoot || entries == null || entries.Count == 0)
             {
                 searched = true;
+                BeginOpen(true);
                 SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, transform.position, 0.85f, 20f);
                 SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.LootEmpty, 0.4f, 0f, 0.5f);
                 GameMessageBus.Post("Searched — found nothing.");
@@ -84,6 +189,7 @@ namespace SheltreSim.Items
             }
 
             searched = true;
+            BeginOpen(true);
             StringBuilder found = new StringBuilder();
             for (int i = 0; i < entries.Count; i++)
             {
