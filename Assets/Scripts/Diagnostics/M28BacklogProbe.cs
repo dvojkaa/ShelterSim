@@ -94,7 +94,7 @@ namespace SheltreSim.Diagnostics
 
                             Vector3 desiredPosition = vehicle.transform.position + Vector3.forward * 2f;
                             object[] arguments = van
-                                ? new object[] { desiredPosition, 20f }
+                                ? new object[] { desiredPosition, 20f, vehicle.transform.rotation } // the van resolver also takes the target rotation since the terrain pass
                                 : new object[] { desiredPosition, Quaternion.identity };
                             Vector3 resolvedPosition = (Vector3)resolver.Invoke(driver, arguments);
 
