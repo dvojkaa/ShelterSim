@@ -55,6 +55,8 @@ namespace SheltreSim.Core
         public GameObject northWingPlug;
         public GameObject vaultPlug;
         public GameObject reinforcedDoorLeaf;
+        /// <summary>Delivery pallet at the stair head: orders are arriving once the contract is signed, until the bunker is sealed.</summary>
+        public GameObject deliveryPallet;
         public InteractableDoor mainBlastDoor;
         public StorageCratePiece supplyCage;
         public GameObject[] removedWhenComplete = new GameObject[0];
@@ -287,6 +289,7 @@ namespace SheltreSim.Core
             if (northWingShell != null) northWingShell.SetActive((Rooms & (BunkerShop.RoomBits.Workshop | BunkerShop.RoomBits.Hydro)) != 0);
             if (northWingPlug != null) northWingPlug.SetActive((Rooms & (BunkerShop.RoomBits.Workshop | BunkerShop.RoomBits.Hydro)) == 0);
             if (vaultPlug != null) vaultPlug.SetActive((Rooms & BunkerShop.RoomBits.Vault) == 0);
+            if (deliveryPallet != null) deliveryPallet.SetActive(HasContract && !BunkerComplete);
             if (reinforcedDoorLeaf != null) reinforcedDoorLeaf.SetActive((Rooms & BunkerShop.RoomBits.ReinforcedDoor) != 0);
             if (mainBlastDoor != null)
                 mainBlastDoor.maxRaidHealth = (Rooms & BunkerShop.RoomBits.ReinforcedDoor) != 0 ? 750f : 300f;

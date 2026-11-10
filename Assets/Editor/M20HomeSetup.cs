@@ -51,6 +51,8 @@ namespace SheltreSim.EditorTools
             BuildBunker(site, home);
             MoveFurniture();
             WireSupplyCage(home);
+            GameObject pallet = Visual(site, "prop_delivery_pallet", new Vector3(StairX - 3.4f, Ground, StairTopZ + 2.2f), 25f);
+            if (pallet != null) { pallet.name = "DeliveryPallet"; pallet.SetActive(false); home.deliveryPallet = pallet; }
             PlacePlayer(player);
 
             EditorUtility.SetDirty(home);
@@ -398,8 +400,12 @@ namespace SheltreSim.EditorTools
             collider.size = new Vector3(doorWidth, 2.3f, .18f);
             InteractableDoor interactable = door.AddComponent<InteractableDoor>();
             interactable.doorVisual = hinge.transform;
-            Box(door.transform, "DoorLeaf", door.transform.position,
-                new Vector3(doorWidth, 2.3f, .18f), rust, false);
+            if (Model("prop_vault_door_leaf") != null)
+                Attach(door.transform, "prop_vault_door_leaf").transform.localPosition = new Vector3(0f, -1.15f, 0f);
+            else
+                Box(door.transform, "DoorLeaf", door.transform.position, new Vector3(doorWidth, 2.3f, .18f), rust, false);
+            // The fixed frame around the swinging leaf (posts reach past the 1.8 m opening into the wall).
+            Visual(vault, "prop_vault_door_frame", new Vector3(doorX, 0f, z0 - .2f), 0f);
             home.vaultRoom = vault.gameObject;
             vault.gameObject.SetActive(false);
         }
