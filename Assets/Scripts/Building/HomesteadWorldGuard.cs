@@ -22,6 +22,23 @@ namespace SheltreSim.Building
         private static bool hooked;
         private static readonly List<Bounds> footprints = new List<Bounds>();
 
+        private struct CollapseSeed
+        {
+            public Vector3 position;
+            public float bottom;
+
+            public CollapseSeed(Vector3 position, float bottom)
+            {
+                this.position = position;
+                this.bottom = bottom;
+            }
+        }
+
+        private readonly Queue<CollapseSeed> collapseQueue = new Queue<CollapseSeed>();
+        private readonly HashSet<PlacedPiece> collapsing = new HashSet<PlacedPiece>();
+        private readonly List<PlacedPiece> collapseCandidates = new List<PlacedPiece>();
+        private bool processingCollapse;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() { instance = null; hooked = false; footprints.Clear(); }
 
@@ -171,27 +188,87 @@ namespace SheltreSim.Building
         private void OnStructureDestroyed(StructureHealth destroyed)
         {
             PlacedPiece piece = destroyed != null ? destroyed.GetComponent<PlacedPiece>() : null;
-            if (piece != null) StartCoroutine(CollapseAbove(piece.transform.position, HomesteadPlacement.BottomOf(piece)));
+            if (piece == null) return;
+            collapseQueue.Enqueue(new CollapseSeed(piece.transform.position, HomesteadPlacement.BottomOf(piece)));
+            if (!processingCollapse) StartCoroutine(ProcessCollapseQueue());
         }
 
-        // Next frame: the event fires while the piece still exists, and a collapse must not recurse inside TakeDamage.
-        private static IEnumerator CollapseAbove(Vector3 position, float bottom)
+        // Defer until the destroyed piece has left the registry. Nested collapses enqueue more seeds for this same
+        // pass instead of recursively starting coroutines from StructureHealth.Destroyed.
+        private IEnumerator ProcessCollapseQueue()
         {
+            processingCollapse = true;
             yield return null;
-            foreach (PlacedPiece piece in new List<PlacedPiece>(PlacedPieceRegistry.All))
+
+            while (collapseQueue.Count > 0)
             {
-                if (piece == null) continue;
-                Vector3 offset = piece.transform.position - position;
-                if (offset.x * offset.x + offset.z * offset.z > 16f || HomesteadPlacement.BottomOf(piece) < bottom - .1f) continue;
-                if (HomesteadPlacement.IsSupported(piece)) continue;
-                StructureHealth health = piece.GetComponent<StructureHealth>();
-                if (health != null) health.TakeDamage(health.maxHealth * 10f);
-                else
+                CollapseSeed seed = collapseQueue.Dequeue();
+                CollectCollapseCandidates(seed);
+                collapseCandidates.Sort((a, b) => CompareCollapseOrder(a, b, seed.position));
+
+                for (int i = 0; i < collapseCandidates.Count; i++)
                 {
-                    piece.gameObject.SetActive(false);
-                    Destroy(piece.gameObject);
+                    PlacedPiece piece = collapseCandidates[i];
+                    if (piece == null || !piece.isActiveAndEnabled || collapsing.Contains(piece)) continue;
+                    Vector3 offset = piece.transform.position - seed.position;
+                    if (offset.x * offset.x + offset.z * offset.z > 16f
+                        || HomesteadPlacement.BottomOf(piece) < seed.bottom - .1f) continue;
+
+                    // Earlier, lower supports are handled first. Re-check support immediately before destruction so
+                    // a piece that still has an independent support is never removed by an unrelated collapse.
+                    if (HomesteadPlacement.IsSupported(piece)) continue;
+                    collapsing.Add(piece);
+                    DestroyUnsupportedPiece(piece);
                 }
             }
+
+            collapsing.Clear();
+            processingCollapse = false;
+        }
+
+        private void CollectCollapseCandidates(CollapseSeed seed)
+        {
+            collapseCandidates.Clear();
+            foreach (PlacedPiece piece in PlacedPieceRegistry.All)
+            {
+                if (piece == null || collapsing.Contains(piece)) continue;
+                Vector3 offset = piece.transform.position - seed.position;
+                if (offset.x * offset.x + offset.z * offset.z <= 16f
+                    && HomesteadPlacement.BottomOf(piece) >= seed.bottom - .1f)
+                    collapseCandidates.Add(piece);
+            }
+        }
+
+        private static int CompareCollapseOrder(PlacedPiece a, PlacedPiece b, Vector3 origin)
+        {
+            if (a == null) return b == null ? 0 : 1;
+            if (b == null) return -1;
+            int order = HomesteadPlacement.BottomOf(a).CompareTo(HomesteadPlacement.BottomOf(b));
+            if (order != 0) return order;
+            order = (a.transform.position - origin).sqrMagnitude.CompareTo((b.transform.position - origin).sqrMagnitude);
+            if (order != 0) return order;
+            order = a.transform.position.x.CompareTo(b.transform.position.x);
+            if (order != 0) return order;
+            order = a.transform.position.z.CompareTo(b.transform.position.z);
+            if (order != 0) return order;
+            return string.CompareOrdinal(a.pieceId, b.pieceId);
+        }
+
+        private void DestroyUnsupportedPiece(PlacedPiece piece)
+        {
+            StructureHealth health = piece.GetComponent<StructureHealth>();
+            if (health != null && health.Health > 0f)
+            {
+                // A single final hit preserves the normal sound, message, loot and event path.
+                health.TakeDamage(health.Health + 1f);
+                return;
+            }
+
+            // A piece without usable health has no destruction event, so enqueue its footprint explicitly to keep
+            // upper pieces from floating after the next support in a cascade disappears.
+            collapseQueue.Enqueue(new CollapseSeed(piece.transform.position, HomesteadPlacement.BottomOf(piece)));
+            piece.gameObject.SetActive(false);
+            Destroy(piece.gameObject);
         }
     }
 }

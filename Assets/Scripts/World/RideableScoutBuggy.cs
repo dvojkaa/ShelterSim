@@ -38,6 +38,7 @@ namespace SheltreSim.World
 
         private readonly Dictionary<string, int> contents = new Dictionary<string, int>();
         private readonly Dictionary<UnityEngine.Object, float> ramReadyAt = new Dictionary<UnityEngine.Object, float>();
+        private readonly Dictionary<Rigidbody, float> impactReadyAt = new Dictionary<Rigidbody, float>();
         private readonly List<Light> headlights = new List<Light>();
         private readonly Collider[] ramHits = new Collider[24];
         private readonly RaycastHit[] vehicleBlockHits = new RaycastHit[32];
@@ -212,16 +213,48 @@ namespace SheltreSim.World
             int count = Physics.BoxCastNonAlloc(center, VehicleHalfExtents(), direction, vehicleBlockHits,
                 transform.rotation, distance, ~0, QueryTriggerInteraction.Ignore);
             float nearest = distance;
+            RaycastHit nearestHit = default;
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = vehicleBlockHits[i];
                 if (!IsVehicleBlocker(hit.collider)) continue;
-                if (hit.distance < nearest) nearest = hit.distance;
+                if (hit.distance < nearest)
+                {
+                    nearest = hit.distance;
+                    nearestHit = hit;
+                }
             }
             Array.Clear(vehicleBlockHits, 0, count);
 
-            if (nearest < distance) desiredPosition = transform.position + direction * Mathf.Max(0f, nearest - 0.04f);
+            if (nearest < distance)
+            {
+                float impactSpeed = distance / Mathf.Max(0.0001f, Time.deltaTime);
+                if (impactSpeed >= RamMinSpeed)
+                    ApplyImpactImpulse(nearestHit.collider, direction, nearestHit.point, impactSpeed);
+                desiredPosition = transform.position + direction * Mathf.Max(0f, nearest - 0.04f);
+            }
             return desiredPosition;
+        }
+
+        /// <summary>Transfers a small, capped portion of a fast bumper impact to dynamic physics props.</summary>
+        private void ApplyImpactImpulse(Collider collider, Vector3 direction, Vector3 point, float speed)
+        {
+            if (collider == null) return;
+            Rigidbody body = collider.attachedRigidbody;
+            if (body == null || body.isKinematic || !body.gameObject.activeInHierarchy) return;
+            if (body.transform == transform || body.transform.IsChildOf(transform)) return;
+            if (rider != null && (body.transform == rider.transform || body.transform.IsChildOf(rider.transform))) return;
+            if (impactReadyAt.TryGetValue(body, out float readyAt) && Time.time < readyAt) return;
+
+            Vector3 flatDirection = direction;
+            flatDirection.y = 0f;
+            if (flatDirection.sqrMagnitude < 0.0001f) return;
+            impactReadyAt[body] = Time.time + 0.65f;
+
+            // Cap the velocity change so light clutter moves visibly while heavy props remain controllable.
+            float impulse = Mathf.Clamp(speed * body.mass * 0.08f, 0.5f, Mathf.Max(0.5f, body.mass * 5f));
+            Vector3 impulseDirection = (flatDirection.normalized + Vector3.up * 0.08f).normalized;
+            body.AddForceAtPosition(impulseDirection * impulse, point, ForceMode.Impulse);
         }
 
         private bool RotationHasClearance(Vector3 rootPosition, Quaternion rotation)
@@ -304,6 +337,11 @@ namespace SheltreSim.World
             foreach (KeyValuePair<UnityEngine.Object, float> entry in ramReadyAt)
                 if (entry.Value <= Time.time) expired.Add(entry.Key);
             foreach (UnityEngine.Object target in expired) ramReadyAt.Remove(target);
+
+            var expiredBodies = new List<Rigidbody>();
+            foreach (KeyValuePair<Rigidbody, float> entry in impactReadyAt)
+                if (entry.Key == null || entry.Value <= Time.time) expiredBodies.Add(entry.Key);
+            foreach (Rigidbody body in expiredBodies) impactReadyAt.Remove(body);
         }
 
         private void Refuel()
@@ -428,6 +466,7 @@ namespace SheltreSim.World
             mounted = false;
             ramSweepReady = false;
             ramReadyAt.Clear();
+            impactReadyAt.Clear();
             if (rider != null)
             {
                 rider.walkSpeed = oldWalk; rider.sprintSpeed = oldSprint;

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: ArmoredVan
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Armored Van
+  id: piece_armored_van
+  prefab: {fileID: 566142861848671116, guid: 125aac7cb24bab511893f49c58fd800b, type: 3}
+  footprintSize: {x: 5, y: 2.5, z: 6.5}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 0f3e0f13e6483f05d935f4c07a4316cc, type: 2}
+    amount: 24
+  - resource: {fileID: 11400000, guid: a876150a8e97f49298a9d1b258ee277d, type: 2}
+    amount: 18
+  - resource: {fileID: 11400000, guid: c8c501bfe82e1c21f850f1004d960736, type: 2}
+    amount: 4
+  - resource: {fileID: 11400000, guid: d7915f0ed73f1ee92af2d1e8be4f7e8a, type: 2}
+    amount: 6
+  - resource: {fileID: 11400000, guid: 8c7b6cdfd666f17508533d843fb7122a, type: 2}
+    amount: 2
+  - resource: {fileID: 11400000, guid: f71fbfc6edb1052a39764be7f128b787, type: 2}
+    amount: 8
+  placementRule: 0

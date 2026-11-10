@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: ConcreteFoundation
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Concrete Foundation
+  id: piece_foundation_concrete
+  prefab: {fileID: 4806247630019853005, guid: a6f7b13d8a22000b9a416e354585aa7c, type: 3}
+  footprintSize: {x: 2, y: 0.6, z: 2}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 3334b784a5ce819a5b7fed8d52523dfc, type: 2}
+    amount: 12
+  - resource: {fileID: 11400000, guid: a876150a8e97f49298a9d1b258ee277d, type: 2}
+    amount: 6
+  - resource: {fileID: 11400000, guid: d7915f0ed73f1ee92af2d1e8be4f7e8a, type: 2}
+    amount: 3
+  - resource: {fileID: 11400000, guid: be5bc9f8bc26b88639037411482072d1, type: 2}
+    amount: 2
+  placementRule: 1

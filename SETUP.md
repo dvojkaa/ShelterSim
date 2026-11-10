@@ -1,7 +1,7 @@
 # SheltreSim — Setup & Playtest Guide
 
 **Tech:** Unity 6000.6.8f1 · Built-in Render Pipeline · Linux target · `M1_BunkerShell.unity`
-**Compile check (2 s, no Unity needed):** `./tools/compile_check.sh` → `COMPILE OK (174 runtime + 29 editor files)`
+**Compile check (2 s, no Unity needed):** `./tools/compile_check.sh` → `COMPILE OK (180 runtime + 29 editor files)`
 
 ---
 
@@ -188,7 +188,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] Craft at Workbench (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape) and place the build piece.
 - [HUMAN] `E` mounts; walk/sprint speeds are 18/22 m/s. `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
 - [HUMAN] Trunk holds up to 120 kg and participates in nearby-storage crafting. Fuel, headlight state, trunk contents and vehicle placement persist after save/load.
-- [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Gameplay ramming damage is implemented; physical body collision and impact impulse are still pending.
+- [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Collision sweeps should stop on blocking geometry; fast contacts should impart a capped impulse to dynamic props without repeated damage while blocked.
 - [HUMAN] At 5.5 m/s forward speed or faster, buggy bumper sweep damages enemies, animals and placed structures once per target every 1.2 s; reverse, sideways and stationary motion must not ram.
 
 ### Player Building Damage
@@ -202,7 +202,9 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 - [HUMAN] Reinforced and concrete foundations accept walls and satisfy the same support rules as wood foundations. Reinforced/concrete walls count as full walls; repair and damage stages work.
 - [HUMAN] Craft the Armored Van (24 steel bars, 18 metal plates, 4 electric motors, 6 reinforced frames, 2 energy cells, 8 duct tape); cargo capacity is 300 kg, `H` adds 700 m from fuel, `J` adds 500 m from an energy cell, headlights toggle with `L`, cargo opens with `P`, `T` fires the turret, and `Space` dismounts. Neither fuel source should be consumed when there is insufficient tank room for its full range.
+- [HUMAN] Collision sweeps should stop the van against blocking geometry, keep the rider seated, and apply a throttled impulse to dynamic props without adding duplicate HP damage. Turning in tight spaces should remain responsive.
 - [HUMAN] Forward ram at speed damages enemies, wildlife and placed structures once per target cooldown; reversing/standing contact must not repeatedly damage targets. Turret uses one `ammo_rifle` per shot, aims from the camera to 70 m, fires every 0.75 s and is blocked by the first solid obstacle.
+- [HUMAN] Destroy a lower foundation under a multi-piece structure; unsupported pieces collapse bottom-up, while pieces with another valid support remain. Confirm each destroyed piece follows the normal single salvage/drop path.
 
 ### Garage Workshop
 

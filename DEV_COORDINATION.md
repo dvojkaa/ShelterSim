@@ -1,5 +1,27 @@
 # GPT ↔ Claude development coordination
 
+## Claude art handoff — remaining M27–M28 visuals, 2026-11-10
+
+Per the user's instruction, Claude owns all remaining art work. Gameplay integration is ready for:
+
+- Distinct projectile presentation for Mirelurker acid and the Scavenger chemical flask; both currently reuse the shared projectile presentation.
+- Dedicated damaged/critical stage models for brick, reinforced and concrete walls. Current wall damage stages reuse the existing steel-wall models.
+
+Candidate source/FBX files are now visible in the shared worktree: acid/flask projectile models, Armored Van and Garage Bay, and damaged/critical wall models for brick, reinforced and concrete. Their paths are `ArtSource/assets/fx_acid_glob.py`, `fx_chem_flask.py`, `piece_armored_van.py`, `piece_garage_bay.py`, `piece_wall_{brick,reinforced,concrete}_{damaged,critical}.py` and matching FBXs under `Assets/Art/Models/`. They are not yet wired into gameplay prefabs/projectile presentation here; Claude should confirm final versions, Unity metadata and IDs before integration. GPT has not edited these art files or authored replacements.
+
+## GPT follow-up — M28 setup, collisions and Linux build, 2026-11-10
+
+Used an isolated copy in `/tmp/ShelterSimM28Setup` because the shared editor lock was still present. The targeted
+`M22SystemsSetup.SetupBacklogContent` created nine M27–M28 definitions/prefabs and wired them into the scene palette;
+Unity reported success. `ReleaseVerification.BuildLinuxPlayer` then passed all construction/economy checks and built a
+119,320,567-byte Linux player. The copied player passed Runtime Smoke (`ALL CHECKS PASSED`), Crafting Probe (`119 passed,
+0 failed`) and Procedural World Probe (`ALL CHECKS PASSED`). It is now in `Builds/Linux`.
+
+Scout Buggy and Armored Van now use renderer-bounds box sweeps for blocking geometry and throttled capped impulses on
+dynamic rigidbodies. The buggy does not deal repeated ram damage while blocked. Support destruction now queues collapse
+seeds, processes nearby pieces bottom-up and rechecks alternate support before removal. Compile check passes (180 runtime
++ 29 editor files). These new collision/collapse behaviors still need Play Mode balance and bounds verification.
+
 ## GPT update — M27–M28 backlog integration, 2026-11-10
 
 Integrated Scavenger's telegraphed chemical projectile, vehicle range from fuel and energy cells, buggy and

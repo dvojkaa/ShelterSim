@@ -41,11 +41,14 @@ namespace SheltreSim.World
 
         private readonly Dictionary<string, int> contents = new Dictionary<string, int>();
         private readonly Dictionary<UnityEngine.Object, float> targetRamCooldown = new Dictionary<UnityEngine.Object, float>();
+        private readonly Dictionary<Rigidbody, float> impactReadyAt = new Dictionary<Rigidbody, float>();
         private readonly List<Light> headlights = new List<Light>();
         private readonly Collider[] ramHits = new Collider[32];
+        private readonly RaycastHit[] vehicleBlockHits = new RaycastHit[32];
+        private readonly Collider[] vehicleOverlapHits = new Collider[32];
         private FirstPersonController rider;
         private float oldWalk, oldSprint, fuelMeters, nextNoise, nextCooldownCleanup, nextTurretShot, nextDryTurretMessage;
-        private Vector3 lastRiderPosition, lastBumperPosition;
+        private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
         private InputAction dismount, cargoAction, refuelAction, batteryAction, lightAction, turretAction;
         private Collider[] vehicleColliders;
         private bool[] colliderStates;
@@ -62,6 +65,7 @@ namespace SheltreSim.World
             vehicleColliders = GetComponentsInChildren<Collider>(true);
             colliderStates = new bool[vehicleColliders.Length];
             for (int i = 0; i < vehicleColliders.Length; i++) colliderStates[i] = vehicleColliders[i].enabled;
+            MeasureVehicleBounds();
             dismount = new InputAction("DismountArmoredVan", InputActionType.Button, "<Keyboard>/space");
             cargoAction = new InputAction("OpenVanCargo", InputActionType.Button, "<Keyboard>/p");
             refuelAction = new InputAction("RefuelVan", InputActionType.Button, "<Keyboard>/h");
@@ -108,23 +112,46 @@ namespace SheltreSim.World
             if (lightAction.WasPressedThisFrame()) { lightsOn = !lightsOn; ApplyHeadlights(); GameMessageBus.Post(lightsOn ? "Van headlights on." : "Van headlights off."); }
             if (turretAction.WasPressedThisFrame()) FireTurret();
 
+            Vector3 previousRiderPosition = lastRiderPosition;
             Vector3 position = rider.transform.position;
-            Vector3 previousBumper = lastBumperPosition;
-            Vector3 movement = position - lastRiderPosition;
-            float travelled = Vector3.Distance(position, lastRiderPosition);
+            Vector3 movement = position - previousRiderPosition;
+            float travelled = Vector3.Distance(position, previousRiderPosition);
             float speed = Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f;
+            Quaternion previousRotation = transform.rotation;
+            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            if (!RotationHasClearance(transform.position, desiredRotation)) desiredRotation = previousRotation;
+
+            Vector3 follow = FollowPosition(position, desiredRotation);
+            Vector3 previousVehiclePosition = transform.position;
+            Vector3 resolved = ResolveVehicleMotion(follow, speed);
+            Vector3 correction = resolved - follow;
+            if (correction.sqrMagnitude > 0.0001f)
+            {
+                // The CharacterController has already moved this frame. Move it back by the same amount
+                // that the van body was blocked, keeping the rider seated behind the vehicle.
+                riderBody.Move(correction);
+                position = rider.transform.position;
+                movement = position - previousRiderPosition;
+                travelled = Vector3.Distance(position, previousRiderPosition);
+                speed = Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f;
+                follow = FollowPosition(position, desiredRotation);
+                resolved = ResolveVehicleMotion(follow, speed);
+            }
+
+            transform.position = resolved;
+            transform.rotation = desiredRotation;
             lastRiderPosition = position;
             fuelMeters = Mathf.Max(0f, fuelMeters - travelled);
             rider.walkSpeed = fuelMeters > 0f ? walkSpeed : 0f;
             rider.sprintSpeed = fuelMeters > 0f ? sprintSpeed : 0f;
 
-            Vector3 follow = position - rider.transform.forward * 3f;
-            follow.y = position.y - 1f;
-            transform.position = follow;
-            transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Vector3 previousBumper = lastBumperPosition;
             Vector3 bumper = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
-            if (fuelMeters > 0f && speed >= minimumRamSpeed && Vector3.Dot(movement, rider.transform.forward) > 0f)
-                TryRam(previousBumper, bumper, speed);
+            Vector3 vehicleMovement = transform.position - previousVehiclePosition;
+            vehicleMovement.y = 0f;
+            float vehicleSpeed = Time.deltaTime > 0f ? vehicleMovement.magnitude / Time.deltaTime : 0f;
+            if (fuelMeters > 0f && vehicleSpeed >= minimumRamSpeed && Vector3.Dot(vehicleMovement, transform.forward) > 0f)
+                TryRam(previousBumper, bumper, vehicleSpeed);
             lastBumperPosition = bumper;
 
             if (travelled > 0.05f && Time.time >= nextNoise)
@@ -151,6 +178,108 @@ namespace SheltreSim.World
             transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             lastBumperPosition = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
             GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan:0} m), J energy cell (+{BatteryRangePerCell:0} m), L lights, T turret (1 rifle round), Space dismount. Range: {fuelMeters:0} m. Ram at speed to damage enemies and structures.");
+        }
+
+        private Vector3 FollowPosition(Vector3 riderPosition, Quaternion rotation)
+        {
+            Vector3 follow = riderPosition - rotation * Vector3.forward * 3f;
+            follow.y = riderPosition.y - 1f;
+            return follow;
+        }
+
+        private void MeasureVehicleBounds()
+        {
+            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+            Vector3 min = Vector3.one * float.PositiveInfinity;
+            Vector3 max = Vector3.one * float.NegativeInfinity;
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer == null) continue;
+                Bounds bounds = renderer.bounds;
+                Vector3 center = bounds.center;
+                Vector3 extents = bounds.extents;
+                for (int x = -1; x <= 1; x += 2)
+                    for (int y = -1; y <= 1; y += 2)
+                        for (int z = -1; z <= 1; z += 2)
+                        {
+                            Vector3 corner = transform.InverseTransformPoint(center + Vector3.Scale(extents, new Vector3(x, y, z)));
+                            min = Vector3.Min(min, corner);
+                            max = Vector3.Max(max, corner);
+                        }
+            }
+            if (renderers.Length == 0 || float.IsInfinity(min.x) || float.IsInfinity(max.x))
+            {
+                vehicleLocalCenter = new Vector3(0f, 1f, 0f);
+                vehicleLocalHalfExtents = new Vector3(1.25f, 0.9f, 2.8f);
+                return;
+            }
+            Vector3 size = max - min;
+            vehicleLocalCenter = (min + max) * 0.5f;
+            vehicleLocalHalfExtents = new Vector3(Mathf.Max(.1f, size.x * .47f), Mathf.Max(.1f, size.y * .44f), Mathf.Max(.1f, size.z * .47f));
+        }
+
+        private Vector3 ResolveVehicleMotion(Vector3 desiredPosition, float speed)
+        {
+            Vector3 movement = desiredPosition - transform.position;
+            movement.y = 0f;
+            float distance = movement.magnitude;
+            if (distance <= .001f) return desiredPosition;
+
+            Vector3 direction = movement / distance;
+            Vector3 center = transform.TransformPoint(vehicleLocalCenter);
+            int count = Physics.BoxCastNonAlloc(center, VehicleHalfExtents(), direction, vehicleBlockHits,
+                transform.rotation, distance, ~0, QueryTriggerInteraction.Ignore);
+            float nearest = distance;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = vehicleBlockHits[i];
+                if (!IsVehicleBlocker(hit.collider)) continue;
+                if (hit.distance < nearest) nearest = hit.distance;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = vehicleBlockHits[i];
+                if (hit.distance <= nearest + .02f && IsVehicleBlocker(hit.collider)) ApplyImpact(hit, direction, speed);
+            }
+            Array.Clear(vehicleBlockHits, 0, count);
+            return nearest < distance ? transform.position + direction * Mathf.Max(0f, nearest - .06f) : desiredPosition;
+        }
+
+        private bool RotationHasClearance(Vector3 rootPosition, Quaternion rotation)
+        {
+            Vector3 scaledCenter = Vector3.Scale(vehicleLocalCenter, transform.lossyScale);
+            Vector3 center = rootPosition + rotation * scaledCenter;
+            int count = Physics.OverlapBoxNonAlloc(center, VehicleHalfExtents(), vehicleOverlapHits, rotation,
+                ~0, QueryTriggerInteraction.Ignore);
+            bool clear = true;
+            for (int i = 0; i < count; i++)
+                if (IsVehicleBlocker(vehicleOverlapHits[i])) { clear = false; break; }
+            Array.Clear(vehicleOverlapHits, 0, count);
+            return clear;
+        }
+
+        private Vector3 VehicleHalfExtents()
+        {
+            Vector3 scale = transform.lossyScale;
+            return Vector3.Scale(vehicleLocalHalfExtents, new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+        }
+
+        private bool IsVehicleBlocker(Collider collider)
+        {
+            if (collider == null || collider.transform == transform || collider.transform.IsChildOf(transform)) return false;
+            if (rider != null && (collider.transform == rider.transform || collider.transform.IsChildOf(rider.transform))) return false;
+            return true;
+        }
+
+        private void ApplyImpact(RaycastHit hit, Vector3 direction, float speed)
+        {
+            if (speed < minimumRamSpeed || hit.distance > speed * Time.deltaTime + .1f) return;
+            Rigidbody body = hit.collider != null ? hit.collider.attachedRigidbody : null;
+            if (body == null || body.isKinematic || body.transform == transform || body.transform.IsChildOf(transform)) return;
+            if (impactReadyAt.TryGetValue(body, out float readyAt) && Time.time < readyAt) return;
+            impactReadyAt[body] = Time.time + .35f;
+            float impulse = body.mass * Mathf.Clamp(speed * .25f, 1.5f, 4f);
+            body.AddForceAtPosition(direction * impulse, hit.point, ForceMode.Impulse);
         }
 
         private void FireTurret()
@@ -272,6 +401,11 @@ namespace SheltreSim.World
             foreach (KeyValuePair<UnityEngine.Object, float> entry in targetRamCooldown)
                 if (entry.Value <= Time.time || entry.Key == null) expired.Add(entry.Key);
             foreach (UnityEngine.Object target in expired) targetRamCooldown.Remove(target);
+
+            var expiredBodies = new List<Rigidbody>();
+            foreach (KeyValuePair<Rigidbody, float> entry in impactReadyAt)
+                if (entry.Value <= Time.time || entry.Key == null) expiredBodies.Add(entry.Key);
+            foreach (Rigidbody body in expiredBodies) impactReadyAt.Remove(body);
         }
 
         private void Refuel()

@@ -602,6 +602,15 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 546566722f1580fdea12b36b4e283cb1, type: 2}
   - {fileID: 11400000, guid: e6b66b3d939e18315bed7fb22259252c, type: 2}
   - {fileID: 11400000, guid: f1da58aede0b9297e813eb21a9f1509d, type: 2}
+  - {fileID: 11400000, guid: 80de6ccb39abe3287b0ae3ee1c6b2107, type: 2}
+  - {fileID: 11400000, guid: 4a91ae941973234f2bc1971ced26e4d7, type: 2}
+  - {fileID: 11400000, guid: bebea7a679de544b89262d5ec635b8fc, type: 2}
+  - {fileID: 11400000, guid: ce1d606edbdbeade482f1d074c448ebf, type: 2}
+  - {fileID: 11400000, guid: c2a4db4456ade0d579267c1ab8919987, type: 2}
+  - {fileID: 11400000, guid: 36ebc3cdcce1cc60191a2859c25a8fa9, type: 2}
+  - {fileID: 11400000, guid: 3cde566eff034e23791d24d340b7249e, type: 2}
+  - {fileID: 11400000, guid: e2d1f633743c0b6d2ae7a79918ef210a, type: 2}
+  - {fileID: 11400000, guid: dfeec0380143351ed8564170918aa09c, type: 2}
   buildModeController: {fileID: 1933434613}
   meleeAttacker: {fileID: 1280621832}
   craftingUi: {fileID: 142155572}
@@ -18957,6 +18966,15 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 546566722f1580fdea12b36b4e283cb1, type: 2}
   - {fileID: 11400000, guid: e6b66b3d939e18315bed7fb22259252c, type: 2}
   - {fileID: 11400000, guid: f1da58aede0b9297e813eb21a9f1509d, type: 2}
+  - {fileID: 11400000, guid: 80de6ccb39abe3287b0ae3ee1c6b2107, type: 2}
+  - {fileID: 11400000, guid: 4a91ae941973234f2bc1971ced26e4d7, type: 2}
+  - {fileID: 11400000, guid: bebea7a679de544b89262d5ec635b8fc, type: 2}
+  - {fileID: 11400000, guid: ce1d606edbdbeade482f1d074c448ebf, type: 2}
+  - {fileID: 11400000, guid: c2a4db4456ade0d579267c1ab8919987, type: 2}
+  - {fileID: 11400000, guid: 36ebc3cdcce1cc60191a2859c25a8fa9, type: 2}
+  - {fileID: 11400000, guid: 3cde566eff034e23791d24d340b7249e, type: 2}
+  - {fileID: 11400000, guid: e2d1f633743c0b6d2ae7a79918ef210a, type: 2}
+  - {fileID: 11400000, guid: dfeec0380143351ed8564170918aa09c, type: 2}
   inventory: {fileID: 916187332}
   survivalHud: {fileID: 1365490099}
 --- !u!1 &1934216302

@@ -78,20 +78,20 @@ First-person bunker-builder + survival game set in a seeded, streamed wasteland.
 * **Van turret:** While driving, `T` fires one `ammo_rifle` from cargo every 0.75 s. Camera-forward hitscan reaches 70 m, deals 45 damage, and stops at the first solid obstruction; placed structure damage follows the firearm material multipliers.
 * **Garage Workshop:** Powered (2 kW) service station. Its panel toggles repair and starts Scout Buggy/Armored Van assembly. Assembly consumes local pack/storage materials, takes 45 powered seconds and spawns one registered vehicle at a clear adjacent spot; progress persists. Repair uses one nearby Metal Repair Kit for up to 150 HP at 4 HP/s for a damaged vehicle within 12 m. Unused repair credit/target persist through outages and save/load.
 * **Structural tiers:** Added brick, reinforced and concrete 2 m foundations and 3 m walls with increasing HP, recipes and explicit structural placement/support rules. Wall damage uses current steel-wall damage models until dedicated art is available.
-* **Player structure damage:** Melee hits can damage placed pieces with `StructureHealth`. Hammer/axes favor wood, pickaxes favor stone and metal, and equipped melee weapons are less effective than proper tools. Firearms can damage them at reduced rates (18% wood, 8% stone, 4% metal); procedural scenery stays indestructible. Destruction drops a persistent loot bag with up to 50% of the piece's listed recipe inputs; health is already part of piece persistence. Advanced support-collapse behavior remains open.
-* **Current vehicle scope:** Scout Buggy remains controller-driven with gameplay ramming but no physical body collision/impulse. Armored Van also rams and has a cargo-fed turret. Fuel cans and energy cells both add range. Garage assembly and repair are implemented.
+* **Player structure damage:** Melee hits can damage placed pieces with `StructureHealth`. Hammer/axes favor wood, pickaxes favor stone and metal, and equipped melee weapons are less effective than proper tools. Firearms can damage them at reduced rates (18% wood, 8% stone, 4% metal); procedural scenery stays indestructible. Destruction drops a persistent loot bag with up to 50% of the piece's listed recipe inputs; health is already part of piece persistence. Destroyed supports now trigger bottom-up collapse propagation with a fresh support check before each removal.
+* **Current vehicle scope:** Scout Buggy and Armored Van use controller-driven oriented box sweeps to stop against blocking geometry, prevent blocked movement from causing ram damage, and apply throttled impulses to nearby dynamic rigidbodies. They are not full rigidbody vehicles. Fuel cans and energy cells add range; Garage assembly and repair are implemented.
 
 ---
 
 ## Active Backlog & Future Proposals
 
 1. **Motorized Vehicles & Garage Workshop (partial):**
-   - Implemented Scout Buggy ramming, ramming/turret-equipped Armored Van, fuel/energy-cell range, persistent cargo and powered Garage Workshop assembly/repair. Remaining: physical vehicle collision/impulse and Play Mode balance.
+   - Implemented Scout Buggy/Armored Van collision sweeps and capped dynamic-body impact impulses, ramming, the van turret, fuel/energy-cell range, persistent cargo and powered Garage Workshop assembly/repair. Remaining: Play Mode handling, bounds and balance.
 2. **Bestiary Projectile Presentation & Balance:**
    - Mirelurker acid and Scavenger flask attacks are telegraphed and blocked by world geometry. Claude owns distinct projectile visuals; playtest dodge windows and balance at typical encounter distances.
 3. **Vehicle and structural Play Mode verification:**
-   - Verify same-frame Space dismount, fuel/energy cells, van ram/turret cooldowns, garage power outages, repairs, brick/reinforced/concrete placement, structural damage stages, salvage persistence, and collapse behavior in the live scene.
+   - Verify same-frame Space dismount, vehicle collision/impulses, fuel/energy cells, van ram/turret cooldowns, garage power outages, repairs, brick/reinforced/concrete placement, structural damage stages, salvage persistence and cascading collapse in Play Mode.
 4. **Linux Build Refresh:**
-   - `Builds/Linux/SheltreSim.x86_64` predates M24/M25 scripts. Run `RebuildVerifyAndBuildLinux` from the Editor (see `SETUP.md`) to produce a build with all milestones baked in.
+   - `Builds/Linux/SheltreSim.x86_64` predates M24/M25 scripts. Run the current scene verification and Linux build from the Editor (see `SETUP.md`) to refresh the standalone player.
 5. **Higher Structure Tiers (partial):**
    - Brick, reinforced and concrete walls/foundations are implemented with recipes and HP. Dedicated damage art remains open.

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4918620305cc28bdf93da1bbdabc8ea8, type: 3}
+  m_Name: BrickWall
+  m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.BuildPieceDefinition
+  displayName: Brick Wall
+  id: piece_wall_brick
+  prefab: {fileID: 2976252972515567649, guid: 42148a0d146192524a088de04d97f5bd, type: 3}
+  footprintSize: {x: 2, y: 3, z: 0.2}
+  craftingCost:
+  - resource: {fileID: 11400000, guid: 3334b784a5ce819a5b7fed8d52523dfc, type: 2}
+    amount: 6
+  - resource: {fileID: 11400000, guid: be6b5a925bac8565087900af5ca838a7, type: 2}
+    amount: 3
+  - resource: {fileID: 11400000, guid: ed90cf100948da0b2b621fbd2852cdc1, type: 2}
+    amount: 3
+  placementRule: 3
