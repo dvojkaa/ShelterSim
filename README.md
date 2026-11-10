@@ -23,7 +23,7 @@ See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic pr
 
 * **Streamed 128m chunks:** Deterministic terrain, roads, and waterways generated from seed; unloads at distance.
 * **Six biomes:** Wasteland, pine forest, desert, snow, wetlands, and highlands.
-* **Towns & Ruins:** Street grids, abandoned vehicles, searchable buildings, and suburban house ruins.
+* **Towns & Ruins:** Street grids, two-storey furnished family houses and shop-houses, multi-storey apartments/offices with stair cores, and searchable furniture loot in ruined buildings.
 * **Six major landmarks:** Hospital, factory, fuel station, farm, military outpost, and abandoned bunker.
 * **Bestiary & Wildlife:** 12 enemy species and landmark bosses with 5-take animations, raider camps with locked chests, dodgeable Mirelurker acid and Scavenger flask projectiles, plus wander/flee deer, boars, and birds.
 * **Atlas (`M`):** Procedural seeded map showing terrain, biomes, roads, town districts, discovered landmarks, and home direction.
@@ -85,4 +85,4 @@ Fast command-line verification without launching the Unity Editor GUI:
 ## Current Scope & Limitations
 
 * **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, brick/reinforced/concrete build tiers, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, telegraphed Mirelurker and Scavenger projectiles, Scrap Bicycle, fuel/energy-cell Scout Buggy with collision sweeps and capped impact impulses, a ramming and turret-equipped Armored Van, eased vehicle seat-camera mount/dismount with capsule-checked exits, powered garage vehicle assembly/repair, backpack upgrades to 120 kg, radiation, water harvesting, crouch stealth, nearby-storage crafting and audio. The M27–M28 vehicle and structure pieces are wired into the build palette.
-* **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, NPC dialogue trees, second-floor building interiors in ruins. Vehicles use controller-driven movement with query-based collisions, not full Rigidbody vehicle simulation.
+* **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, NPC dialogue trees, and enemy pathfinding between building storeys. Upper floors are explorable by the player; raiders do not yet navigate the stairs. Vehicles use controller-driven movement with query-based collisions, not full Rigidbody vehicle simulation.

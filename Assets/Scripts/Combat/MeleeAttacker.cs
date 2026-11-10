@@ -44,6 +44,8 @@ namespace SheltreSim.Combat
         private bool isSuppressed;
 
         public float attackCooldown = 0.6f;
+        // Keep the existing serialized timing controls: their original defaults now map
+        // to the proposal's 0.09 s strike and 0.2 s recovery, respectively.
         public float swingDuration = 0.1f;
         public float returnDuration = 0.15f;
 
@@ -54,8 +56,15 @@ namespace SheltreSim.Combat
         private FirstPersonController playerController;
         private Transform playerRoot;
         private float lastAttackTime = float.NegativeInfinity;
+        private Vector3 restPosition;
         private Quaternion restRotation;
         private Coroutine swingCoroutine;
+
+        private static readonly AnimationCurve AnticipationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        private static readonly AnimationCurve StrikeCurve = new AnimationCurve(
+            new Keyframe(0f, 0f, 0f, 0f), new Keyframe(1f, 1f, 2f, 2f));
+        private static readonly AnimationCurve RecoveryCurve = new AnimationCurve(
+            new Keyframe(0f, 0f, 3f, 3f), new Keyframe(1f, 1f, 0f, 0f));
 
         public void ApplyWeaponUpgrade(float bonusDamage)
         {
@@ -76,6 +85,7 @@ namespace SheltreSim.Combat
             playerRoot = playerController != null ? playerController.transform : transform.root;
             if (weaponVisual != null)
             {
+                restPosition = weaponVisual.localPosition;
                 restRotation = weaponVisual.localRotation;
             }
         }
@@ -124,6 +134,9 @@ namespace SheltreSim.Combat
             lastAttackTime = Time.time;
             SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.Swing, 0.55f, 0.08f);
             Collider target = FindSwingTarget();
+            // Damage remains synchronous: existing gameplay/probe callers inspect the
+            // result of TryAttack immediately. Only the grip's animation is paused on contact.
+            bool madeContact = target != null;
             EnemyAI enemy = target != null ? target.GetComponentInParent<EnemyAI>() : null;
             if (enemy != null)
             {
@@ -154,7 +167,7 @@ namespace SheltreSim.Combat
             }
 
             ResetSwing();
-            swingCoroutine = StartCoroutine(SwingWeapon());
+            if (weaponVisual != null) swingCoroutine = StartCoroutine(SwingWeapon(madeContact));
             return true;
         }
 
@@ -345,32 +358,103 @@ namespace SheltreSim.Combat
             }
             if (weaponVisual != null)
             {
-                weaponVisual.localRotation = restRotation;
+                weaponVisual.SetLocalPositionAndRotation(restPosition, restRotation);
             }
         }
 
-        private IEnumerator SwingWeapon()
+        private float WeaponTimeWeight()
         {
-            if (weaponVisual == null)
+            // The Makeshift Blade is the current knife-sized weapon. Passive inventory
+            // tools do not change the equipped hand's timing.
+            switch (gear != null ? gear.WeaponId : string.Empty)
             {
-                yield break;
+                case "weapon_upgrade": return 0.8f;
+                case "fire_axe": return 1.3f;
+                default: return 1f;
+            }
+        }
+
+        private IEnumerator SwingWeapon(bool madeContact)
+        {
+            float weight = WeaponTimeWeight();
+            float anticipation = 0.05f * weight;
+            float strike = Mathf.Max(0.01f, swingDuration * 0.9f) * weight;
+            float followThrough = 0.06f * weight;
+            float recovery = Mathf.Max(0.01f, returnDuration * (0.2f / 0.15f)) * weight;
+            float contactTime = anticipation + strike;
+            float total = contactTime + followThrough + recovery;
+            float elapsed = 0f;
+            float holdRemaining = 0f;
+            bool contactReached = false;
+
+            while (elapsed < total && weaponVisual != null)
+            {
+                ApplySwingPose(elapsed, anticipation, strike, followThrough, recovery);
+                yield return null;
+
+                float advance = Time.deltaTime;
+                if (holdRemaining > 0f)
+                {
+                    float held = Mathf.Min(advance, holdRemaining);
+                    holdRemaining -= held;
+                    advance -= held;
+                }
+                if (!contactReached && elapsed + advance >= contactTime)
+                {
+                    contactReached = true;
+                    if (madeContact)
+                    {
+                        // Stop only this curve for 50 ms. Actors, physics, cooldown and
+                        // global time continue normally, and pause still freezes the grip.
+                        elapsed = contactTime;
+                        holdRemaining = 0.05f;
+                        continue;
+                    }
+                }
+                elapsed += advance;
             }
 
-            Quaternion swungRotation = restRotation * Quaternion.Euler(-60f, 0f, 0f);
-            float outward = Mathf.Max(0.01f, swingDuration);
-            float inward = Mathf.Max(0.01f, returnDuration);
-            for (float elapsed = 0f; elapsed < outward; elapsed += Time.deltaTime)
-            {
-                weaponVisual.localRotation = Quaternion.Slerp(restRotation, swungRotation, elapsed / outward);
-                yield return null;
-            }
-            for (float elapsed = 0f; elapsed < inward; elapsed += Time.deltaTime)
-            {
-                weaponVisual.localRotation = Quaternion.Slerp(swungRotation, restRotation, elapsed / inward);
-                yield return null;
-            }
-            weaponVisual.localRotation = restRotation;
+            if (weaponVisual != null) weaponVisual.SetLocalPositionAndRotation(restPosition, restRotation);
             swingCoroutine = null;
+        }
+
+        private void ApplySwingPose(float elapsed, float anticipation, float strike, float followThrough, float recovery)
+        {
+            Vector3 windupPosition = new Vector3(0f, 0f, -0.04f);
+            Vector3 strikePosition = new Vector3(-0.06f, 0f, 0.12f);
+            Vector3 overshootPosition = new Vector3(-0.08f, -0.02f, 0.14f);
+            Quaternion windupRotation = Quaternion.Euler(12f, 8f, 0f);
+            Quaternion strikeRotation = Quaternion.Euler(-80f, -35f, -20f);
+            Quaternion overshootRotation = Quaternion.Euler(-92f, -42f, -25f);
+            Vector3 position;
+            Quaternion rotation;
+            if (elapsed < anticipation)
+            {
+                float u = AnticipationCurve.Evaluate(elapsed / anticipation);
+                position = Vector3.LerpUnclamped(Vector3.zero, windupPosition, u);
+                rotation = Quaternion.SlerpUnclamped(Quaternion.identity, windupRotation, u);
+            }
+            else if (elapsed < anticipation + strike)
+            {
+                float u = StrikeCurve.Evaluate((elapsed - anticipation) / strike);
+                position = Vector3.LerpUnclamped(windupPosition, strikePosition, u);
+                rotation = Quaternion.SlerpUnclamped(windupRotation, strikeRotation, u);
+            }
+            else if (elapsed < anticipation + strike + followThrough)
+            {
+                float u = RecoveryCurve.Evaluate((elapsed - anticipation - strike) / followThrough);
+                position = Vector3.LerpUnclamped(strikePosition, overshootPosition, u);
+                rotation = Quaternion.SlerpUnclamped(strikeRotation, overshootRotation, u);
+            }
+            else
+            {
+                float u = RecoveryCurve.Evaluate((elapsed - anticipation - strike - followThrough) / recovery);
+                position = Vector3.LerpUnclamped(overshootPosition, Vector3.zero, u);
+                rotation = Quaternion.SlerpUnclamped(overshootRotation, Quaternion.identity, u);
+            }
+            // Translation is in camera/grip-parent space; the authored rest rotation
+            // turns the weapon model upright and must not rotate forward into downward.
+            weaponVisual.SetLocalPositionAndRotation(restPosition + position, restRotation * rotation);
         }
     }
 }

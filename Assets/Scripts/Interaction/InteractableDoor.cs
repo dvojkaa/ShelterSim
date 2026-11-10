@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using SheltreSim.UI;
 using UnityEngine;
 
@@ -21,6 +22,7 @@ namespace SheltreSim.Interaction
         private Vector3 passageNormal;
         private Vector3 closedHalfExtents;
         private Quaternion closedColliderRotation;
+        private DoorVisualTween visualTween;
 
         public string InteractPrompt
         {
@@ -42,6 +44,10 @@ namespace SheltreSim.Interaction
         public Vector3 PassageNormal { get { Initialize(); return passageNormal; } }
 
         private void Awake() => Initialize();
+
+        private void Update() => visualTween?.Tick(Time.deltaTime);
+
+        private void OnDisable() => visualTween?.Finish();
 
         private void Initialize()
         {
@@ -73,7 +79,7 @@ namespace SheltreSim.Interaction
                 return;
             }
 
-            RestoreState(true);
+            SetState(true, true, true);
             SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.DoorBash, passageCenter, 1f, 45f);
             GameMessageBus.Post("A raider forced the door open!");
         }
@@ -99,7 +105,7 @@ namespace SheltreSim.Interaction
             }
             if (raidDamage < maxRaidHealth) return;
             broken = true;
-            RestoreState(true);
+            SetState(true, true, true);
             SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.StructureBreak, passageCenter, 1f, 45f);
             GameMessageBus.Post("The door was broken down!");
         }
@@ -126,7 +132,7 @@ namespace SheltreSim.Interaction
         {
             Initialize();
             if (broken || !isOpen || DoorwayOccupied()) return false;
-            RestoreState(false);
+            RestoreState(false, true);
             SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.DoorClose, passageCenter, 0.85f, 28f, 0.03f);
             return true;
         }
@@ -148,19 +154,25 @@ namespace SheltreSim.Interaction
             GameMessageBus.Post("The door is repaired.");
         }
 
-        /// <summary>Restores a saved pose without replaying interaction feedback.</summary>
-        public void RestoreState(bool open)
+        /// <summary>Restores a saved pose without feedback. Save loads snap unless animation is explicitly requested.</summary>
+        public void RestoreState(bool open, bool animate = false) => SetState(open, animate, false);
+
+        private void SetState(bool open, bool animate, bool forced)
         {
             Initialize();
             isOpen = open;
             if (doorVisual != null)
             {
-                doorVisual.localRotation = closedRotation * Quaternion.Euler(0f, open ? 90f : 0f, 0f);
+                if (visualTween == null) visualTween = new DoorVisualTween(doorVisual);
+                visualTween.SetPose(closedRotation * Quaternion.Euler(0f, open ? 90f : 0f, 0f),
+                    animate && Application.isPlaying && isActiveAndEnabled,
+                    forced ? .12f : open ? .35f : .3f, open ? forced ? 10f : 4f : 0f);
             }
             else if (doorCollider != null)
             {
                 doorCollider.enabled = !open;
             }
+            Physics.SyncTransforms();
         }
 
         public void Interact(GameObject interactor)
@@ -183,7 +195,7 @@ namespace SheltreSim.Interaction
                 return;
             }
 
-            RestoreState(!isOpen);
+            RestoreState(!isOpen, true);
             SheltreSim.Audio.GameAudio.PlayAt(isOpen ? SheltreSim.Audio.Sfx.DoorOpen : SheltreSim.Audio.Sfx.DoorClose, passageCenter, 0.85f, 28f, 0.03f);
         }
 
@@ -204,6 +216,132 @@ namespace SheltreSim.Interaction
                 }
             }
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the real hinge (and all its colliders) at the logical pose, while mesh-only copies swing.
+    /// Door leaves can share their transform with a collider, so rotating their transforms would delay collision.
+    /// No coroutines: a new request continues from the displayed pose and replaces the previous tween.
+    /// </summary>
+    internal sealed class DoorVisualTween
+    {
+        private readonly Transform hinge;
+        private readonly List<MeshRenderer> hidden = new List<MeshRenderer>();
+        private readonly List<bool> previousForceRenderingOff = new List<bool>();
+        private Transform visualRoot;
+        private Quaternion start;
+        private Quaternion target;
+        private Quaternion displayed;
+        private float elapsed;
+        private float duration;
+        private float overshoot;
+
+        public DoorVisualTween(Transform hinge) => this.hinge = hinge;
+
+        public void SetPose(Quaternion rotation, bool animate, float seconds, float overshootDegrees)
+        {
+            Quaternion from = visualRoot != null ? displayed : hinge.localRotation;
+            Finish();
+            target = rotation;
+            hinge.localRotation = target;
+            float angle = Quaternion.Angle(from, target);
+            if (!animate || angle < .01f) return;
+
+            // Rebuild only the mesh hierarchy, preserving nested rotations/scales without cloning scripts or colliders.
+            MeshRenderer[] sources = hinge.GetComponentsInChildren<MeshRenderer>(true);
+            if (sources.Length == 0) return;
+            visualRoot = new GameObject("DoorMotionVisual").transform;
+            visualRoot.SetParent(hinge, false);
+            var copies = new Dictionary<Transform, Transform> { { hinge, visualRoot } };
+            foreach (MeshRenderer source in sources)
+            {
+                MeshFilter mesh = source.GetComponent<MeshFilter>();
+                if (mesh == null || mesh.sharedMesh == null) continue;
+                Transform copy = CopyTransform(source.transform, copies);
+                copy.gameObject.AddComponent<MeshFilter>().sharedMesh = mesh.sharedMesh;
+                MeshRenderer renderer = copy.gameObject.AddComponent<MeshRenderer>();
+                renderer.sharedMaterials = source.sharedMaterials;
+                renderer.enabled = source.enabled;
+                renderer.forceRenderingOff = source.forceRenderingOff;
+                renderer.shadowCastingMode = source.shadowCastingMode;
+                renderer.receiveShadows = source.receiveShadows;
+                renderer.lightProbeUsage = source.lightProbeUsage;
+                renderer.reflectionProbeUsage = source.reflectionProbeUsage;
+                renderer.renderingLayerMask = source.renderingLayerMask;
+                renderer.lightmapIndex = source.lightmapIndex;
+                renderer.lightmapScaleOffset = source.lightmapScaleOffset;
+                if (source.HasPropertyBlock())
+                {
+                    var properties = new MaterialPropertyBlock();
+                    source.GetPropertyBlock(properties);
+                    renderer.SetPropertyBlock(properties);
+                }
+                hidden.Add(source);
+                previousForceRenderingOff.Add(source.forceRenderingOff);
+                source.forceRenderingOff = true;
+            }
+            start = from;
+            displayed = from;
+            elapsed = 0f;
+            duration = seconds;
+            overshoot = overshootDegrees / angle;
+            ApplyDisplayedPose();
+        }
+
+        private Transform CopyTransform(Transform source, Dictionary<Transform, Transform> copies)
+        {
+            if (copies.TryGetValue(source, out Transform copy)) return copy;
+            Transform parent = CopyTransform(source.parent, copies);
+            copy = new GameObject(source.name).transform;
+            copy.SetParent(parent, false);
+            copy.localPosition = source.localPosition;
+            copy.localRotation = source.localRotation;
+            copy.localScale = source.localScale;
+            copy.gameObject.layer = source.gameObject.layer;
+            copy.gameObject.SetActive(source.gameObject.activeSelf);
+            copies.Add(source, copy);
+            return copy;
+        }
+
+        public void Tick(float deltaTime)
+        {
+            if (visualRoot == null) return;
+            elapsed += deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            if (t >= 1f)
+            {
+                Finish();
+                return;
+            }
+            // Open quickly, settle the overshoot; close with a gradually accelerating swing.
+            float progress;
+            if (overshoot > 0f)
+            {
+                const float peak = .78f;
+                progress = t < peak
+                    ? (1f + overshoot) * (1f - Mathf.Pow(1f - t / peak, 3f))
+                    : Mathf.Lerp(1f + overshoot, 1f, Mathf.SmoothStep(0f, 1f, (t - peak) / (1f - peak)));
+            }
+            else progress = t * t;
+            displayed = Quaternion.SlerpUnclamped(start, target, progress);
+            ApplyDisplayedPose();
+        }
+
+        private void ApplyDisplayedPose() => visualRoot.localRotation = Quaternion.Inverse(target) * displayed;
+
+        public void Finish()
+        {
+            for (int i = 0; i < hidden.Count; i++)
+                if (hidden[i] != null) hidden[i].forceRenderingOff = previousForceRenderingOff[i];
+            hidden.Clear();
+            previousForceRenderingOff.Clear();
+            if (visualRoot == null) return;
+            visualRoot.gameObject.SetActive(false);
+            // Destroy is deferred; detach now so another request cannot copy the old visual subtree.
+            visualRoot.SetParent(null, false);
+            Object.Destroy(visualRoot.gameObject);
+            visualRoot = null;
         }
     }
 }

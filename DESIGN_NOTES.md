@@ -488,6 +488,12 @@ Two widths, **4-6 storeys** (GF + 3-5 residential), roof with stair hut. Town lo
 * **Pitched-roof houses** stay non-enterable above the UF; ask if the playtester wants attics (needs a new roof model with interior volume).
 * **Culling pop** when entering a building: test from the doorway; GF always-on within 25 m should hide it.
 
+### GPT implementation progress — building interiors and motion
+
+Procedural generation now replaces the single empty family house with a furnished two-storey layout and a stair flight, and town lots can generate two-storey shop-houses, offices, and apartment blocks with multiple real floor groups and stair cores. Furniture uses dedicated deterministic loot slot tables; the normal pre-bomb pass keeps the same room/lot layout without searchable containers, while the ruined pass fills those slots. The house burn roll is now drawn in both passes so its lot dressing stays seeded consistently. `BuildingInterior` hides distant/currently irrelevant floor renderers while leaving their colliders active, and the world generation version is 3 so older generated chunks refresh.
+
+Procedural melee swing curves with contact hit-stop, eased door visuals, and player camera motion have also been added. A `--building-probe` checks seeded layout stability, normal/ruined loot separation, furniture slot tables, and coarse entrance clearance. C# compile check passes (195 runtime + 29 editor files). The Unity player build and runtime probe still need to be run in a clean scratch project, followed by human play checks for stair collisions, apartment navigation, renderer culling, and animation feel. Raiders do not yet follow stair routes; the probe does not yet verify every stair flight or generation time. Blender assets and their Resources wiring remain the art handoff.
+
 ## 2026-11-10 Vehicle mounting, driving feel and persistence (playtester request, design note)
 
 Playtester (translated): "Vehicle control needs to be better. When you get in, the car disappears: it needs an animation, and the vehicle should still be there. And when I get out, the vehicle should stay there too."

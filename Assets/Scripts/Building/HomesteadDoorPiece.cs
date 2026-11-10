@@ -21,6 +21,7 @@ namespace SheltreSim.Building
         public string noun = "door";
 
         private bool isOpen;
+        private DoorVisualTween visualTween;
 
         public bool IsOpen => isOpen;
         public Vector3 PassageCenter => transform.position;
@@ -28,6 +29,10 @@ namespace SheltreSim.Building
         public string InteractPrompt => isOpen ? $"Press E to close the {noun}" : $"Press E to open the {noun}";
 
         private void Awake() => ApplyPose();
+
+        private void Update() => visualTween?.Tick(Time.deltaTime);
+
+        private void OnDisable() => visualTween?.Finish();
 
         public void Interact(GameObject interactor)
         {
@@ -39,7 +44,7 @@ namespace SheltreSim.Building
                 return;
             }
             isOpen = !isOpen;
-            ApplyPose();
+            ApplyPose(true);
             GameAudio.PlayAt(isOpen ? Sfx.DoorOpen : Sfx.DoorClose, transform.position, 0.85f, 28f, 0.03f);
         }
 
@@ -48,13 +53,19 @@ namespace SheltreSim.Building
         {
             if (isOpen) return;
             isOpen = true;
-            ApplyPose();
+            ApplyPose(true, true);
             GameAudio.PlayAt(Sfx.DoorBash, transform.position, 1f, 45f);
         }
 
-        private void ApplyPose()
+        private void ApplyPose(bool animate = false, bool forced = false)
         {
-            if (hinge != null) hinge.localRotation = Quaternion.Euler(0f, isOpen ? swingDegrees : 0f, 0f);
+            if (hinge != null)
+            {
+                if (visualTween == null) visualTween = new DoorVisualTween(hinge);
+                visualTween.SetPose(Quaternion.Euler(0f, isOpen ? swingDegrees : 0f, 0f),
+                    animate && Application.isPlaying && isActiveAndEnabled,
+                    forced ? .12f : isOpen ? .35f : .3f, isOpen ? forced ? 10f : 4f : 0f);
+            }
             Physics.SyncTransforms();
         }
 
@@ -74,6 +85,7 @@ namespace SheltreSim.Building
             if (string.IsNullOrEmpty(state)) return;
             try { isOpen = JsonUtility.FromJson<SavedDoor>(state)?.open ?? false; }
             catch (ArgumentException) { isOpen = false; }
+            ApplyPose();
         }
     }
 }
