@@ -71,8 +71,10 @@ namespace SheltreSim.Diagnostics
                 IInteractable interactable = vehicle.GetComponent<IInteractable>();
                 if (interactable == null) { Fail(ids[i], "no IInteractable on the placed vehicle"); continue; }
                 stepsAtMount = PlayerAudio.StepsPlayed;
+                GameAudio.PlayLog = new System.Collections.Generic.List<string>();
                 interactable.Interact(player.gameObject);
-                yield return new WaitForSeconds(1.2f);
+                yield return new WaitForSeconds(2.2f); // the ignition sound covers the first 1.5 s, then the idle loop takes over
+                if (ids[i] != "piece_bicycle" && !GameAudio.PlayLog.Contains(Sfx.EngineStart)) Fail(ids[i], "mounted: the ignition sound did not play");
                 Look(ids[i], "mounted", vehicle, player, GroundAt(vehicle.transform.position));
                 CheckAudio(ids[i], "mounted", player, ids[i] == "piece_bicycle" ? null : (ids[i] == "piece_armored_van" ? Sfx.MotorVan : Sfx.MotorBuggy));
 

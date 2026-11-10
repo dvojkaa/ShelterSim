@@ -25,7 +25,7 @@ namespace SheltreSim.EditorTools
                 settings.quality = 0.55f;
             }
             else if (name == "amb_bunker" || name == "generator_hum" || name == "machine_hum" || name == "fan_loop" || name == "turret_laser" ||
-                     name == "motor_buggy" || name == "motor_van" || name == "bike_chain")
+                     name == "motor_buggy" || name == "motor_van" || name == "bike_chain" || name == "amb_interior")
             {
                 // A pure mains hum exposes any gap at the loop point, so no Vorbis encoder delay here.
                 settings.loadType = AudioClipLoadType.DecompressOnLoad;

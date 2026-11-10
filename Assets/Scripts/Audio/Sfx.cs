@@ -57,5 +57,8 @@ namespace SheltreSim.Audio
         public const string GeigerClick = "geiger_click";
 
         public const string MotorBuggy = "motor_buggy", MotorVan = "motor_van", BikeChain = "bike_chain";
+
+        public const string DrawerOpen = "drawer_open", CabinetOpen = "cabinet_open", EngineStart = "engine_start", EngineStop = "engine_stop",
+            AmbInterior = "amb_interior";
     }
 }

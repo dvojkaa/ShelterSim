@@ -30,6 +30,7 @@ namespace SheltreSim.Audio
         private AudioSource source;
         private Vector3 lastPosition;
         private float smoothedSpeed;
+        private float startupUntil;
 
         /// <summary>For probes: the key currently playing, or null.</summary>
         public string PlayingKey => source != null && source.isPlaying ? profile.key : null;
@@ -55,6 +56,7 @@ namespace SheltreSim.Audio
             float t = Mathf.Clamp01(smoothedSpeed / profile.topSpeed);
             float volume = Mathf.Lerp(profile.idleVolume, profile.topVolume, t);
             if (profile.silentWhenStill) volume *= Mathf.Clamp01(smoothedSpeed / 1.5f);
+            if (Time.time < startupUntil) volume = 0f; // The ignition sound covers the start.
             if (Time.timeScale == 0f) volume = 0f; // Paused: the engine does not run on.
             Apply(volume, Mathf.Lerp(profile.idlePitch, profile.topPitch, t));
         }
@@ -67,6 +69,13 @@ namespace SheltreSim.Audio
             if (vehicle == null) return false;
             lastPosition = vehicle.position;
             smoothedSpeed = 0f;
+            if (profile.key != Sfx.BikeChain)
+            {
+                // Ignition: the starter and the engine catching, then the idle loop takes over.
+                GameAudio.PlayAt(Sfx.EngineStart, vehicle.position, 0.85f, 40f);
+                startupUntil = Time.time + 1.5f;
+            }
+            else startupUntil = 0f;
             return true;
         }
 
@@ -107,6 +116,7 @@ namespace SheltreSim.Audio
 
         private void Release()
         {
+            if (vehicle != null && profile.key != Sfx.BikeChain) GameAudio.PlayAt(Sfx.EngineStop, vehicle.position, 0.75f, 40f);
             vehicle = null;
             if (source != null && source.isPlaying) source.Stop();
         }

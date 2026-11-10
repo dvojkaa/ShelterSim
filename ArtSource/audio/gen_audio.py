@@ -1608,6 +1608,97 @@ def vehicle_loops():
     write_device_loop("bike_chain", x, sr, 0.55)
 
 
+
+# ---------------------------------------------------------------- furniture, engine start/stop, interiors (m30)
+
+def drawer_open(rng, _):
+    """A wooden drawer dragged open: a rough slide, a rattle of whatever is inside, and the stop at the end."""
+    n = n_of(0.7)
+    x = np.zeros(n)
+    slide_n = n_of(0.34)
+    slide = band_noise(rng, slide_n, 180, 1600) * (0.55 + 0.45 * unit(fft_band(noise(rng, slide_n), 4, 40)))
+    slide *= np.sin(np.pi * np.linspace(0, 1, slide_n)) ** 0.7
+    place(x, slide, 0.02, gain=0.55)
+    place(x, grains(rng, n_of(0.3), 9, 0.3, 1200, 5200, 0.004, strength=(0.15, 0.5)), 0.12, gain=0.5)
+    stop = n_of(0.3)
+    place(x, 0.8 * thump(rng, stop, 150, 70, 0.05) + 0.4 * modal(rng, stop, [(310, 0.05, 1), (780, 0.035, 0.6), (1900, 0.02, 0.3)]), 0.34)
+    return room(x, 0.1, 0.2, rng)
+
+
+def cabinet_open(rng, _):
+    """A cupboard door on a dry hinge: a latch click, then a squeaking swing."""
+    n = n_of(0.9)
+    x = np.zeros(n)
+    place(x, modal(rng, n_of(0.08), [(2100, 0.01, 1), (3600, 0.006, 0.6)]), 0.0, gain=0.55)
+    c = creak(rng, 0.55, 520, 1250) * np.sin(np.pi * np.linspace(0, 1, n_of(0.55))) ** 0.6
+    place(x, c, 0.06, gain=0.5)
+    place(x, 0.5 * thump(rng, n_of(0.2), 130, 65, 0.05), 0.55)
+    return room(x, 0.1, 0.2, rng)
+
+
+def engine_start(rng, _):
+    """A starter cranking, a cough, and the engine catching and settling to its idle."""
+    n = n_of(2.2)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    crank_end = 1.05
+    rate = 5.5 + 2.5 * np.clip(t / crank_end, 0, 1)
+    pulses = np.where(t < crank_end, 0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(rate) / SR), 0.0)
+    x += 0.5 * band_noise(rng, n, 80, 900) * pulses
+    x += 0.3 * np.sin(2 * np.pi * 95 * t) * pulses
+    # The engine catches at the end of the crank and runs up to idle (22 Hz firing, same family as the motor loop).
+    catch = np.clip((t - crank_end) / 0.35, 0, 1)
+    firing = 11 + 11 * catch
+    phase = 2 * np.pi * np.cumsum(firing) / SR
+    engine = sum(np.sin(phase * k + rng.uniform(0, 6.28)) / k ** 0.85 for k in range(1, 14))
+    engine = np.tanh(1.3 * engine) * (t > crank_end) * (0.2 + 0.8 * catch) * np.exp(-np.maximum(0, t - 1.9) / 0.6)
+    x += 0.7 * engine
+    x += 0.2 * band_noise(rng, n, 600, 3000) * (t > crank_end) * catch * (0.5 + 0.5 * np.sin(phase))
+    return x
+
+
+def engine_stop(rng, _):
+    """The engine winding down with a couple of sputters, then a settling tick."""
+    n = n_of(1.3)
+    t = np.arange(n) / SR
+    firing = 22 * np.exp(-t / 0.35) + 3
+    phase = 2 * np.pi * np.cumsum(firing) / SR
+    engine = np.tanh(1.2 * sum(np.sin(phase * k + rng.uniform(0, 6.28)) / k ** 0.85 for k in range(1, 12)))
+    engine *= np.exp(-t / 0.4)
+    stutter = 0.6 + 0.4 * np.sin(2 * np.pi * (firing * 0.5) * t)
+    x = 0.75 * engine * stutter
+    place(x, modal(rng, n_of(0.12), [(900, 0.02, 1), (2400, 0.01, 0.5)]), 1.0, gain=0.25)
+    return x
+
+
+def interior_loops():
+    """Quiet room tone for the inside of a ruined building: low air movement, a faint mains hum, the odd distant drip.
+    The noise is circular and every tone has an integer cycle count, so it loops exactly."""
+    sr = 32000
+    seconds = 8
+    n = seconds * sr
+    t = np.arange(n) / sr
+    r = rng_for("amb_interior")
+    x = 0.55 * band_noise(r, n, 40, 260, sr) * (0.7 + 0.3 * np.sin(2 * np.pi * 0.25 * t))
+    x += 0.12 * band_noise(r, n, 500, 2200, sr) * (0.5 + 0.5 * np.sin(2 * np.pi * 0.125 * t + 1.0)) ** 2
+    x += 0.05 * np.sin(2 * np.pi * 50 * t) + 0.025 * np.sin(2 * np.pi * 100 * t)
+    for i in range(3):
+        at = int(r.uniform(0.5, seconds - 0.8) * sr)
+        d = int(0.25 * sr)
+        k = np.arange(d) / sr
+        drip = np.sin(2 * np.pi * (900 + 300 * i) * k) * np.exp(-k / 0.03)
+        end = min(n, at + d)
+        x[at:end] += 0.1 * drip[: end - at]
+    write_device_loop("amb_interior", x, sr, 0.35)
+
+
+def m30_clips():
+    clip("drawer_open", drawer_open, 3, 0.8)
+    clip("cabinet_open", cabinet_open, 3, 0.8)
+    clip("engine_start", engine_start, None, 0.85)
+    clip("engine_stop", engine_stop, None, 0.8)
+    interior_loops()
+
 # ---------------------------------------------------------------- catalogue
 
 def main():
@@ -1695,11 +1786,13 @@ def main():
         m24_clips()
     if want("m29"):
         vehicle_loops()
+    if want("m30"):
+        m30_clips()
 
     # Folder metas with stable GUIDs too, written bottom-up from the generated tree.
     folder = OUT
     assets = os.path.normpath(os.path.join(OUT, "..", "..", ".."))
-    while folder != assets and only not in ("m22", "m24", "m29"):
+    while folder != assets and only not in ("m22", "m24", "m29", "m30"):
         write_meta(folder, "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
         folder = os.path.dirname(folder)
     print(f"Wrote {len(written)} clips to {OUT}")

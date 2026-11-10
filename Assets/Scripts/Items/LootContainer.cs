@@ -80,7 +80,7 @@ namespace SheltreSim.Items
                 {
                     if (child == transform) continue;
                     string name = child.name;
-                    if (name == "Door_L") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, -90f, 0f) });
+                    if (name == "Door_L" || name == "Door") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, -90f, 0f) });
                     else if (name == "Door_R") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, 90f, 0f) });
                     else if (name == "Lid") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(-90f, 0f, 0f) });
                     else if (name.StartsWith("Drawer_", System.StringComparison.Ordinal))
@@ -104,6 +104,20 @@ namespace SheltreSim.Items
             }
             openPoses = poses.ToArray();
             if (searched) ApplyOpenPose(1f);
+        }
+
+        /// <summary>A drawer slides, a cupboard door creaks, anything else (a crate, a lid) is the plain crate sound.</summary>
+        private string OpenSoundKey()
+        {
+            if (openPoses == null || openPoses.Length == 0) CacheOpenParts();
+            bool door = false;
+            foreach (OpenPose pose in openPoses)
+            {
+                if (pose.part == null) continue;
+                if (pose.part.name.StartsWith("Drawer_", System.StringComparison.Ordinal)) return SheltreSim.Audio.Sfx.DrawerOpen;
+                if (pose.part.name.StartsWith("Door", System.StringComparison.Ordinal)) door = true;
+            }
+            return door ? SheltreSim.Audio.Sfx.CabinetOpen : SheltreSim.Audio.Sfx.CrateOpen;
         }
 
         private void BeginOpen(bool animate)
@@ -170,7 +184,7 @@ namespace SheltreSim.Items
             {
                 searched = true;
                 BeginOpen(true);
-                SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, transform.position, 0.85f, 20f);
+                SheltreSim.Audio.GameAudio.PlayAt(OpenSoundKey(), transform.position, 0.85f, 20f);
                 SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.LootEmpty, 0.4f, 0f, 0.5f);
                 GameMessageBus.Post("Searched — found nothing.");
                 return;
@@ -208,7 +222,7 @@ namespace SheltreSim.Items
                 found.Append(entry.amount).Append(' ').Append(entry.resource.displayName);
             }
 
-            SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.CrateOpen, transform.position, 0.85f, 20f);
+            SheltreSim.Audio.GameAudio.PlayAt(OpenSoundKey(), transform.position, 0.85f, 20f);
             SheltreSim.Audio.GameAudio.Play2D(found.Length > 0 ? SheltreSim.Audio.Sfx.LootFound : SheltreSim.Audio.Sfx.LootEmpty, 0.55f, 0f, 0.5f);
             GameMessageBus.Post(found.Length > 0 ? $"Found {found}." : "Searched — found nothing.");
         }

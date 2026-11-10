@@ -12,12 +12,20 @@ namespace SheltreSim.World
         private const float StoreyHeight = 3f;
         private const float GroundFloorRevealDistance = 25f;
 
+        /// <summary>The building the player is inside right now (any storey), or null. For ambience.</summary>
+        public static BuildingInterior PlayerIn { get; private set; }
+
         private float halfWidth, halfDepth;
         private Transform[] floorRoots = System.Array.Empty<Transform>();
         private Renderer[][] floorRenderers = System.Array.Empty<Renderer[]>();
         private bool[] floorVisible = System.Array.Empty<bool>();
         private Transform player;
         private float nextUpdate;
+
+        private void OnDestroy()
+        {
+            if (PlayerIn == this) PlayerIn = null;
+        }
 
         public void Configure(float width, float depth, int storeys)
         {
@@ -51,6 +59,8 @@ namespace SheltreSim.World
             Vector3 local = transform.InverseTransformPoint(player.position);
             bool inside = Mathf.Abs(local.x) <= halfWidth + 2f && Mathf.Abs(local.z) <= halfDepth + 2f &&
                           local.y >= -.5f && local.y <= floorRenderers.Length * StoreyHeight + 2f;
+            if (inside) PlayerIn = this;
+            else if (PlayerIn == this) PlayerIn = null;
             int currentFloor = Mathf.Clamp(Mathf.FloorToInt(Mathf.Max(0f, local.y - .1f) / StoreyHeight), 0, floorRenderers.Length - 1);
             bool groundVisible = new Vector2(local.x, local.z).sqrMagnitude <= GroundFloorRevealDistance * GroundFloorRevealDistance;
 
