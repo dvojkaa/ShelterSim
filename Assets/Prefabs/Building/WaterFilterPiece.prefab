@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 6392182736415768078}
   - component: {fileID: 4960106874614785096}
   - component: {fileID: 4746914440533555700}
-  - component: {fileID: 3207084647240379984}
+  - component: {fileID: 1694744861279143706}
   m_Layer: 0
   m_Name: WaterFilterPiece
   m_TagString: Untagged
@@ -70,6 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_filter
+  wasPlacedFromKit: 0
 --- !u!114 &4746914440533555700
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -82,7 +83,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ca28c8f1f1f1395c9a1b3dffd3c7dbd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.WaterFilterPiece
---- !u!114 &3207084647240379984
+--- !u!114 &1694744861279143706
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

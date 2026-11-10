@@ -12,25 +12,42 @@ namespace SheltreSim.Bestiary
         private float speed, damageScale, life = 3f;
         private float radius = 0.13f;
         private Material boltMaterial;
+        private bool spin;
 
         public static void Launch(SpeciesBrain owner, Vector3 origin, Vector3 target, float speed, float damage)
         {
             if (owner == null || speed <= 0f) return;
             Vector3 direction = target - origin;
             if (direction.sqrMagnitude < 0.01f) return;
-            GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            bolt.name = "Mirelurker_AcidBolt";
-            Collider collider = bolt.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
+            // Dedicated models (ArtSource fx_*): acid glob for the Mirelurker, thrown flask for the Scavenger.
+            string modelId = owner is ScavengerBrain ? "fx_chem_flask" : "fx_acid_glob";
+            GameObject model = Resources.Load<GameObject>("Props/" + modelId);
+            GameObject bolt;
+            bool hasModel = model != null;
+            if (hasModel)
+            {
+                bolt = Instantiate(model);
+                bolt.name = modelId;
+                foreach (Collider c in bolt.GetComponentsInChildren<Collider>()) Destroy(c);
+            }
+            else
+            {
+                bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                bolt.name = "Mirelurker_AcidBolt";
+                Collider collider = bolt.GetComponent<Collider>();
+                if (collider != null) Destroy(collider);
+                bolt.transform.localScale = Vector3.one * 0.24f;
+            }
             bolt.transform.position = origin;
-            bolt.transform.localScale = Vector3.one * 0.24f;
+            if (hasModel) bolt.transform.rotation = Quaternion.LookRotation(direction.normalized);
             SpeciesProjectile projectile = bolt.AddComponent<SpeciesProjectile>();
+            projectile.spin = modelId == "fx_chem_flask";
             projectile.owner = owner;
             projectile.source = owner.transform;
             projectile.direction = direction.normalized;
             projectile.speed = speed;
             projectile.damageScale = damage / Mathf.Max(0.01f, owner.Spec.Damage);
-            Shader shader = Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
+            Shader shader = hasModel ? null : Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
             if (shader != null)
             {
                 projectile.boltMaterial = new Material(shader);
@@ -61,6 +78,7 @@ namespace SheltreSim.Bestiary
                 return;
             }
             transform.position += direction * distance;
+            if (spin) transform.Rotate(540f * Time.deltaTime, 0f, 0f, Space.Self);
         }
 
         private void OnDestroy()

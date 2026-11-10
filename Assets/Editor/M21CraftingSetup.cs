@@ -200,7 +200,8 @@ namespace SheltreSim.EditorTools
                     foreach (Renderer r in visual.GetComponentsInChildren<Renderer>(true)) if (atlas != null) r.sharedMaterial = atlas;
                     foreach (Collider c in visual.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
                     visual.transform.SetParent(root.transform, false);
-                    visual.transform.localPosition = new Vector3(0f, -spec.size.y / 2f, 0f);
+                    // Floor models have their origin at the base; the ceiling light's origin is its mount point, at the top.
+                    visual.transform.localPosition = new Vector3(0f, spec.id == "piece_light_ceiling" ? spec.size.y / 2f : -spec.size.y / 2f, 0f);
                 }
                 else
                 {

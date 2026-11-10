@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 852186913910037375}
   - component: {fileID: 1751071665134006882}
   - component: {fileID: 8597210335757304629}
-  - component: {fileID: 4933833253831024161}
+  - component: {fileID: 9182053660736966046}
   m_Layer: 0
   m_Name: StovePiece
   m_TagString: Untagged
@@ -70,6 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_stove
+  wasPlacedFromKit: 0
 --- !u!114 &8597210335757304629
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -86,7 +87,7 @@ MonoBehaviour:
   craftingCost: []
   output: {fileID: 0}
   outputAmount: 1
---- !u!114 &4933833253831024161
+--- !u!114 &9182053660736966046
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

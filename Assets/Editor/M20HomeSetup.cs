@@ -326,6 +326,15 @@ namespace SheltreSim.EditorTools
             if (Model("blast_door_leaf") != null)
             {
                 Attach(door.transform, "blast_door_leaf").transform.localPosition = new Vector3(0f, -leafHeight * 0.5f, 0f);
+                if (Model("prop_blast_door_reinforced") != null)
+                {
+                    // The reinforced version shares the leaf's hinge and pivot; HomeBase shows it once it is bought.
+                    GameObject plated = Attach(door.transform, "prop_blast_door_reinforced");
+                    plated.name = "ReinforcedLeaf";
+                    plated.transform.localPosition = new Vector3(0f, -leafHeight * 0.5f, 0f);
+                    plated.SetActive(false);
+                    home.reinforcedDoorLeaf = plated;
+                }
             }
             else
             {
@@ -346,6 +355,14 @@ namespace SheltreSim.EditorTools
             Box(wing, "Wall_N", new Vector3(center.x, RoomHeight * .5f, z1 + .2f), new Vector3(x1 - x0 + .8f, RoomHeight, .4f), concrete);
             Transform workshop = Group(wing, "WorkshopFitout");
             Transform hydro = Group(wing, "HydroponicsFitout");
+            // Workshop: a tool wall on the north wall and a bench; Hydroponics: tanks and grow lights over the beds.
+            Visual(workshop, "prop_tool_wall", new Vector3(71f, 0f, z1), 0f);
+            Visual(workshop, "prop_tool_wall", new Vector3(68.2f, 0f, z1), 0f);
+            Prop(hydro, "prop_hydro_tank", "HydroTank_A", new Vector3(67.8f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
+            Prop(hydro, "prop_hydro_tank", "HydroTank_B", new Vector3(70.2f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
+            Prop(hydro, "prop_hydro_tank", "HydroTank_C", new Vector3(72.6f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
+            for (int i = 0; i < 3; i++)
+                Visual(hydro, "prop_grow_light", new Vector3(68f + i * 3f, RoomHeight, center.z), 0f);
             home.northWingShell = wing.gameObject;
             home.workshopWing = workshop.gameObject;
             home.hydroWing = hydro.gameObject;
@@ -402,8 +419,9 @@ namespace SheltreSim.EditorTools
 
         private static void WireSupplyCage(HomeBase home)
         {
-            GameObject cage = Prop(home.transform, "bunker_locker", "Supply Cage",
-                new Vector3(67f, 0f, -220.6f), -90f, new Vector3(1.2f, 2f, .5f));
+            GameObject cage = Model("prop_supply_cage") != null
+                ? Prop(home.transform, "prop_supply_cage", "Supply Cage", new Vector3(67f, 0f, -220.6f), -90f, new Vector3(2.4f, 2.2f, 1.2f))
+                : Prop(home.transform, "bunker_locker", "Supply Cage", new Vector3(67f, 0f, -220.6f), -90f, new Vector3(1.2f, 2f, .5f));
             home.supplyCage = cage.AddComponent<StorageCratePiece>();
             cage.AddComponent<SupplyCageGuard>();
         }

@@ -130,7 +130,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1890537195568339736}
-  - component: {fileID: 2703083072336202264}
+  - component: {fileID: 8698610261617636759}
   m_Layer: 0
   m_Name: enemy_plated
   m_TagString: Untagged
@@ -160,7 +160,7 @@ Transform:
   - {fileID: 3143692433486637728}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2703083072336202264
+--- !u!95 &8698610261617636759
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

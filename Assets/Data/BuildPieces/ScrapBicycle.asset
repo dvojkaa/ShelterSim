@@ -15,7 +15,7 @@ MonoBehaviour:
   displayName: Scrap Bicycle
   id: piece_bicycle
   prefab: {fileID: 2273810583627671803, guid: 76e3e258d8fe18d00abd29c8777e1211, type: 3}
-  footprintSize: {x: 1.8, y: 1.3, z: 0.65}
+  footprintSize: {x: 0.7, y: 1.3, z: 1.8}
   craftingCost:
   - resource: {fileID: 11400000, guid: 0f3e0f13e6483f05d935f4c07a4316cc, type: 2}
     amount: 2

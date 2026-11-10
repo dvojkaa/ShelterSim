@@ -41,6 +41,7 @@ Then open `Assets/Scenes/M1_BunkerShell.unity` and use:
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --crafting-probe -logFile /tmp/crafting.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --world-probe    -logFile /tmp/world.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --m28-probe      -logFile /tmp/m28.log
+./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --place-probe    -logFile /tmp/place.log   # turrets and the ceiling light can be previewed and placed
 
 # Check for PASS/FAIL summary at end of each log
 grep -E "(PASSED|FAILED|ERROR)" /tmp/smoke.log

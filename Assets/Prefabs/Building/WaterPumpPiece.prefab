@@ -160,6 +160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_pump
+  wasPlacedFromKit: 0
 --- !u!114 &6953675666650658085
 MonoBehaviour:
   m_ObjectHideFlags: 0

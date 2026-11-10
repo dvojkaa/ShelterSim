@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4021962517298323599}
   - component: {fileID: 1821583617527160114}
   - component: {fileID: 1372591756724019928}
-  - component: {fileID: 2468782297760417331}
+  - component: {fileID: 5141427308724568049}
   - component: {fileID: 4861831249412777878}
   m_Layer: 0
   m_Name: SpikeTrapPiece
@@ -70,7 +70,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_spike_trap
---- !u!114 &2468782297760417331
+  wasPlacedFromKit: 0
+--- !u!114 &5141427308724568049
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -79,7 +80,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 3535885378655648575}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: 1f3184aeac7d758d98b0b55499ff1227, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Raids.SpikeTrapPiece
   damage: 15

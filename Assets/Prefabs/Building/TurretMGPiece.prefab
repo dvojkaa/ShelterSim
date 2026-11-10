@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 7748923744642961807}
   - component: {fileID: 5123210254749309528}
   - component: {fileID: 684463296382291956}
-  - component: {fileID: 9184191004898466585}
+  - component: {fileID: 2819466187970502491}
   - component: {fileID: 5192537448491792598}
   m_Layer: 0
   m_Name: TurretMGPiece
@@ -193,7 +193,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_turret_mg
---- !u!114 &9184191004898466585
+  wasPlacedFromKit: 0
+--- !u!114 &2819466187970502491
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -202,7 +203,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 5040291482124328825}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: 2b39bd4f759aa45bd9dae49bc759784b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Raids.MachineGunTurretPiece
   range: 22

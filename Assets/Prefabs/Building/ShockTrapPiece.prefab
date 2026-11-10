@@ -101,7 +101,7 @@ GameObject:
   - component: {fileID: 3472370138458375827}
   - component: {fileID: 3273745158141127379}
   - component: {fileID: 7393511798150176080}
-  - component: {fileID: 5764362506603727867}
+  - component: {fileID: 9040599979608374288}
   - component: {fileID: 2364168820914172496}
   m_Layer: 0
   m_Name: ShockTrapPiece
@@ -160,7 +160,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_shock_trap
---- !u!114 &5764362506603727867
+  wasPlacedFromKit: 0
+--- !u!114 &9040599979608374288
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -169,7 +170,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6909825391428548019}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: d56c9ec9684c90c7f9ea5e0ba81e1483, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Raids.ShockTrapPiece
   damage: 25

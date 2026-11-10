@@ -70,6 +70,7 @@ namespace SheltreSim.Building
         private BuildPieceDefinition currentGhostPiece;
         private bool placementValid;
         private string placementFeedback = string.Empty;
+        private const string CeilingLightId = "piece_light_ceiling";
         private MaterialPropertyBlock materialPropertyBlock;
 
         private float lastCycleTime;
@@ -313,25 +314,43 @@ namespace SheltreSim.Building
                 return;
             }
 
+            // Ceiling lights hang from the underside of a ceiling or roof instead of standing on a floor.
+            bool ceilingMount = activePiece.id == CeilingLightId;
             Ray aim = AimRay;
-            if (!Physics.Raycast(aim.origin, aim.direction, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore) || hit.normal.y < 0.7f)
+            if (!Physics.Raycast(aim.origin, aim.direction, out RaycastHit hit, placementRange, groundMask, QueryTriggerInteraction.Ignore)
+                || (ceilingMount ? hit.normal.y > -0.7f : hit.normal.y < 0.7f))
             {
                 DestroyGhost();
-                placementFeedback = "Aim at a level surface within build range.";
+                placementFeedback = ceilingMount ? "Aim at the underside of a ceiling or roof." : "Aim at a level surface within build range.";
                 UpdateBuildReadout(activePiece);
                 return;
             }
 
             // Snapping can move the preview beyond the supporting surface's edge.
             Vector3 support = BuildGrid.SnapPosition(hit.point);
-            support.y = hit.point.y + 0.1f;
-            if (!Physics.Raycast(support, Vector3.down, out RaycastHit supportHit, 0.2f,
-                    groundMask, QueryTriggerInteraction.Ignore) || supportHit.normal.y < 0.7f)
+            RaycastHit supportHit;
+            if (ceilingMount)
             {
-                DestroyGhost();
-                placementFeedback = "Move away from the edge: the snapped position needs support.";
-                UpdateBuildReadout(activePiece);
-                return;
+                support.y = hit.point.y - 0.1f;
+                if (!Physics.Raycast(support, Vector3.up, out supportHit, 0.2f, groundMask, QueryTriggerInteraction.Ignore) || supportHit.normal.y > -0.7f)
+                {
+                    DestroyGhost();
+                    placementFeedback = "Move away from the edge: the snapped position needs a ceiling.";
+                    UpdateBuildReadout(activePiece);
+                    return;
+                }
+            }
+            else
+            {
+                support.y = hit.point.y + 0.1f;
+                if (!Physics.Raycast(support, Vector3.down, out supportHit, 0.2f,
+                        groundMask, QueryTriggerInteraction.Ignore) || supportHit.normal.y < 0.7f)
+                {
+                    DestroyGhost();
+                    placementFeedback = "Move away from the edge: the snapped position needs support.";
+                    UpdateBuildReadout(activePiece);
+                    return;
+                }
             }
 
             EnsureGhostForPiece(activePiece);
@@ -343,7 +362,7 @@ namespace SheltreSim.Building
             // red, regardless of resources. Offset up by half the footprint height so the box's
             // BOTTOM face rests on the hit surface instead of its center.
             Vector3 snapped = BuildGrid.SnapPosition(hit.point);
-            snapped.y = supportHit.point.y + activePiece.footprintSize.y / 2f;
+            snapped.y = ceilingMount ? supportHit.point.y - activePiece.footprintSize.y / 2f : supportHit.point.y + activePiece.footprintSize.y / 2f;
             currentGhost.transform.position = snapped;
             currentGhost.transform.rotation = BuildGrid.SnapRotation(currentYawDegrees);
 

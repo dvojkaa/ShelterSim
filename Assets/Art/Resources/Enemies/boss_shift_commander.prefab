@@ -279,7 +279,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3759036656653232394}
-  - component: {fileID: 4301931024243340022}
+  - component: {fileID: 4713966859480044372}
   m_Layer: 0
   m_Name: boss_shift_commander
   m_TagString: Untagged
@@ -309,7 +309,7 @@ Transform:
   - {fileID: 2286413904071322537}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &4301931024243340022
+--- !u!95 &4713966859480044372
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

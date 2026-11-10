@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 3192293910690215821}
   - component: {fileID: 8841213327688090787}
   - component: {fileID: 158756464738017981}
-  - component: {fileID: 2926874133012472629}
+  - component: {fileID: 7657923788738274435}
   m_Layer: 0
   m_Name: RadioBeaconPiece
   m_TagString: Untagged
@@ -160,6 +160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_radio
+  wasPlacedFromKit: 0
 --- !u!114 &158756464738017981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -173,7 +174,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.RadioBeaconPiece
   powerKw: 3
---- !u!114 &2926874133012472629
+--- !u!114 &7657923788738274435
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

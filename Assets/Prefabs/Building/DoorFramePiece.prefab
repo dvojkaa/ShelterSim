@@ -140,6 +140,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_door_frame
+  wasPlacedFromKit: 0
 --- !u!65 &367845205909313009
 BoxCollider:
   m_ObjectHideFlags: 0

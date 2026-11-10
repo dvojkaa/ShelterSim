@@ -15,7 +15,7 @@ MonoBehaviour:
   displayName: Ceiling Light
   id: piece_light_ceiling
   prefab: {fileID: 1155505150390303471, guid: 7838121b966b1dab4ae5ff9f097b74fa, type: 3}
-  footprintSize: {x: 0.4, y: 0.2, z: 0.4}
+  footprintSize: {x: 0.4, y: 0.5, z: 0.4}
   craftingCost:
   - resource: {fileID: 11400000, guid: f0b9010cbdf8c3e86bf973f4995f66f8, type: 2}
     amount: 1

@@ -27,8 +27,8 @@ Transform:
   m_GameObject: {fileID: 6477800583333256275}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 3, z: 0.2}
+  m_LocalPosition: {x: 0, y: -1.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2451398103920773797}
@@ -40,7 +40,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6477800583333256275}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: -1918375952445215901, guid: 073d2d35fcfaf4bfdb33f2be5eb97112, type: 3}
 --- !u!23 &8524804721390494996
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -66,7 +66,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 0}
+  - {fileID: 2100000, guid: a390976986a1e5693994e81e3422726e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -75,7 +75,7 @@ MeshRenderer:
   m_LightProbeVolumeOverride: {fileID: 0}
   m_ScaleInLightmap: 1
   m_ReceiveGI: 1
-  m_PreserveUVs: 1
+  m_PreserveUVs: 0
   m_IgnoreNormalsForChartDetection: 0
   m_ImportantGI: 0
   m_StitchLightmapSeams: 1
@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 2152969522325446028}
   - component: {fileID: 3211081351213722860}
   - component: {fileID: 5301122511574070613}
-  - component: {fileID: 8066864867149192643}
+  - component: {fileID: 2822949534461444325}
   m_Layer: 0
   m_Name: ReinforcedWallPiece
   m_TagString: Untagged
@@ -160,6 +160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_wall_reinforced
+  wasPlacedFromKit: 0
 --- !u!114 &5301122511574070613
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -174,7 +175,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 1250
   targetPriority: 5
---- !u!114 &8066864867149192643
+--- !u!114 &2822949534461444325
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -186,4 +187,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13e1624b07764d44a78b37b787eab49e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureDamageVisual
-  modelId: piece_wall_steel
+  modelId: piece_wall_reinforced

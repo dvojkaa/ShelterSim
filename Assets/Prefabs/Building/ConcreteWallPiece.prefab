@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 7353016971542847690}
   - component: {fileID: 4242760093174870075}
   - component: {fileID: 7178604374216410797}
-  - component: {fileID: 611197657981207066}
+  - component: {fileID: 1309667992791012228}
   m_Layer: 0
   m_Name: ConcreteWallPiece
   m_TagString: Untagged
@@ -70,6 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_wall_concrete
+  wasPlacedFromKit: 0
 --- !u!114 &7178604374216410797
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -84,7 +85,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 2400
   targetPriority: 5
---- !u!114 &611197657981207066
+--- !u!114 &1309667992791012228
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -96,7 +97,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13e1624b07764d44a78b37b787eab49e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureDamageVisual
-  modelId: piece_wall_steel
+  modelId: piece_wall_concrete
 --- !u!1 &5517843229448062319
 GameObject:
   m_ObjectHideFlags: 0
@@ -124,8 +125,8 @@ Transform:
   m_GameObject: {fileID: 5517843229448062319}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 3, z: 0.2}
+  m_LocalPosition: {x: 0, y: -1.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 9120219229994247087}
@@ -137,7 +138,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5517843229448062319}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: -2090185235321411833, guid: 9824847868379a3e8a3bded7a379b469, type: 3}
 --- !u!23 &5995693300191481241
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -163,7 +164,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 0}
+  - {fileID: 2100000, guid: a390976986a1e5693994e81e3422726e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -172,7 +173,7 @@ MeshRenderer:
   m_LightProbeVolumeOverride: {fileID: 0}
   m_ScaleInLightmap: 1
   m_ReceiveGI: 1
-  m_PreserveUVs: 1
+  m_PreserveUVs: 0
   m_IgnoreNormalsForChartDetection: 0
   m_ImportantGI: 0
   m_StitchLightmapSeams: 1

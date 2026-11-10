@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &4445327530865119395
+--- !u!1 &1222425330465823733
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 7112407828579932906}
-  - component: {fileID: 1365426812126547270}
-  - component: {fileID: 5162560245445847716}
+  - component: {fileID: 287156356441134248}
+  - component: {fileID: 7714890926975465352}
+  - component: {fileID: 6748188948150776592}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -18,13 +18,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &7112407828579932906
+--- !u!4 &287156356441134248
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4445327530865119395}
+  m_GameObject: {fileID: 1222425330465823733}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0.5, z: 0}
@@ -33,21 +33,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 5971508355106835764}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &1365426812126547270
+--- !u!33 &7714890926975465352
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4445327530865119395}
+  m_GameObject: {fileID: 1222425330465823733}
   m_Mesh: {fileID: 1887608947618797940, guid: e5933bf4ffd2a8e778d5b7af672a454b, type: 3}
---- !u!23 &5162560245445847716
+--- !u!23 &6748188948150776592
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4445327530865119395}
+  m_GameObject: {fileID: 1222425330465823733}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -101,8 +101,8 @@ GameObject:
   - component: {fileID: 5971508355106835764}
   - component: {fileID: 5959653908242351336}
   - component: {fileID: 6341111400553615956}
-  - component: {fileID: -9057160648399976253}
-  - component: {fileID: 2079023302187305950}
+  - component: {fileID: -6986060849000785306}
+  - component: {fileID: 2635021178217650657}
   m_Layer: 0
   m_Name: WorkbenchPiece
   m_TagString: Untagged
@@ -123,7 +123,7 @@ Transform:
   m_LocalScale: {x: 1.5, y: 1, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 7112407828579932906}
+  - {fileID: 287156356441134248}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &5959653908242351336
@@ -160,7 +160,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: workbench
---- !u!114 &-9057160648399976253
+  wasPlacedFromKit: 0
+--- !u!114 &-6986060849000785306
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -176,7 +177,7 @@ MonoBehaviour:
   craftingCost: []
   output: {fileID: 0}
   outputAmount: 1
---- !u!114 &2079023302187305950
+--- !u!114 &2635021178217650657
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

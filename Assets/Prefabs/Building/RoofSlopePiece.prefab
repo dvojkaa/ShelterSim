@@ -138,6 +138,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_roof_slope
+  wasPlacedFromKit: 0
 --- !u!114 &2890162312474340470
 MonoBehaviour:
   m_ObjectHideFlags: 0

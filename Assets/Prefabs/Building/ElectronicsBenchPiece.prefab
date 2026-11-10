@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 379941931864939886}
   - component: {fileID: 3173881354871742011}
   - component: {fileID: 1705428501495457561}
-  - component: {fileID: 3422337360301418342}
+  - component: {fileID: 8059585906446604689}
   m_Layer: 0
   m_Name: ElectronicsBenchPiece
   m_TagString: Untagged
@@ -70,6 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_electronics
+  wasPlacedFromKit: 0
 --- !u!114 &1705428501495457561
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -86,7 +87,7 @@ MonoBehaviour:
   craftingCost: []
   output: {fileID: 0}
   outputAmount: 1
---- !u!114 &3422337360301418342
+--- !u!114 &8059585906446604689
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

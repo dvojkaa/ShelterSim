@@ -29,14 +29,14 @@ namespace SheltreSim.EditorTools
         private static readonly (string pieceId, string modelId)[] DamageStagePieces =
         {
             ("wall_segment", "piece_wall"), ("piece_wall_steel", "piece_wall_steel"),
-            ("piece_wall_reinforced", "piece_wall_steel"),
-            ("piece_wall_brick", "piece_wall_steel"),
-            ("piece_wall_concrete", "piece_wall_steel"),
+            ("piece_wall_reinforced", "piece_wall_reinforced"),
+            ("piece_wall_brick", "piece_wall_brick"),
+            ("piece_wall_concrete", "piece_wall_concrete"),
             ("piece_door_wood", "piece_door_wood"), ("piece_door_steel", "piece_door_steel"),
             ("piece_fence", "piece_fence"), ("piece_gate", "piece_gate"),
             ("piece_barricade", "piece_barricade"), ("piece_palisade", "piece_palisade"),
         };
-        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell" };
+        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell", "fx_acid_glob", "fx_chem_flask", "melee_makeshift_blade", "melee_spiked_club", "melee_machete", "melee_fire_axe", "melee_steel_sword" };
 
         private sealed class Row
         {
@@ -67,7 +67,7 @@ namespace SheltreSim.EditorTools
             new Row("piece_repair", "Repair Station", "RepairStation", "SheltreSim.Power.RepairStationPiece", 1f, 1.8f, 1f, new Color(.8f, .5f, .15f), 150f),
             new Row("piece_garage_bay", "Garage Workshop", "GarageBay", "SheltreSim.Power.GarageWorkshopPiece", 6f, 2.5f, 6f, new Color(.38f, .4f, .39f), 500f),
             new Row("piece_radio_console", "Radio Console", "RadioConsole", "SheltreSim.Objectives.RadioConsolePiece", 1.2f, 1.4f, .7f, new Color(.3f, .35f, .25f), 80f),
-            new Row("piece_bicycle", "Scrap Bicycle", "ScrapBicycle", "SheltreSim.World.RideableBicycle", 1.8f, 1.3f, .65f, new Color(.25f, .3f, .28f), 100f),
+            new Row("piece_bicycle", "Scrap Bicycle", "ScrapBicycle", "SheltreSim.World.RideableBicycle", .7f, 1.3f, 1.8f, new Color(.25f, .3f, .28f), 100f),
             new Row("piece_scout_buggy", "Scout Buggy", "ScoutBuggy", "SheltreSim.World.RideableScoutBuggy", 3.8f, 2.1f, 4.6f, new Color(.36f, .38f, .30f), 420f),
             new Row("piece_armored_van", "Armored Van", "ArmoredVan", "SheltreSim.World.RideableArmoredVan", 5f, 2.5f, 6.5f, new Color(.28f, .32f, .30f), 1500f),
             new Row("piece_sandbag", "Sandbag Wall", "SandbagWall", null, 2f, 1.1f, .6f, Sand, 260f),
@@ -76,7 +76,7 @@ namespace SheltreSim.EditorTools
             new Row("piece_turret_mg", "Machine Gun Turret", "TurretMG", "SheltreSim.Raids.MachineGunTurretPiece", 1f, 1.5f, 1f, Danger, 220f),
             new Row("piece_turret_laser", "Laser Turret", "TurretLaser", "SheltreSim.Raids.LaserTurretPiece", 1f, 1.6f, 1f, new Color(.3f, .5f, .8f), 180f),
             new Row("piece_alarm", "Raid Alarm", "RaidAlarm", "SheltreSim.Raids.AlarmPiece", .5f, 1.8f, .5f, Danger, 60f),
-            new Row("piece_light_ceiling", "Ceiling Light", "CeilingLight", "SheltreSim.Power.LightPiece", .4f, .2f, .4f, new Color(1f, .82f, .46f), 40f),
+            new Row("piece_light_ceiling", "Ceiling Light", "CeilingLight", "SheltreSim.Power.LightPiece", .4f, .5f, .4f, new Color(1f, .82f, .46f), 40f),
             new Row("piece_floodlight", "Floodlight", "Floodlight", "SheltreSim.Power.LightPiece", .5f, .5f, .4f, new Color(.7f, .82f, 1f), 60f),
         };
 

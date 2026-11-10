@@ -12,11 +12,11 @@ m.box((1.55, 1.25, .48), (0, -1.10, .86), 'rust_dark', bevel=.055)  # open cargo
 m.box((1.42, .10, .48), (0, -1.78, .90), 'rust', bevel=.025)
 
 # Heavy all-terrain tires, steel rims and exposed hubs.
-for x in (-1.57, 1.57):
-    for y in (-1.40, 1.40):
-        m.cyl(.53, .34, (x, y, .60), 'rubber', rot=(0, 90, 0), seg=12)
-        m.cyl(.31, .36, (x, y, .60), 'steel_dark', rot=(0, 90, 0), seg=10)
-        m.cyl(.14, .38, (x, y, .60), 'rust', rot=(0, 90, 0), seg=8)
+for wn, x, y in (('Wheel_FL', -1.57, 1.40), ('Wheel_FR', 1.57, 1.40), ('Wheel_RL', -1.57, -1.40), ('Wheel_RR', 1.57, -1.40)):
+    w = m.part(wn, pivot=(x, y, .60))
+    w.cyl(.53, .34, (x, y, .60), 'rubber', rot=(0, 90, 0), seg=12)
+    w.cyl(.31, .36, (x, y, .60), 'steel_dark', rot=(0, 90, 0), seg=10)
+    w.cyl(.14, .38, (x, y, .60), 'rust', rot=(0, 90, 0), seg=8)
 
 def tube(a, b, radius=.055, color='rust'):
     m.tube([a, b], radius, color, seg=7)
@@ -52,6 +52,23 @@ m.box((1.94, .20, .22), (0, 2.10, .49), 'steel_dark', bevel=.035)
 m.cyl(.11, .16, (0, 2.15, .52), 'chrome', rot=(90, 0, 0), seg=8)
 for x in (-.82, .82):
     m.box((.18, .20, .36), (x, 2.08, .68), 'rust', bevel=.03)
+
+# Cabin detail visible from the driver seat: dashboard, steering column, wheel.
+m.box((1.50, .20, .20), (0, .80, 1.20), 'black', bevel=.03)
+m.box((.40, .04, .14), (-.40, .70, 1.27), 'steel_dark', bevel=.01)   # instrument pod
+import math
+sc = (-.40, .56, 1.22)
+ux = (1, 0, 0); uy = (0, math.cos(math.radians(55)), math.sin(math.radians(55)))
+def sp(r, a):
+    return tuple(sc[i] + r * (math.cos(a) * ux[i] + math.sin(a) * uy[i]) for i in range(3))
+m.tube([sp(.17, i * 2 * math.pi / 14) for i in range(15)], .018, 'black', seg=5)
+for k in range(3):
+    m.tube([sc, sp(.17, math.radians(90 + k * 120))], .014, 'steel_dark', seg=4)
+m.cyl(.04, .05, sc, 'steel', rot=(55 - 90, 0, 0), seg=6)
+m.tube([sc, (-.40, .82, 1.10)], .025, 'steel_dark', seg=6)
+# Anchors read by the game (pivot position only).
+for n, p in (('Seat', (-.40, .20, 1.35)), ('Exit_L', (-.95, .20, 0)), ('Exit_R', (.95, .20, 0))):
+    m.part(n, pivot=p).box((.01, .01, .01), (p[0], p[1], p[2] + (.02 if p[2] == 0 else -.02)), 'black')
 
 finish(m, bounds={'x':(-1.9,1.9),'y':(-2.3,2.3),'z':(0,2.1)})
 bpy.context.preferences.filepaths.save_version = 0

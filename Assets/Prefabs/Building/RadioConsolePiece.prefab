@@ -70,6 +70,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_radio_console
+  wasPlacedFromKit: 0
 --- !u!114 &3589364469915546086
 MonoBehaviour:
   m_ObjectHideFlags: 0

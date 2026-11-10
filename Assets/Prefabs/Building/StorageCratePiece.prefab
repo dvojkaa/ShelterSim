@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &1301460112794647564
+--- !u!1 &1951118460483883170
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 733010282582634742}
-  - component: {fileID: 708037161285480353}
-  - component: {fileID: 1554497256007622912}
+  - component: {fileID: 8575949393384663009}
+  - component: {fileID: 3558580898172208311}
+  - component: {fileID: 7801377028850006293}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -18,13 +18,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &733010282582634742
+--- !u!4 &8575949393384663009
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1301460112794647564}
+  m_GameObject: {fileID: 1951118460483883170}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0.5, z: 0}
@@ -33,21 +33,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 960353244239644148}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &708037161285480353
+--- !u!33 &3558580898172208311
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1301460112794647564}
+  m_GameObject: {fileID: 1951118460483883170}
   m_Mesh: {fileID: 8722128407582161887, guid: ba1c3e43ab42b46e28b0a8c08dfb21c7, type: 3}
---- !u!23 &1554497256007622912
+--- !u!23 &7801377028850006293
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1301460112794647564}
+  m_GameObject: {fileID: 1951118460483883170}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -101,8 +101,8 @@ GameObject:
   - component: {fileID: 960353244239644148}
   - component: {fileID: 8074172284340875513}
   - component: {fileID: 4917733693326314043}
-  - component: {fileID: 101271773055425906}
-  - component: {fileID: 78935545564523686}
+  - component: {fileID: 7192119704882852386}
+  - component: {fileID: 4588907048428793647}
   m_Layer: 0
   m_Name: StorageCratePiece
   m_TagString: Untagged
@@ -123,7 +123,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 733010282582634742}
+  - {fileID: 8575949393384663009}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &8074172284340875513
@@ -160,7 +160,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: storage_crate
---- !u!114 &101271773055425906
+  wasPlacedFromKit: 0
+--- !u!114 &7192119704882852386
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -174,7 +175,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 120
   targetPriority: 5
---- !u!114 &78935545564523686
+--- !u!114 &4588907048428793647
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -688,6 +688,8 @@ namespace SheltreSim.EditorTools
         {
             GameObject player = GameObject.Find("Player");
             Transform weapon = player != null ? player.transform.Find("CameraPivot/WeaponVisual") : null;
+            if (weapon != null && weapon.GetComponent<SheltreSim.Combat.MeleeViewmodel>() == null)
+                weapon.gameObject.AddComponent<SheltreSim.Combat.MeleeViewmodel>();
             if (weapon == null || weapon.Find(VisualName) != null || LoadModel("player_weapon") == null) return;
             // Removed before the scale reset below so WeaponHead doesn't briefly inherit it.
             StripVisuals(weapon.gameObject);

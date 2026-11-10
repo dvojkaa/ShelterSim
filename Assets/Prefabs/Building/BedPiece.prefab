@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 5484716891023942678}
   - component: {fileID: 1595115125518719879}
   - component: {fileID: 2639137927842744198}
-  - component: {fileID: 3635610672999703535}
-  - component: {fileID: 2683065094181906612}
+  - component: {fileID: -5372881230236441148}
+  - component: {fileID: 2223022410931731327}
   m_Layer: 0
   m_Name: BedPiece
   m_TagString: Untagged
@@ -33,7 +33,7 @@ Transform:
   m_LocalScale: {x: 1, y: 0.5, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2029905040860659516}
+  - {fileID: 9113054760233181321}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &1595115125518719879
@@ -70,7 +70,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: bed
---- !u!114 &3635610672999703535
+  wasPlacedFromKit: 0
+--- !u!114 &-5372881230236441148
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -85,7 +86,7 @@ MonoBehaviour:
   dangerCheckRadius: 15
   healAmount: 40
   simulatedRestSeconds: 60
---- !u!114 &2683065094181906612
+--- !u!114 &2223022410931731327
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -99,7 +100,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 80
   targetPriority: 5
---- !u!1 &8618818807694866485
+--- !u!1 &9147727838519110656
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -107,9 +108,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2029905040860659516}
-  - component: {fileID: 3376668777974565282}
-  - component: {fileID: 4244151760665454133}
+  - component: {fileID: 9113054760233181321}
+  - component: {fileID: 2226483041246225271}
+  - component: {fileID: 3294218425536471779}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -117,13 +118,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2029905040860659516
+--- !u!4 &9113054760233181321
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8618818807694866485}
+  m_GameObject: {fileID: 9147727838519110656}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0.5, z: 0}
@@ -132,21 +133,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 5484716891023942678}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &3376668777974565282
+--- !u!33 &2226483041246225271
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8618818807694866485}
+  m_GameObject: {fileID: 9147727838519110656}
   m_Mesh: {fileID: -7511959542072008628, guid: fbac34d641932b349a05ea896dde6874, type: 3}
---- !u!23 &4244151760665454133
+--- !u!23 &3294218425536471779
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8618818807694866485}
+  m_GameObject: {fileID: 9147727838519110656}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
