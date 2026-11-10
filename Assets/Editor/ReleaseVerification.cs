@@ -41,7 +41,14 @@ namespace SheltreSim.EditorTools
                 "Death screen exists");
             var home = UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.HomeBase>();
             Require(home != null && home.gameState != null && home.inventory != null && home.stageVisuals.Length == SheltreSim.Core.HomeBase.Stages.Length &&
-                home.entranceCover != null && home.annexPlug != null && home.annexRoom != null, "Home site wired");
+                home.entranceCover != null && home.annexPlug != null && home.annexRoom != null && home.supplyCage != null &&
+                home.northWingShell != null && home.northWingPlug != null && home.workshopWing != null && home.hydroWing != null &&
+                home.vaultRoom != null && home.vaultPlug != null && home.mainBlastDoor != null,
+                "Home site, Supply Cage, optional rooms and bunker doors are wired");
+            Require(home.Money == SheltreSim.Core.HomeBase.StartingMoney && home.Money == 70000 &&
+                home.supplyCage.GetComponent<SheltreSim.Core.SupplyCageGuard>() != null &&
+                home.supplyCage.GetComponent<StructureHealth>() == null,
+                "New run has $70,000 and a fixed, protected Supply Cage");
             Require(UnityEngine.Object.FindFirstObjectByType<SheltreSim.Core.SiteTerminal>() != null, "Site terminal exists");
             Require(GameObject.Find("OutdoorArea") == null, "The old starting region is gone");
             var proceduralWorld = UnityEngine.Object.FindFirstObjectByType<SheltreSim.World.ProceduralWorld>();
@@ -64,6 +71,13 @@ namespace SheltreSim.EditorTools
 
         private static void VerifyEconomy()
         {
+            Require(SheltreSim.Core.BunkerShop.All.Count == 30 &&
+                SheltreSim.Core.BunkerShop.Get("bunker_contract")?.price == SheltreSim.Core.HomeBase.ContractPrice,
+                "Bunker catalogue contains the mandatory contract and 29 offers");
+            foreach (SheltreSim.Core.BunkerShop.Offer offer in SheltreSim.Core.BunkerShop.All)
+                foreach (SheltreSim.Core.BunkerShop.Grant grant in offer.grants)
+                    Require(SheltreSim.Crafting.ItemCatalog.Def(grant.itemId) != null,
+                        $"Shop grant '{grant.itemId}' has an item definition");
             GameObject fixture = new GameObject("VerificationFixture");
             ResourceDefinition wood = ScriptableObject.CreateInstance<ResourceDefinition>();
             try

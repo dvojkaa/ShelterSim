@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using SheltreSim.Core;
 using SheltreSim.Items;
 
 namespace SheltreSim.Crafting
@@ -308,8 +309,19 @@ namespace SheltreSim.Crafting
             foreach (var id in LootTables.AllItemIds()) raw.Add(id);
             foreach (var id in raw) if (!ItemCatalog.Exists(id)) errors.Add("raw source with unknown item: " + id);
             foreach (var t in LootTables.TableNames) if (!LootTables.Has(t)) errors.Add("missing loot table " + t);
-            foreach (var shopEntry in ItemCatalog.Shop)
-                if (!ItemCatalog.Exists(shopEntry.id) || shopEntry.price < 1 || shopEntry.quantity < 1) errors.Add("bad shop entry " + shopEntry.id);
+            var offerIds = new HashSet<string>();
+            foreach (BunkerShop.Offer offer in BunkerShop.All)
+            {
+                if (offer == null || string.IsNullOrEmpty(offer.id) || !offerIds.Add(offer.id) || offer.price < 1 || offer.limit < 1)
+                {
+                    errors.Add("bad bunker shop offer " + (offer != null ? offer.id : "<null>"));
+                    continue;
+                }
+                if (offer.grants == null) { errors.Add("offer has no grant list " + offer.id); continue; }
+                foreach (BunkerShop.Grant grant in offer.grants)
+                    if (grant == null || !ItemCatalog.Exists(grant.itemId) || grant.quantity < 1)
+                        errors.Add("bad bunker shop grant " + offer.id + ": " + (grant != null ? grant.itemId : "<null>"));
+            }
 
             // Loot must not skip the ladder: tools, weapons, armor, endgame items and forge/bench materials are crafted only.
             var gated = new HashSet<string> { "steel_bar", "metal_plate", "iron_ingot", "reinforced_frame", "circuit_board" };

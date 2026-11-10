@@ -207,16 +207,37 @@ namespace SheltreSim.Building
                 return false;
             }
 
-            if (!SheltreSim.Crafting.CraftingSystem.TrySpend(inventory, piece.craftingCost))
+            // Create the candidate before spending. A failed creation or a resource race
+            // must never consume a kit or recipe materials.
+            placed = Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
+            if (placed == null)
             {
-                placementFeedback = $"Cannot afford '{piece.displayName}'.";
+                placementFeedback = $"Could not place '{piece.displayName}'.";
                 SheltreSim.UI.GameMessageBus.Post(placementFeedback);
                 return false;
             }
 
-            placed = Instantiate(piece.prefab, currentGhost.transform.position, currentGhost.transform.rotation);
+            bool useKit = HasAvailableKit(piece);
+            bool spent = useKit
+                ? SheltreSim.Crafting.CraftingSystem.TrySpend(inventory, KitCost(piece))
+                : SheltreSim.Crafting.CraftingSystem.TrySpend(inventory, piece.craftingCost);
+            if (!spent)
+            {
+                Destroy(placed);
+                placed = null;
+                placementFeedback = useKit
+                    ? $"Could not use the kit for '{piece.displayName}'."
+                    : $"Cannot afford '{piece.displayName}'.";
+                SheltreSim.UI.GameMessageBus.Post(placementFeedback);
+                return false;
+            }
+
             PlacedPiece tag = placed.GetComponent<PlacedPiece>();
-            if (tag != null) placedAt[tag] = Time.time;
+            if (tag != null)
+            {
+                tag.wasPlacedFromKit = useKit;
+                placedAt[tag] = Time.time;
+            }
             Physics.SyncTransforms();
             HomesteadWorldGuard.ClearFootprint(placed);
             SheltreSim.UI.GameMessageBus.Post($"Placed {piece.displayName}.");
@@ -342,9 +363,11 @@ namespace SheltreSim.Building
                 currentGhost.transform.rotation,
                 obstructionMask, QueryTriggerInteraction.Ignore);
 
-            bool affordable = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
+            bool hasKit = HasAvailableKit(activePiece);
+            bool affordable = hasKit || SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
             placementFeedback = !placementValid ? "Blocked: move the preview clear of obstacles."
-                : !affordable ? "Need supplies: gather the missing resources." : "Ready: click to place.";
+                : !affordable ? "Need supplies: gather the missing resources."
+                : hasKit ? "Ready: click to place using the matching kit." : "Ready: click to place.";
             TintGhost(!placementValid ? Color.red : affordable ? Color.green : Color.yellow);
             UpdateBuildReadout(activePiece);
         }
@@ -364,9 +387,11 @@ namespace SheltreSim.Building
             EnsureGhostForPiece(activePiece);
             currentGhost.transform.SetPositionAndRotation(pose.position, pose.rotation);
             placementValid = pose.valid;
-            bool affordable = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
+            bool hasKit = HasAvailableKit(activePiece);
+            bool affordable = hasKit || SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, activePiece.craftingCost);
             placementFeedback = !placementValid ? pose.reason
-                : !affordable ? "Need supplies: gather the missing resources." : "Ready: click to place.";
+                : !affordable ? "Need supplies: gather the missing resources."
+                : hasKit ? "Ready: click to place using the matching kit." : "Ready: click to place.";
             TintGhost(!placementValid ? Color.red : affordable ? Color.green : Color.yellow);
             UpdateBuildReadout(activePiece);
         }
@@ -506,13 +531,25 @@ namespace SheltreSim.Building
                 return;
             }
 
-            bool canAfford = SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost);
+            bool hasKit = HasAvailableKit(piece);
+            bool canAfford = hasKit || SheltreSim.Crafting.CraftingSystem.TryAfford(inventory, piece.craftingCost);
 
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
             sb.Append(currentPieceIndex + 1).Append('/').Append(availablePieces.Count)
                 .Append("  ").Append(piece.displayName).Append('\n');
             bool hasCost = false;
-            if (piece.craftingCost != null)
+            if (hasKit)
+            {
+                string kitId = "kit_" + piece.id;
+                int packed = inventory != null ? inventory.GetCount(kitId) : 0;
+                int stored = SheltreSim.Crafting.CraftingSystem.CountInCrates(inventory, kitId);
+                sb.Append("Matching kit ").Append(SheltreSim.Crafting.ItemCatalog.NameOf(kitId)).Append(" ")
+                    .Append(SheltreSim.Crafting.CraftingSystem.CountAvailable(inventory, kitId)).Append("/1");
+                if (stored > 0) sb.Append(" (").Append(packed).Append(" pack + ").Append(stored).Append(" storage)");
+                sb.Append(" — used instead of materials");
+                hasCost = true;
+            }
+            else if (piece.craftingCost != null)
             {
                 foreach (var line in piece.craftingCost)
                 {
@@ -543,6 +580,29 @@ namespace SheltreSim.Building
             // a per-frame string rebuild here irrelevant, same as the stat bars above.
             lastBuildReadoutText = sb.ToString();
             survivalHud.SetBuildReadout(lastBuildReadoutText, canAfford && placementValid);
+        }
+
+        private bool HasAvailableKit(BuildPieceDefinition piece)
+        {
+            if (piece == null || string.IsNullOrWhiteSpace(piece.id)) return false;
+            string kitId = "kit_" + piece.id;
+            // TrySpend needs a catalog-backed resource to debit the exact same item from
+            // either the pack or nearby storage. Until that definition exists, do not claim
+            // the kit can be used merely because an unspendable id is present.
+            return SheltreSim.Crafting.ItemCatalog.Def(kitId) != null
+                && SheltreSim.Crafting.CraftingSystem.CountAvailable(inventory, kitId) > 0;
+        }
+
+        private static List<SheltreSim.Crafting.CraftingCost> KitCost(BuildPieceDefinition piece)
+        {
+            return new List<SheltreSim.Crafting.CraftingCost>
+            {
+                new SheltreSim.Crafting.CraftingCost
+                {
+                    resource = SheltreSim.Crafting.ItemCatalog.Def("kit_" + piece.id),
+                    amount = 1
+                }
+            };
         }
 
         private void ClearBuildReadout()

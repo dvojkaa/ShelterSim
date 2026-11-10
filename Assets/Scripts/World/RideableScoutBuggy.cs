@@ -44,6 +44,7 @@ namespace SheltreSim.World
         private readonly RaycastHit[] vehicleBlockHits = new RaycastHit[32];
         private readonly Collider[] vehicleOverlapHits = new Collider[32];
         private FirstPersonController rider;
+        private VehicleMountView mountView;
         private float oldWalk, oldSprint, fuelMeters, nextNoise, nextRamCleanup;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
         private InputAction dismount, trunkAction, refuelAction, batteryAction, lightAction;
@@ -82,7 +83,8 @@ namespace SheltreSim.World
         {
             StorageRegistry.Unregister(this);
             dismount?.Disable(); trunkAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable();
-            if (mounted) Dismount();
+            if (mounted) Dismount(true);
+            else if (mountView != null && mountView.IsAttachedTo(transform) && mountView.IsTransitioning) mountView.ForceDismount(transform);
         }
 
         private void OnDestroy()
@@ -93,7 +95,8 @@ namespace SheltreSim.World
         private void Update()
         {
             if (!mounted) return;
-            if (rider == null || !rider.isActiveAndEnabled || !rider.GetComponent<CharacterController>().enabled) { Dismount(); return; }
+            if (rider == null || !rider.isActiveAndEnabled || rider.GetComponent<CharacterController>() == null || !rider.GetComponent<CharacterController>().enabled) { Dismount(true); return; }
+            if (mountView != null && mountView.IsTransitioning) return;
             if (Time.timeScale == 0f) return;
             if (dismount.WasPressedThisFrame()) { Dismount(); return; }
             if (trunkAction.WasPressedThisFrame())
@@ -157,6 +160,24 @@ namespace SheltreSim.World
             if (mounted) return;
             rider = interactor.GetComponentInParent<FirstPersonController>();
             if (rider == null) return;
+            mountView = VehicleMountView.For(rider);
+            if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
+            Vector3 parkedPosition = transform.position;
+            Quaternion parkedRotation = transform.rotation;
+            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Vector3 follow = rider.transform.position - rider.transform.forward * 1.55f;
+            follow.y = rider.transform.position.y - 0.85f;
+            Vector3 resolved = ResolveVehicleMotion(follow, desiredRotation);
+            resolved.y = follow.y;
+            transform.position = resolved;
+            if (RotationHasClearance(follow, desiredRotation)) transform.rotation = desiredRotation;
+            if (!mountView.BeginMount(transform))
+            {
+                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
+                rider = null;
+                mountView = null;
+                return;
+            }
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
             lastRiderPosition = rider.transform.position;
@@ -461,8 +482,19 @@ namespace SheltreSim.World
             ApplyHeadlights();
         }
 
-        private void Dismount()
+        private void Dismount(bool force = false)
         {
+            if (!mounted) return;
+            if (force)
+            {
+                mountView?.ForceDismount(transform);
+            }
+            else if (mountView == null || !mountView.BeginDismount(transform))
+            {
+                if (!force) GameMessageBus.Post("No capsule-clear space to leave the buggy.");
+                return;
+            }
+
             mounted = false;
             ramSweepReady = false;
             ramReadyAt.Clear();

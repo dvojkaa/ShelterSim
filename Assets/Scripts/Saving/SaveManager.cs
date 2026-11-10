@@ -232,6 +232,12 @@ namespace SheltreSim.Saving
                 bunkerBuilding = HomeBase.Active != null && HomeBase.Active.IsBuilding,
                 bunkerBuildElapsed = HomeBase.Active != null ? HomeBase.Active.BuildElapsed : 0f,
                 bunkerAnnex = HomeBase.Active != null && HomeBase.Active.HasAnnex,
+                bunkerContract = HomeBase.Active != null && HomeBase.Active.HasContract,
+                bunkerRooms = HomeBase.Active != null ? (int)HomeBase.Active.Rooms : 0,
+                shopOfferIds = HomeBase.Active != null ? HomeBase.Active.CaptureShopIds() : Array.Empty<string>(),
+                shopPurchaseCounts = HomeBase.Active != null ? HomeBase.Active.CaptureShopCounts() : Array.Empty<int>(),
+                supplyCageState = HomeBase.Active != null && HomeBase.Active.supplyCage != null
+                    ? HomeBase.Active.supplyCage.CapturePieceState() : null,
                 equippedGear = player.GetComponent<SheltreSim.Crafting.PlayerGear>() != null
                     ? player.GetComponent<SheltreSim.Crafting.PlayerGear>().CaptureEquipped() : new List<string>(),
                 worldGenVersion = WorldLayout.GenerationVersion,
@@ -256,6 +262,7 @@ namespace SheltreSim.Saving
                     collectionElapsed = collector != null ? collector.CollectionElapsed : 0f,
                     pieceState = pieceState != null ? pieceState.CapturePieceState() : null,
                     structureHealth = structure != null ? structure.Health : -1f,
+                    wasPlacedFromKit = piece.wasPlacedFromKit,
                 });
             }
 
@@ -325,6 +332,7 @@ namespace SheltreSim.Saving
                 // FromJsonOverwrite preserves the explicit missing-field sentinels above.
                 // FromJson's behavior for absent fields must not decide migration defaults.
                 JsonUtility.FromJsonOverwrite(json, data);
+                MigrateBunkerEconomy(data);
                 ValidateSnapshot(data, definitions);
                 Require(!data.hasProceduralWorld || ProceduralWorld.Active != null,
                     "The procedural world system is unavailable.");
@@ -341,12 +349,66 @@ namespace SheltreSim.Saving
             }
         }
 
+        private static void MigrateBunkerEconomy(SaveData data)
+        {
+            if (data == null || data.version >= 7) return;
+            if (data.bunkerStages == 0 && !data.bunkerBuilding && data.money == 25000)
+                data.money = HomeBase.StartingMoney;
+            data.bunkerContract = data.bunkerStages > 0 || data.bunkerBuilding;
+            // Older builds let the player stop between manually purchased stages. Under the
+            // contract, stages 1–3 run automatically, so resume the next stage on migration.
+            if (data.bunkerContract && data.bunkerStages < 3 && !data.bunkerBuilding)
+            {
+                data.bunkerBuilding = true;
+                data.bunkerBuildElapsed = 0f;
+            }
+            data.bunkerRooms = data.bunkerAnnex ? (int)BunkerShop.RoomBits.Annex : 0;
+            data.shopOfferIds = data.bunkerAnnex ? new[] { "room_annex" } : Array.Empty<string>();
+            data.shopPurchaseCounts = data.bunkerAnnex ? new[] { 1 } : Array.Empty<int>();
+        }
+
         private static void ValidateSnapshot(SaveData data, Dictionary<string, BuildPieceDefinition> definitions)
         {
             // Version 5 moved the start of the game: older saves place everything in a world that's gone.
             Require(data != null && data.version >= SaveData.MinimumVersion && data.version <= SaveData.CurrentVersion, "This save format is unsupported.");
             Require(data.money >= 0 && data.bunkerStages >= 0 && data.bunkerStages <= HomeBase.Stages.Length &&
                 Finite(data.bunkerBuildElapsed) && data.bunkerBuildElapsed >= 0f, "The saved bunker project is invalid.");
+            if (data.version >= 7)
+            {
+                const int knownRoomMask = (int)(BunkerShop.RoomBits.Annex | BunkerShop.RoomBits.Workshop |
+                    BunkerShop.RoomBits.Hydro | BunkerShop.RoomBits.Vault | BunkerShop.RoomBits.ReinforcedDoor);
+                Require((data.bunkerRooms & ~knownRoomMask) == 0, "The saved bunker rooms are invalid.");
+                BunkerShop.RoomBits rooms = (BunkerShop.RoomBits)data.bunkerRooms;
+                Require((rooms & (BunkerShop.RoomBits.Workshop | BunkerShop.RoomBits.Hydro)) !=
+                    (BunkerShop.RoomBits.Workshop | BunkerShop.RoomBits.Hydro), "The saved bunker has both exclusive wings.");
+                Require((rooms & BunkerShop.RoomBits.Vault) == 0 || (rooms & BunkerShop.RoomBits.Annex) != 0,
+                    "The saved vault has no annex.");
+                Require(data.shopOfferIds != null && data.shopPurchaseCounts != null &&
+                    data.shopOfferIds.Length == data.shopPurchaseCounts.Length && data.shopOfferIds.Length <= BunkerShop.All.Count,
+                    "The saved shop purchases are invalid.");
+                var seenOffers = new HashSet<string>();
+                for (int i = 0; i < data.shopOfferIds.Length; i++)
+                {
+                    BunkerShop.Offer offer = BunkerShop.Get(data.shopOfferIds[i]);
+                    Require(offer != null && offer.id != "bunker_contract" && seenOffers.Add(offer.id) &&
+                        data.shopPurchaseCounts[i] > 0 && data.shopPurchaseCounts[i] <= offer.limit,
+                        "A saved shop purchase count is invalid.");
+                }
+                Require(data.bunkerContract || (data.bunkerStages == 0 && !data.bunkerBuilding),
+                    "The saved bunker stages have no contract.");
+                Require(data.bunkerContract || (rooms == BunkerShop.RoomBits.None && data.shopOfferIds.Length == 0),
+                    "An unsigned bunker has purchases or upgrades.");
+                Require(data.supplyCageState == null || data.supplyCageState.Length <= 20000,
+                    "The saved Supply Cage contents are too large.");
+                foreach (BunkerShop.Offer offer in BunkerShop.All)
+                    if (offer.roomBit != BunkerShop.RoomBits.None)
+                    {
+                        int index = Array.IndexOf(data.shopOfferIds, offer.id);
+                        bool purchased = index >= 0 && data.shopPurchaseCounts[index] > 0;
+                        Require(purchased == ((rooms & offer.roomBit) != 0),
+                            "Saved room flags do not match the purchase history.");
+                    }
+            }
             Require(data.equippedGear != null && data.equippedGear.Count <= 8, "The saved gear is invalid.");
             Require(Finite(data.playerPosition) && Finite(data.playerYaw) && Finite(data.playerPitch),
                 "The saved player position is invalid.");
@@ -472,6 +534,8 @@ namespace SheltreSim.Saving
                     if (farm != null && piece.farmStored >= 0) farm.RestoreState(piece.farmStored, piece.farmElapsed);
                     IPieceState pieceState = instance.GetComponent<IPieceState>();
                     if (pieceState != null && !string.IsNullOrEmpty(piece.pieceState)) pieceState.RestorePieceState(piece.pieceState);
+                    PlacedPiece placedTag = instance.GetComponent<PlacedPiece>();
+                    if (placedTag != null) placedTag.wasPlacedFromKit = piece.wasPlacedFromKit;
                     StructureHealth structure = instance.GetComponent<StructureHealth>();
                     if (structure != null && piece.structureHealth >= 0f) structure.RestoreHealth(piece.structureHealth);
                 }
@@ -500,7 +564,6 @@ namespace SheltreSim.Saving
                 staging.transform.GetChild(0).SetParent(null, true);
             }
 
-            RestoreWorldObjects(data);
             if (inventory != null && data.inventory != null)
             {
                 inventory.Clear();
@@ -536,7 +599,18 @@ namespace SheltreSim.Saving
                     data.hasProceduralWorld ? data.proceduralChunks : new List<ProceduralWorldState.ChunkState>(),
                     data.gamePhase != (int)GamePhase.Building);
             if (HomeBase.Active != null)
-                HomeBase.Active.Restore(data.money, data.bunkerStages, data.bunkerBuilding, data.bunkerBuildElapsed, data.bunkerAnnex);
+            {
+                if (data.version >= 7)
+                    HomeBase.Active.RestoreEconomy(data.money, data.bunkerStages, data.bunkerBuilding, data.bunkerBuildElapsed,
+                        data.bunkerContract, (BunkerShop.RoomBits)data.bunkerRooms, data.shopOfferIds, data.shopPurchaseCounts);
+                else
+                    HomeBase.Active.RestoreEconomy(data.money, data.bunkerStages, data.bunkerBuilding, data.bunkerBuildElapsed,
+                        data.bunkerStages > 0 || data.bunkerBuilding, data.bunkerAnnex ? BunkerShop.RoomBits.Annex : BunkerShop.RoomBits.None,
+                        data.shopOfferIds ?? Array.Empty<string>(), data.shopPurchaseCounts ?? Array.Empty<int>());
+                if (HomeBase.Active.supplyCage != null)
+                    HomeBase.Active.supplyCage.RestorePieceState(data.version >= 7 ? data.supplyCageState : null);
+            }
+            RestoreWorldObjects(data);
             SheltreSim.Crafting.PlayerGear gear = player.GetComponent<SheltreSim.Crafting.PlayerGear>();
             if (gear != null) gear.RestoreEquipped(data.equippedGear);
             if(ExpeditionProgression.Active!=null)ExpeditionProgression.Active.Restore(data.expeditionUpgrades,data.discoveredLandmarks);

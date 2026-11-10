@@ -1,5 +1,6 @@
 using SheltreSim.Raids;
 using SheltreSim.Saving;
+using SheltreSim.Core;
 using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
@@ -29,7 +30,7 @@ namespace SheltreSim.Objectives
             GameUI.Label(card, "Summary", "The beacon held. The settlement is safe.", TopLeft, TopLeft,
                 new Vector2(36f, -148f), new Vector2(690f, 34f), 20, GameUI.Muted);
             statsLabel = GameUI.Label(card, "Stats", string.Empty, TopLeft, TopLeft,
-                new Vector2(36f, -208f), new Vector2(690f, 166f), 23, Color.white);
+                new Vector2(36f, -208f), new Vector2(690f, 188f), 23, Color.white);
             GameUI.Button(card, "Continue", "Continue in endless mode", TopLeft, TopLeft,
                 new Vector2(36f, -420f), new Vector2(420f, 58f), Continue, true);
             GameUI.Label(card, "Hint", "Raids are over. Explore, build and keep surviving.", TopLeft, TopLeft,
@@ -52,7 +53,8 @@ namespace SheltreSim.Objectives
             int raids = RaidDirector.Active != null ? RaidDirector.Active.RaidsSurvived : 0;
             int enemies = Mathf.Max(0, LootBagSystem.NextId - 1);
             int standing = PlacedPieceRegistry.All.Count;
-            statsLabel.text = $"World days elapsed     {days}\nRaids survived                 {raids}\nEnemies defeated             {enemies}\nStructures still standing   {standing}";
+            int unspent = HomeBase.Active != null ? HomeBase.Active.UnspentSavings : 0;
+            statsLabel.text = $"World days elapsed     {days}\nRaids survived                 {raids}\nEnemies defeated             {enemies}\nStructures still standing   {standing}\nUnspent savings               ${unspent:N0}";
             ModalUI.Replace(this, Close);
             open = true;
             panel.SetActive(true);

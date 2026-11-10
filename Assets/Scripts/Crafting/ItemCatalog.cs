@@ -1,20 +1,11 @@
 using System;
 using System.Collections.Generic;
+using SheltreSim.Core;
 using SheltreSim.Items;
 using UnityEngine;
 
 namespace SheltreSim.Crafting
 {
-    /// <summary>One purchasable good in the pre-apocalypse store. price is dollars per purchase; quantity is units delivered per purchase.</summary>
-    [Serializable]
-    public sealed class ShopEntry
-    {
-        public string id;
-        public int price;
-        public int quantity;
-        public ShopEntry(string id, int price, int quantity) { this.id = id; this.price = price; this.quantity = quantity; }
-    }
-
     /// <summary>Code description of one item. M21CraftingSetup turns each of these into a ResourceDefinition asset.</summary>
     public sealed class ItemSpec
     {
@@ -70,6 +61,12 @@ namespace SheltreSim.Crafting
 
         private static readonly List<ItemSpec> all = new List<ItemSpec>();
         private static readonly Dictionary<string, ItemSpec> specs = new Dictionary<string, ItemSpec>();
+        private static readonly List<string> gatheredSources = new List<string>
+        {
+            "wood", "stone", "iron_ore", "scrap_metal", "food_berries", "water",
+            "plant_fiber", "herbs", "coal", "raw_meat", "leather",
+            "vegetables", "seeds", "grain", "dirty_water",
+        };
         private static Dictionary<string, ResourceDefinition> defs;
 
         public static IReadOnlyList<ItemSpec> All => all;
@@ -203,6 +200,29 @@ namespace SheltreSim.Crafting
             // ---- Endgame ----
             I("radio_part", "Radio Part", End, "A tuned transmitter module.");
             I("radio_beacon", "Radio Beacon Core", End, "Everything needed to call for rescue. Build the Radio Beacon.");
+
+            // BunkerShop's offer table is independent of ItemCatalog, so it is safe to
+            // read here while this type initializes. Keep the build-kit IDs sourced there.
+            var kitIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (BunkerShop.Offer offer in BunkerShop.All)
+            foreach (BunkerShop.Grant grant in offer.grants)
+                if (grant.itemId != null && grant.itemId.StartsWith("kit_", StringComparison.Ordinal))
+                    kitIds.Add(grant.itemId);
+
+            foreach (string id in kitIds)
+            {
+                string label = id.StartsWith("kit_piece_", StringComparison.Ordinal)
+                    ? id.Substring("kit_piece_".Length)
+                    : id.Substring("kit_".Length);
+                string[] words = label.Replace('_', ' ').Split(' ');
+                for (int i = 0; i < words.Length; i++)
+                    if (words[i].Length > 0)
+                        words[i] = char.ToUpperInvariant(words[i][0]) + words[i].Substring(1);
+                string name = string.Join(" ", words) + " Construction Kit";
+                I(id, name, Ref, "Consume this kit to place one matching build piece.")
+                    .Asset("ConstructionKit_" + id.Substring("kit_".Length));
+                gatheredSources.Add(id);
+            }
         }
 
         // ---------- Raw sources that are not loot containers ----------
@@ -212,32 +232,7 @@ namespace SheltreSim.Crafting
         /// (ResourceNode primary or bonus drops), hunting carcasses, farming, the Water Collector.
         /// RecipeBook.Validate unions this with every LootTables entry to get the raw set.
         /// </summary>
-        public static readonly string[] GatheredSources =
-        {
-            "wood", "stone", "iron_ore", "scrap_metal", "food_berries", "water",
-            "plant_fiber", "herbs", "coal",       // node bonus drops (bushes, rocks)
-            "raw_meat", "leather",                // hunting carcasses
-            "vegetables", "seeds", "grain",       // farm plots / farmland
-            "dirty_water",                        // streams and puddles
-        };
-
-        // ---------- Shop ----------
-
-        private static readonly List<ShopEntry> shop = new List<ShopEntry>
-        {
-            new ShopEntry("canned_food", 24, 6), new ShopEntry("bottled_water", 18, 6), new ShopEntry("grain", 30, 5),
-            new ShopEntry("seeds", 20, 5), new ShopEntry("first_aid", 45, 1), new ShopEntry("bandage", 12, 4),
-            new ShopEntry("antiseptic", 20, 2), new ShopEntry("antibiotics", 120, 2), new ShopEntry("planks", 30, 10),
-            new ShopEntry("nails", 15, 20), new ShopEntry("duct_tape", 10, 2), new ShopEntry("cloth", 25, 6),
-            new ShopEntry("rope", 22, 3), new ShopEntry("iron_axe", 90, 1), new ShopEntry("iron_pickaxe", 110, 1),
-            new ShopEntry("machete", 160, 1), new ShopEntry("padded_jacket", 75, 1), new ShopEntry("fuel", 40, 4),
-            new ShopEntry("copper_wire", 35, 6), new ShopEntry("glass", 20, 4), new ShopEntry("chemicals", 60, 3),
-            new ShopEntry("steel_plate_armor", 400, 1), new ShopEntry("pistol", 350, 1), new ShopEntry("ammo_9mm", 40, 24),
-            new ShopEntry("shotgun", 380, 1), new ShopEntry("ammo_shell", 45, 12),
-        };
-
-        /// <summary>Everything the pre-apocalypse store sells. A prepper cannot afford all of it on roughly $5,000.</summary>
-        public static IReadOnlyList<ShopEntry> Shop => shop;
+        public static IReadOnlyList<string> GatheredSources => gatheredSources;
 
         // ---------- Runtime asset lookup ----------
 

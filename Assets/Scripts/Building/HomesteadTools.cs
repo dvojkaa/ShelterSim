@@ -115,6 +115,12 @@ namespace SheltreSim.Building
 
         public static string DescribeRefund(BuildPieceDefinition definition, PlacedPiece piece, bool forgiven)
         {
+            if (piece != null && piece.wasPlacedFromKit && forgiven)
+            {
+                string kitId = "kit_" + piece.pieceId;
+                ResourceDefinition kit = ItemCatalog.Def(kitId);
+                return "1 " + (kit != null ? kit.displayName : kitId.Replace('_', ' '));
+            }
             StringBuilder text = new StringBuilder();
             float fraction = HealthFraction(piece);
             if (definition != null)
@@ -134,7 +140,9 @@ namespace SheltreSim.Building
         {
             string refund = DescribeRefund(definition, piece, forgiven);
             float fraction = HealthFraction(piece);
-            if (definition != null)
+            if (piece != null && piece.wasPlacedFromKit && forgiven)
+                inventory.Add("kit_" + piece.pieceId, 1);
+            else if (definition != null)
                 foreach (CraftingCost line in definition.craftingCost)
                 {
                     if (line == null || line.resource == null) continue;

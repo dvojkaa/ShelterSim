@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using SheltreSim.Building;
 using SheltreSim.Combat;
+using SheltreSim.Core;
 using SheltreSim.Crafting;
 using SheltreSim.Items;
 using SheltreSim.Player;
@@ -129,10 +130,10 @@ namespace SheltreSim.Diagnostics
             string[] legacy = { "wood", "stone", "iron_ore", "scrap_metal", "food_berries", "water", "first_aid", "weapon_upgrade", "expedition_parts" };
             Check(legacy.All(id => ItemCatalog.Def(id) != null), "the 9 original items still resolve");
             Check(ItemCatalog.Def("weapon_upgrade").weaponDamage > MeleeAttacker.DefaultDamage, "makeshift blade is a set-damage weapon");
-            var shop = ItemCatalog.Shop;
-            Check(shop.Count >= 18 && shop.Count <= 26 && shop.All(e => ItemCatalog.Def(e.id) != null && e.price >= 5 && e.price <= 400 && e.quantity >= 1), $"shop table valid ({shop.Count} entries)");
-            int total = shop.Sum(e => e.price);
-            Check(total > 1000 && total < 5000, $"one purchase of everything costs ${total}; the ~$5,000 budget forces choices on quantities");
+            var offers = BunkerShop.All;
+            Check(offers.Count == 30 && offers.All(o => o != null && o.price > 0 && o.limit > 0 && o.grants != null), $"bunker shop table valid ({offers.Count} offers)");
+            Check(BunkerShop.Get("bunker_contract") != null && BunkerShop.Get("bunker_contract").price == HomeBase.ContractPrice,
+                "mandatory bunker contract is priced consistently");
         }
 
         private void CheckLootTables()

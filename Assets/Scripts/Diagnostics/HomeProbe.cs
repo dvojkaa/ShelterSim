@@ -8,6 +8,7 @@ using SheltreSim.Enemies;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
 using SheltreSim.Player;
+using SheltreSim.Raids;
 using SheltreSim.Saving;
 using SheltreSim.Survival;
 using SheltreSim.UI;
@@ -62,6 +63,7 @@ namespace SheltreSim.Diagnostics
             Check(home != null && world != null && state != null, "Home site, world and game state exist");
 
             yield return Run(CheckSpawn());
+            CheckLegacyBunkerMigration();
             yield return Run(CheckNormalWorld());
             yield return Run(CheckTerminal());
             yield return Run(CheckStagesAndStairs());
@@ -106,7 +108,7 @@ namespace SheltreSim.Diagnostics
             yield return new WaitForSeconds(1.5f);
             Check(Mathf.Abs(player.transform.position.y - WorldLayout.HomeGroundY) < 0.2f, $"Player stands on the ground at the site (y={player.transform.position.y:F2})");
             Check(state.CurrentPhase == GamePhase.Building && stats.decayPaused, "Game starts before the apocalypse, needs paused");
-            Check(home.Money == HomeBase.StartingMoney, "Savings at the start");
+            Check(home.Money == 70000, "Normal difficulty starts with $70,000");
             Check(WorldLayout.UndergroundAmount(player.transform.position) == 0f, "Spawn is on the surface");
 
             // The real interaction ray at a natural slightly-down look.
@@ -128,6 +130,37 @@ namespace SheltreSim.Diagnostics
                 for (float z = -244f; z <= -220f; z += 1f)
                     if (!Physics.Raycast(new Vector3(x, 30f, z), Vector3.down, out RaycastHit ground, 40f, ~0, QueryTriggerInteraction.Ignore) || ground.point.y < WorldLayout.HomeGroundY - 0.1f) holes++;
             Check(holes == 0, $"No hole in the ground on the site before excavation ({holes})");
+            Check(!PlacedPieceRegistry.All.Any(piece => piece.pieceId == "bed" || piece.pieceId == "workbench"),
+                "The starting bunker has no free bed or workbench; those are shop choices");
+        }
+
+        private void CheckLegacyBunkerMigration()
+        {
+            string[] ids = home.CaptureShopIds();
+            int[] counts = home.CaptureShopCounts();
+            int money = home.Money, completed = home.CompletedStages;
+            bool building = home.IsBuilding, contract = home.HasContract, annex = home.HasAnnex;
+            float elapsed = home.BuildElapsed;
+            BunkerShop.RoomBits rooms = home.Rooms;
+
+            var legacy = new SaveData
+            {
+                version = 6, money = 14000, bunkerStages = 2, bunkerBuilding = false,
+                bunkerBuildElapsed = 0f, bunkerAnnex = true
+            };
+            MethodInfo migrate = typeof(SaveManager).GetMethod("MigrateBunkerEconomy", BindingFlags.Static | BindingFlags.NonPublic);
+            migrate?.Invoke(null, new object[] { legacy });
+            bool migrationDataValid = legacy.bunkerContract && legacy.bunkerBuilding &&
+                legacy.bunkerRooms == (int)BunkerShop.RoomBits.Annex &&
+                legacy.shopOfferIds != null && legacy.shopOfferIds.Contains("room_annex") &&
+                legacy.shopPurchaseCounts != null && legacy.shopPurchaseCounts.Length == 1 && legacy.shopPurchaseCounts[0] == 1;
+            Check(migrationDataValid, "Legacy mid-stage saves resume construction and retain annex purchase history");
+
+            home.RestoreEconomy(legacy.money, legacy.bunkerStages, legacy.bunkerBuilding, legacy.bunkerBuildElapsed,
+                legacy.bunkerContract, (BunkerShop.RoomBits)legacy.bunkerRooms, legacy.shopOfferIds, legacy.shopPurchaseCounts);
+            Check(home.IsBuilding && home.HasContract && home.PurchaseCount("room_annex") == 1,
+                "Migrated construction and annex purchase state restore into the live bunker");
+            home.RestoreEconomy(money, completed, building, elapsed, contract, rooms, ids, counts);
         }
 
         private IEnumerator CheckNormalWorld()
@@ -156,32 +189,15 @@ namespace SheltreSim.Diagnostics
             yield return null;
             Check(ModalUI.IsOpen && BunkerTerminalUI.IsOpen && Time.timeScale == 0f, "Terminal is a modal: game paused, cursor free");
             Check(Cursor.lockState == CursorLockMode.None, "Cursor free in the terminal");
-            Button start = FindObjectsByType<Button>(FindObjectsSortMode.None).First(b => b.transform.parent.name == "Stage0");
-            Button locked = FindObjectsByType<Button>(FindObjectsSortMode.None).First(b => b.transform.parent.name == "Stage3");
-            Check(start.interactable && !locked.interactable, "Only the next stage can be started");
-
-            int spendableBefore = home.SpendableMoney;
-            Button[] items = FindObjectsByType<Button>(FindObjectsSortMode.None).Where(b => b.transform.parent.name.StartsWith("Item_", StringComparison.Ordinal)).ToArray();
-            Check(items.Length >= 10, $"Shop lists goods ({items.Length})");
-            items[0].onClick.Invoke();
-            Check(home.SpendableMoney < spendableBefore, "Buying costs money");
-            Check(player.GetComponent<Inventory>().GetAllCounts().Values.Sum() > 0, "Bought goods arrive in the inventory");
             ShotUI("terminal_ui", "TerminalCanvas");
-
-            // Spending everything possible must still leave enough for the bunker.
-            for (int guard = 0; guard < 5000 && home.SpendableMoney > 0; guard++)
-            {
-                var cheapest = SheltreSim.Crafting.ItemCatalog.Shop.OrderBy(e => e.price).First();
-                if (!home.TryBuy(cheapest, out _)) break;
-            }
-            Check(home.Money >= home.ReservedForBunker, $"The shop cannot eat the bunker's money (${home.Money} left, ${home.ReservedForBunker} needed)");
-            var expensive = SheltreSim.Crafting.ItemCatalog.Shop.OrderByDescending(e => e.price).First();
-            if (home.SpendableMoney < expensive.price) Check(!home.TryBuy(expensive, out _), "Unaffordable purchase is refused");
-            home.Restore(HomeBase.StartingMoney, 0, false, 0f, false);
-            player.GetComponent<Inventory>().Clear();
-
-            start.onClick.Invoke();
-            Check(home.IsBuilding && home.Money == HomeBase.StartingMoney - HomeBase.Stages[0].price, "Clicking Start pays and starts the crew");
+            Check(home.Money == 70000 && !home.HasContract, "The terminal preserves the $70,000 opening budget");
+            Check(!home.TryBuyOffer(BunkerShop.Get("pantry"), out _), "Purchases are blocked before the contract");
+            Check(home.TryBuyContract(out string result), "The $20,000 bunker contract can be purchased");
+            Check(home.Money == 50000 && home.HasContract && home.IsBuilding, "Contract deducts $20,000 and starts automatic construction");
+            Inventory inventory = player.GetComponent<Inventory>();
+            Check(inventory.GetCount("hammer") == 1 && inventory.GetCount("canned_food") == 4 &&
+                  inventory.GetCount("bottled_water") == 4 && inventory.GetCount("bandage") == 2,
+                "Contract delivers the fixed starter pack");
             ModalUI.DismissCurrent();
             yield return null;
             Check(!ModalUI.IsOpen && Time.timeScale == 1f && (Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked), "Closing the terminal gives the game back");
@@ -197,32 +213,75 @@ namespace SheltreSim.Diagnostics
 
         private IEnumerator CheckStagesAndStairs()
         {
-            yield return WaitForCrew();
-            Check(home.CompletedStages == 1 && !home.IsBuilding, "Stage one finishes on its own");
-            Check(home.stageVisuals[0].activeSelf, "Excavation shows on the site");
+            Time.timeScale = 6f;
+            float stageLimit = Time.realtimeSinceStartup + 35f;
+            while (home.CompletedStages < 2 && Time.realtimeSinceStartup < stageLimit) yield return null;
+            Check(home.CompletedStages >= 2, "Stages one and two progress automatically after the contract");
+            Check(home.stageVisuals[0].activeSelf && home.stageVisuals[1].activeSelf, "Excavation and concrete shell show on the site");
+
+            // Stage 3 starts automatically. The shop remains open until sealing begins.
+            Check(home.CanShop && !home.CanSeal && !home.TrySeal(out _), "Sealing is blocked before stage 3 is complete");
+            Check(home.supplyCage != null, "The fixed Supply Cage is wired for deliveries");
+            Check(home.supplyCage == null || !RaidAgent.IsRaidLootableStore(home.supplyCage),
+                "Scavengers cannot target the fixed Supply Cage");
+            Check(home.TryBuyOffer(BunkerShop.Get("fuel_drums"), out _), "An available offer can be bought into the Supply Cage");
+            Check(home.TryBuyOffer(BunkerShop.Get("fuel_drums"), out _) && home.TryBuyOffer(BunkerShop.Get("fuel_drums"), out _), "Repeatable offer reaches its purchase limit");
+            Check(!home.TryBuyOffer(BunkerShop.Get("fuel_drums"), out _), "Offer limit blocks the next purchase");
+            Check(home.supplyCage.GetCount("fuel") >= 60 && home.PurchaseCount("fuel_drums") == 3, "Offer grants and purchase count are recorded");
+            Check(home.TryBuyOffer(BunkerShop.Get("room_annex"), out _), "Storage annex can be purchased after the concrete shell");
+            Check(home.TryBuyOffer(BunkerShop.Get("room_wing_hydro"), out _), "Hydroponics fit-out can be selected");
+            Check(!home.TryBuyOffer(BunkerShop.Get("room_wing_workshop"), out _), "Exclusive north wing blocks the other fit-out");
+            Check((home.Rooms & BunkerShop.RoomBits.Hydro) != 0 && home.HasAnnex, "Room bitmask records the selected wing and annex");
+            Check(home.northWingShell != null && home.northWingShell.activeSelf && home.hydroWing.activeSelf,
+                "The selected hydro wing shell is visible");
+            Check(CapsuleClear(new Vector3(68f, .58f, -211.65f), new Vector3(68f, 1.22f, -211.65f), .58f),
+                "The north-wing opening fits a raider capsule with skin width");
+
+            int savedMoney = home.Money;
+            int savedFuel = home.supplyCage.GetCount("fuel");
+            int savedWorkbenchPurchases = home.PurchaseCount("workbench");
+            Check(Invoke("TrySaveToPath"), "Save economy, room and shop state during construction");
+            Check(home.TryBuyOffer(BunkerShop.Get("workbench"), out _) &&
+                  home.PurchaseCount("workbench") == savedWorkbenchPurchases + 1,
+                "A new purchase changes stock and count before the restore check");
+            Check(Invoke("TryLoadFromPath"), "Load saved economy, room and shop state");
+            yield return null;
+            Check(home.Money == savedMoney && home.supplyCage.GetCount("fuel") == savedFuel &&
+                  home.PurchaseCount("fuel_drums") == 3 && home.PurchaseCount("workbench") == savedWorkbenchPurchases &&
+                  (home.Rooms & BunkerShop.RoomBits.Hydro) != 0,
+                "Save/load restores money, delivered stock, room choice and offer counts");
+            Check(!home.TryBuyOffer(BunkerShop.Get("room_wing_workshop"), out _), "Exclusive room choice remains enforced after load");
+
+            stageLimit = Time.realtimeSinceStartup + 20f;
+            while (home.CompletedStages < 3 && Time.realtimeSinceStartup < stageLimit) yield return null;
+            Check(home.CompletedStages == 3 && !home.IsBuilding && home.CanSeal, "Stages 1–3 complete automatically and enable sealing");
+            Check(home.TryBuyOffer(BunkerShop.Get("room_vault"), out _), "Vault unlocks after the annex and stairs");
+            Check(home.vaultRoom != null && home.vaultRoom.activeSelf && !home.vaultPlug.activeSelf,
+                "Vault purchase opens its annex connection");
+            InteractableDoor vaultDoor = home.vaultRoom.GetComponentInChildren<InteractableDoor>(true);
+            vaultDoor.RestoreState(true);
+            Physics.SyncTransforms();
+            Check(CapsuleClear(new Vector3(83f, .58f, -213.35f), new Vector3(83f, 1.22f, -213.35f), .58f),
+                "The open vault doorway fits a raider capsule with skin width");
+            Check(home.TryBuyOffer(BunkerShop.Get("door_reinforced"), out _) &&
+                  Mathf.Approximately(home.mainBlastDoor.maxRaidHealth, 750f),
+                "Reinforced main blast door gets 2.5 times the break-in health");
+            BunkerTerminalUI.Open(player.gameObject);
+            Check(BunkerTerminalUI.IsOpen && ModalUI.IsOpen && Time.timeScale == 0f, "The terminal opens as a pausing modal before sealing");
+            MethodInfo seal = typeof(BunkerTerminalUI).GetMethod("Seal", BindingFlags.Instance | BindingFlags.NonPublic);
+            seal?.Invoke(FindFirstObjectByType<BunkerTerminalUI>(), null);
+            seal?.Invoke(FindFirstObjectByType<BunkerTerminalUI>(), null);
+            Check(home.IsSealing && !home.CanShop && !BunkerTerminalUI.IsOpen && !ModalUI.IsOpen && Time.timeScale > 0.99f,
+                "Confirming seal closes the modal, resumes time and starts life support");
+            Check(!home.TryBuyOffer(BunkerShop.Get("pantry"), out _), "Shop stays closed while sealing");
 
             // Closed entrance holds the player's weight.
             Teleport(new Vector3(72f, WorldLayout.HomeGroundY + 0.2f, -236f));
             yield return new WaitForSeconds(0.5f);
-            Check(player.transform.position.y > WorldLayout.HomeGroundY - 0.2f, "Entrance is covered until the stairs are bought");
-
-            Check(home.TryStartNextStage(out _), "Stage two starts");
-            Check(Invoke("TrySaveToPath"), "Save in the middle of construction");
-            float elapsed = home.BuildElapsed;
+            Check(!home.entranceCover.activeSelf, "Stairs open after automatic stage three");
+            // Finish the seal so the existing apocalypse and stairs checks can continue.
             yield return WaitForCrew();
-            Check(home.CompletedStages == 2, "Stage two finishes");
-            Check(Invoke("TryLoadFromPath"), "Load back to the middle of construction");
-            yield return null;
-            Check(home.CompletedStages == 1 && home.IsBuilding && Mathf.Abs(home.BuildElapsed - elapsed) < 1f && home.Money == HomeBase.StartingMoney - HomeBase.Stages[0].price - HomeBase.Stages[1].price,
-                "Load restores the stage, its progress and the money");
-            Check(!home.stageVisuals[1].activeSelf, "Load removes what was not built yet");
-            yield return WaitForCrew();
-            Check(home.CompletedStages == 2, "Interrupted stage finishes after the load");
-
-            Check(home.TryBuyAnnex(out _), "Annex can be bought after the shell");
-            Check(home.TryStartNextStage(out _), "Stage three starts");
-            yield return WaitForCrew();
-            Check(home.CompletedStages == 3 && !home.entranceCover.activeSelf, "Stairs are open");
+            Check(home.BunkerComplete && state.CurrentPhase == GamePhase.Apocalypse, "Life support completes and starts the apocalypse");
             Camera camera = player.GetComponentInChildren<Camera>();
 
             // Really walk down, with the same controller and sweep the game uses.
@@ -230,7 +289,7 @@ namespace SheltreSim.Diagnostics
             player.RestoreView(5f);
             yield return null;
             Shot("stair_entrance", camera);
-            InteractableDoor door = FindObjectsByType<InteractableDoor>(FindObjectsSortMode.None).First();
+            InteractableDoor door = home.mainBlastDoor;
             door.RestoreState(false);
             yield return Walk(new Vector3(0f, 0f, 3.5f), 7f);
             Shot("stairs_down", camera);
@@ -277,12 +336,21 @@ namespace SheltreSim.Diagnostics
 
         private const float RoomDoorZ = -223.5f;
 
+        private bool CapsuleClear(Vector3 bottom, Vector3 top, float radius)
+        {
+            Physics.SyncTransforms();
+            foreach (Collider collider in Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (collider == null || collider.GetComponentInParent<FirstPersonController>() != null) continue;
+                return false;
+            }
+            return true;
+        }
+
         private IEnumerator CheckBombs()
         {
             // Underground when they fall: no blast damage.
             Teleport(new Vector3(72f, 0.1f, -218f));
-            Check(home.TryStartNextStage(out _), "Last stage starts");
-            yield return WaitForCrew();
             Check(home.BunkerComplete && state.CurrentPhase == GamePhase.Apocalypse, "Finishing the bunker starts the apocalypse");
             Check(!world.Ruined, "The world stays normal during the warning");
             Check(FindObjectsByType<EnemyAI>(FindObjectsSortMode.None).Length == 0, "No raiders during the warning");
@@ -316,7 +384,8 @@ namespace SheltreSim.Diagnostics
             Capture("ruined_house", new Vector3(60f, 7.6f, -176f), new Vector3(66f, 8f, -150f));
             var inventoryUi = FindFirstObjectByType<InventoryUI>();
             var gearInventory = player.GetComponent<Inventory>();
-            foreach (var entry in SheltreSim.Crafting.ItemCatalog.Shop) gearInventory.Add(entry.id, 3);
+            foreach (string itemId in new[] { "hammer", "canned_food", "bottled_water", "bandage", "fuel", "seeds" })
+                gearInventory.Add(itemId, 3);
             inventoryUi.Open();
             yield return null;
             ShotUI("inventory_ui", "Inventory_Canvas");

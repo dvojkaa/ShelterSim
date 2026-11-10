@@ -40,6 +40,7 @@ Then open `Assets/Scenes/M1_BunkerShell.unity` and use:
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --smoke-test     -logFile /tmp/smoke.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --crafting-probe -logFile /tmp/crafting.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --world-probe    -logFile /tmp/world.log
+./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --m28-probe      -logFile /tmp/m28.log
 
 # Check for PASS/FAIL summary at end of each log
 grep -E "(PASSED|FAILED|ERROR)" /tmp/smoke.log
@@ -56,8 +57,11 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 ### Pre-Apocalypse Phase
 
-- [HUMAN] Spawn at the laptop on the suburban lot with **$25,000**. Streets and houses visible; no enemies, loot nodes, or animals present yet.
-- [HUMAN] Use the site terminal to buy supplies and contract the 4 bunker stages ($20,000 total). Attempting to overspend must be blocked.
+- [HUMAN] Spawn at the laptop on the suburban lot with **$70,000**. Streets and houses visible; no enemies, loot nodes, or animals present yet.
+- [HUMAN] Sign the mandatory $20,000 bunker contract. Verify the $50,000 remainder, starter pack, and that all other purchases are locked before signing.
+- [HUMAN] Check the starter room has no free bed or workbench; those are paid room/shop choices. A zero-purchase run still has the starter pack and can scavenge/craft outdoors.
+- [HUMAN] Stages 1–3 run automatically; buy selected rooms, kits and supplies while they progress. Delivery goes into the fixed Supply Cage and survives save/load.
+- [HUMAN] Seal the bunker only after stage 3; verify the two-click warning shows savings lost, closes the pausing terminal, resumes time and starts life support. The shop stays closed during sealing. A zero-purchase run must still be survivable.
 - [HUMAN] Complete Stage 4 → 45 s sirens → flash/quake → world switches to Ruined state.
 - [HUMAN] Being caught above ground during bombs deals damage; being underground does not.
 
@@ -181,12 +185,14 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] `E` to mount → 10.5 m/s walk / 13 m/s sprint speed. Silent (no vehicle noise, no enemy alerts).
 - [HUMAN] `P` opens persistent 35 kg panniers while riding; `Space` dismounts. Supplies stored on the bicycle can support crafting within the nearby-storage radius.
 - [HUMAN] Crouch and jump must be blocked while riding. Bicycle position and pannier contents persist after save/load; transferring beyond 35 kg is prevented.
+- [HUMAN] The bicycle stays visible during mounting. The camera eases to the `Seat`, then `Space` eases back to a clear exit without moving the parked bike. Check the pose still persists after save/load.
 - [HUMAN] Dismount shares `Space` with jump. `FirstPersonController` suppresses jump for 0.15 s after dismount; verify a dismount does not launch the player and jump works normally shortly afterward.
 
 ### Scout Buggy
 
 - [HUMAN] Craft at Workbench (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape) and place the build piece.
 - [HUMAN] `E` mounts; walk/sprint speeds are 18/22 m/s. `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
+- [HUMAN] The buggy remains visible through the mount transition. The camera eases to its `Seat`; dismount eases to a capsule-clear exit and leaves the buggy parked at the same transform.
 - [HUMAN] Trunk holds up to 120 kg and participates in nearby-storage crafting. Fuel, headlight state, trunk contents and vehicle placement persist after save/load.
 - [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Collision sweeps should stop on blocking geometry; fast contacts should impart a capped impulse to dynamic props without repeated damage while blocked.
 - [HUMAN] At 5.5 m/s forward speed or faster, buggy bumper sweep damages enemies, animals and placed structures once per target every 1.2 s; reverse, sideways and stationary motion must not ram.
@@ -200,8 +206,11 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 ### Structural Tiers & Armored Van
 
+- [AUTO] `--m28-probe`: both motor vehicles stop before dynamic obstacles and impart an impact impulse. This does not cover player input, world bounds, ram damage balance or garage behavior.
+
 - [HUMAN] Reinforced and concrete foundations accept walls and satisfy the same support rules as wood foundations. Reinforced/concrete walls count as full walls; repair and damage stages work.
 - [HUMAN] Craft the Armored Van (24 steel bars, 18 metal plates, 4 electric motors, 6 reinforced frames, 2 energy cells, 8 duct tape); cargo capacity is 300 kg, `H` adds 700 m from fuel, `J` adds 500 m from an energy cell, headlights toggle with `L`, cargo opens with `P`, `T` fires the turret, and `Space` dismounts. Neither fuel source should be consumed when there is insufficient tank room for its full range.
+- [HUMAN] The van stays visible while mounting; the camera eases to `Seat`. `Space` finds a capsule-clear `Exit_L`/`Exit_R` and leaves the van parked. Its position survives save/load.
 - [HUMAN] Collision sweeps should stop the van against blocking geometry, keep the rider seated, and apply a throttled impulse to dynamic props without adding duplicate HP damage. Turning in tight spaces should remain responsive.
 - [HUMAN] Forward ram at speed damages enemies, wildlife and placed structures once per target cooldown; reversing/standing contact must not repeatedly damage targets. Turret uses one `ammo_rifle` per shot, aims from the camera to 70 m, fires every 0.75 s and is blocked by the first solid obstacle.
 - [HUMAN] Destroy a lower foundation under a multi-piece structure; unsupported pieces collapse bottom-up, while pieces with another valid support remain. Confirm each destroyed piece follows the normal single salvage/drop path.

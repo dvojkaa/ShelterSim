@@ -43,6 +43,7 @@ namespace SheltreSim.Player
         private bool warnedNoHeadroom;
         private readonly Collider[] headroomHits = new Collider[16];
         private float jumpSuppressedUntil;
+        private bool vehicleTransition;
 
         public float CameraPitch => pitch;
         public bool IsCrouching => crouched;
@@ -57,6 +58,9 @@ namespace SheltreSim.Player
             if (!mounted) jumpSuppressedUntil = Time.time + 0.15f;
             if (mounted && crouched) SetCrouched(false);
         }
+
+        /// <summary>Temporarily locks look and movement while a vehicle mount animation plays.</summary>
+        public void SetVehicleTransition(bool active) => vehicleTransition = active;
 
         public void RestoreView(float cameraPitch)
         {
@@ -143,7 +147,7 @@ namespace SheltreSim.Player
             // that touches timeScale). Movement is already dead at deltaTime 0, but look is
             // driven by raw mouse delta and is NOT — without this the player's view spins
             // around behind the pause panel while they move the mouse to click Resume.
-            if (Time.timeScale == 0f || !controller.enabled)
+            if (Time.timeScale == 0f || !controller.enabled || vehicleTransition)
             {
                 return;
             }

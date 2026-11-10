@@ -6,7 +6,7 @@ namespace SheltreSim.Saving
     [System.Serializable]
     public class SaveData
     {
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
         /// <summary>Version 5 has the same world, just no state for the M22 systems, so it stays readable.</summary>
         public const int MinimumVersion = 5;
 
@@ -32,6 +32,11 @@ namespace SheltreSim.Saving
         public bool bunkerBuilding;
         public float bunkerBuildElapsed;
         public bool bunkerAnnex;
+        public bool bunkerContract;
+        public int bunkerRooms;
+        public string[] shopOfferIds;
+        public int[] shopPurchaseCounts;
+        public string supplyCageState;
         public List<string> equippedGear = new List<string>();
         public int worldGenVersion;
         public List<SystemState> systemStates = new List<SystemState>();
@@ -57,6 +62,7 @@ namespace SheltreSim.Saving
             public float farmElapsed;
             public string pieceState;
             public float structureHealth = -1f;
+            public bool wasPlacedFromKit;
         }
 
         [System.Serializable]

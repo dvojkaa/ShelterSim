@@ -3,6 +3,7 @@ using System.Linq;
 using SheltreSim.Core;
 using SheltreSim.Interaction;
 using SheltreSim.Saving;
+using SheltreSim.Storage;
 using SheltreSim.World;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -40,7 +41,7 @@ namespace SheltreSim.EditorTools
 
             Transform site = new GameObject("HomeSite").transform;
             HomeBase home = site.gameObject.AddComponent<HomeBase>();
-            home.gameState = Object.FindFirstObjectByType<GameStateManager>();
+            home.gameState = Object.FindAnyObjectByType<GameStateManager>();
             GameObject player = GameObject.Find("Player");
             home.inventory = player.GetComponent<SheltreSim.Items.Inventory>();
             site.position = new Vector3(StairX, Ground, StairTopZ);
@@ -49,6 +50,7 @@ namespace SheltreSim.EditorTools
             BuildStairs(site);
             BuildBunker(site, home);
             MoveFurniture();
+            WireSupplyCage(home);
             PlacePlayer(player);
 
             EditorUtility.SetDirty(home);
@@ -238,7 +240,16 @@ namespace SheltreSim.EditorTools
 
             Box(room, "Floor", new Vector3(cx, -0.2f, cz), new Vector3(w + 0.8f, 0.4f, d + 0.8f), concreteFloor);
             Box(room, "Ceiling", new Vector3(cx, RoomHeight + 0.2f, cz), new Vector3(w + 0.8f, 0.4f, d + 0.8f), concrete);
-            Box(room, "Wall_N", new Vector3(cx, RoomHeight * 0.5f, RoomMaxZ + 0.2f), new Vector3(w + 0.8f, RoomHeight, 0.4f), concrete);
+            // Leave an 1.8 m north-wing opening; its plug stays in place until a wing fit-out is bought.
+            const float wingDoorX = 68f, wingDoorWidth = 1.8f;
+            float northWallZ = RoomMaxZ + 0.2f;
+            Box(room, "Wall_N_West", new Vector3((RoomMinX + wingDoorX - wingDoorWidth * 0.5f) * 0.5f,
+                RoomHeight * 0.5f, northWallZ), new Vector3(wingDoorX - wingDoorWidth * 0.5f - RoomMinX, RoomHeight, 0.4f), concrete);
+            Box(room, "Wall_N_East", new Vector3((RoomMaxX + wingDoorX + wingDoorWidth * 0.5f) * 0.5f,
+                RoomHeight * 0.5f, northWallZ), new Vector3(RoomMaxX - wingDoorX - wingDoorWidth * 0.5f, RoomHeight, 0.4f), concrete);
+            Box(room, "Wall_N_Lintel", new Vector3(wingDoorX, 2.65f, northWallZ), new Vector3(wingDoorWidth, 0.7f, 0.4f), concrete);
+            home.northWingPlug = Box(room, "NorthWingPlug", new Vector3(wingDoorX, 1.15f, northWallZ),
+                new Vector3(wingDoorWidth, 2.3f, 0.4f), concrete);
             Box(room, "Wall_W", new Vector3(RoomMinX - 0.2f, RoomHeight * 0.5f, cz), new Vector3(0.4f, RoomHeight, d), concrete);
 
             // South wall: the 2.4 m blast door at the foot of the stairs.
@@ -247,7 +258,7 @@ namespace SheltreSim.EditorTools
                 Box(room, "Wall_S", new Vector3(StairX + side * (1.2f + segment * 0.5f), RoomHeight * 0.5f, RoomMinZ - 0.2f), new Vector3(segment, RoomHeight, 0.4f), concrete);
             Box(room, "DoorLintel", new Vector3(StairX, 2.65f, RoomMinZ - 0.2f), new Vector3(2.4f, 0.7f, 0.4f), concrete);
             Visual(room, "blast_door_frame", new Vector3(StairX, 0f, RoomMinZ - 0.2f), 0f);
-            BuildDoor(room);
+            BuildDoor(room, home);
 
             // East wall: a gap for the optional annex, plugged until bought.
             const float gapZ = -217.5f;
@@ -263,11 +274,23 @@ namespace SheltreSim.EditorTools
             Box(annex, "Floor", new Vector3(acx, -0.2f, gapZ), new Vector3(8.4f, 0.4f, 8.8f), concreteFloor);
             Box(annex, "Ceiling", new Vector3(acx, RoomHeight + 0.2f, gapZ), new Vector3(8.4f, 0.4f, 8.8f), concrete);
             Box(annex, "Wall_E", new Vector3(ax1 + 0.2f, RoomHeight * 0.5f, gapZ), new Vector3(0.4f, RoomHeight, 8.8f), concrete);
-            Box(annex, "Wall_N", new Vector3(acx, RoomHeight * 0.5f, az1 + 0.2f), new Vector3(8.4f, RoomHeight, 0.4f), concrete);
+            // Vault access uses a measured 1.8 m clear opening centered on the annex north wall.
+            const float vaultDoorX = 83f, vaultDoorWidth = 1.8f;
+            float annexNorthWallZ = az1 + 0.2f;
+            Box(annex, "Wall_N_West", new Vector3((ax0 + vaultDoorX - vaultDoorWidth * 0.5f) * 0.5f,
+                RoomHeight * 0.5f, annexNorthWallZ), new Vector3(vaultDoorX - vaultDoorWidth * 0.5f - ax0, RoomHeight, 0.4f), concrete);
+            Box(annex, "Wall_N_East", new Vector3((ax1 + vaultDoorX + vaultDoorWidth * 0.5f) * 0.5f,
+                RoomHeight * 0.5f, annexNorthWallZ), new Vector3(ax1 - vaultDoorX - vaultDoorWidth * 0.5f, RoomHeight, 0.4f), concrete);
+            Box(annex, "Wall_N_Lintel", new Vector3(vaultDoorX, 2.65f, annexNorthWallZ), new Vector3(vaultDoorWidth, 0.7f, 0.4f), concrete);
+            home.vaultPlug = Box(annex, "VaultPlug", new Vector3(vaultDoorX, 1.15f, annexNorthWallZ),
+                new Vector3(vaultDoorWidth, 2.3f, 0.4f), concrete);
             Box(annex, "Wall_S", new Vector3(acx, RoomHeight * 0.5f, az0 - 0.2f), new Vector3(8.4f, RoomHeight, 0.4f), concrete);
             AddLight(annex, new Vector3(acx, 2.6f, gapZ), 9f, 1.2f, false);
             Attached(annex, "bunker_lamp", new Vector3(acx, RoomHeight, gapZ), 0f);
             home.annexRoom = annex.gameObject;
+
+            BuildNorthWing(room, home);
+            BuildVault(room, home);
 
             // Lamps and dressing.
             Vector3[] lamps = { new Vector3(68.5f, 0f, -220f), new Vector3(75.5f, 0f, -220f), new Vector3(68.5f, 0f, -214.5f), new Vector3(75.5f, 0f, -214.5f) };
@@ -286,7 +309,7 @@ namespace SheltreSim.EditorTools
             if (console != null) console.transform.position = new Vector3(RoomMinX + 0.6f, 0.65f, cz);
         }
 
-        private static void BuildDoor(Transform room)
+        private static void BuildDoor(Transform room, HomeBase home)
         {
             const float leaf = 2.3f, leafHeight = 2.25f;
             GameObject hinge = new GameObject("DoorHinge");
@@ -299,6 +322,7 @@ namespace SheltreSim.EditorTools
             collider.size = new Vector3(leaf, leafHeight, 0.18f);
             InteractableDoor script = door.AddComponent<InteractableDoor>();
             script.doorVisual = hinge.transform;
+            home.mainBlastDoor = script;
             if (Model("blast_door_leaf") != null)
             {
                 Attach(door.transform, "blast_door_leaf").transform.localPosition = new Vector3(0f, -leafHeight * 0.5f, 0f);
@@ -310,19 +334,78 @@ namespace SheltreSim.EditorTools
             }
         }
 
+        private static void BuildNorthWing(Transform bunker, HomeBase home)
+        {
+            const float x0 = 66f, x1 = 76f, z0 = -211.2f, z1 = -203.2f;
+            Transform wing = Group(bunker, "NorthWing");
+            Vector3 center = new Vector3((x0 + x1) * .5f, 0f, (z0 + z1) * .5f);
+            Box(wing, "Floor", center + Vector3.down * .2f, new Vector3(x1 - x0 + .4f, .4f, z1 - z0 + .4f), concreteFloor);
+            Box(wing, "Ceiling", center + Vector3.up * (RoomHeight + .2f), new Vector3(x1 - x0 + .4f, .4f, z1 - z0 + .4f), concrete);
+            Box(wing, "Wall_W", new Vector3(x0 - .2f, RoomHeight * .5f, center.z), new Vector3(.4f, RoomHeight, z1 - z0), concrete);
+            Box(wing, "Wall_E", new Vector3(x1 + .2f, RoomHeight * .5f, center.z), new Vector3(.4f, RoomHeight, z1 - z0), concrete);
+            Box(wing, "Wall_N", new Vector3(center.x, RoomHeight * .5f, z1 + .2f), new Vector3(x1 - x0 + .8f, RoomHeight, .4f), concrete);
+            Transform workshop = Group(wing, "WorkshopFitout");
+            Transform hydro = Group(wing, "HydroponicsFitout");
+            home.northWingShell = wing.gameObject;
+            home.workshopWing = workshop.gameObject;
+            home.hydroWing = hydro.gameObject;
+            wing.gameObject.SetActive(false);
+            workshop.gameObject.SetActive(false);
+            hydro.gameObject.SetActive(false);
+        }
+
+        private static void BuildVault(Transform bunker, HomeBase home)
+        {
+            const float x0 = 80f, x1 = 86f, z0 = -213.1f, z1 = -207.1f;
+            Transform vault = Group(bunker, "VaultRoom");
+            float cx = (x0 + x1) * .5f, cz = (z0 + z1) * .5f;
+            Box(vault, "Floor", new Vector3(cx, -.2f, cz), new Vector3(x1 - x0 + .4f, .4f, z1 - z0 + .4f), concreteFloor);
+            Box(vault, "Ceiling", new Vector3(cx, RoomHeight + .2f, cz), new Vector3(x1 - x0 + .4f, .4f, z1 - z0 + .4f), concrete);
+            Box(vault, "Wall_W", new Vector3(x0 - .2f, RoomHeight * .5f, cz), new Vector3(.4f, RoomHeight, z1 - z0), concrete);
+            Box(vault, "Wall_E", new Vector3(x1 + .2f, RoomHeight * .5f, cz), new Vector3(.4f, RoomHeight, z1 - z0), concrete);
+            Box(vault, "Wall_N", new Vector3(cx, RoomHeight * .5f, z1 + .2f), new Vector3(x1 - x0 + .8f, RoomHeight, .4f), concrete);
+            const float doorX = 83f, doorWidth = 1.8f;
+            Box(vault, "Wall_S_West", new Vector3((x0 + doorX - doorWidth * .5f) * .5f, RoomHeight * .5f, z0 - .2f),
+                new Vector3(doorX - doorWidth * .5f - x0, RoomHeight, .4f), concrete);
+            Box(vault, "Wall_S_East", new Vector3((x1 + doorX + doorWidth * .5f) * .5f, RoomHeight * .5f, z0 - .2f),
+                new Vector3(x1 - doorX - doorWidth * .5f, RoomHeight, .4f), concrete);
+            Box(vault, "DoorLintel", new Vector3(doorX, 2.65f, z0 - .2f), new Vector3(doorWidth, .7f, .4f), concrete);
+
+            GameObject hinge = new GameObject("VaultDoorHinge");
+            hinge.transform.SetParent(vault, true);
+            hinge.transform.position = new Vector3(doorX - doorWidth * .5f, 1.15f, z0 - .2f);
+            GameObject door = new GameObject("VaultDoor");
+            door.transform.SetParent(hinge.transform, false);
+            door.transform.localPosition = new Vector3(doorWidth * .5f, 0f, 0f);
+            BoxCollider collider = door.AddComponent<BoxCollider>();
+            collider.size = new Vector3(doorWidth, 2.3f, .18f);
+            InteractableDoor interactable = door.AddComponent<InteractableDoor>();
+            interactable.doorVisual = hinge.transform;
+            Box(door.transform, "DoorLeaf", door.transform.position,
+                new Vector3(doorWidth, 2.3f, .18f), rust, false);
+            home.vaultRoom = vault.gameObject;
+            vault.gameObject.SetActive(false);
+        }
+
         private static void MoveFurniture()
         {
-            foreach (PlacedPiece piece in Object.FindObjectsByType<PlacedPiece>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (PlacedPiece piece in Object.FindObjectsByType<PlacedPiece>(FindObjectsInactive.Include))
             {
                 Transform t = piece.transform.root;
                 switch (piece.pieceId)
                 {
-                    case "bed": t.SetPositionAndRotation(new Vector3(67f, 0.25f, -213f), Quaternion.identity); break;
                     case "storage_crate": t.SetPositionAndRotation(new Vector3(67f, 0.5f, -222.4f), Quaternion.identity); break;
-                    case "workbench": t.SetPositionAndRotation(new Vector3(76.5f, 0.5f, -212.5f), Quaternion.Euler(0f, 180f, 0f)); break;
                     default: Object.DestroyImmediate(t.gameObject); break;
                 }
             }
+        }
+
+        private static void WireSupplyCage(HomeBase home)
+        {
+            GameObject cage = Prop(home.transform, "bunker_locker", "Supply Cage",
+                new Vector3(67f, 0f, -220.6f), -90f, new Vector3(1.2f, 2f, .5f));
+            home.supplyCage = cage.AddComponent<StorageCratePiece>();
+            cage.AddComponent<SupplyCageGuard>();
         }
 
         private static void PlacePlayer(GameObject player)

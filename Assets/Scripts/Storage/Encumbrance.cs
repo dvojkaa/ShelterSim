@@ -59,6 +59,8 @@ namespace SheltreSim.Storage
         public static float WeightOf(string id)
         {
             if (id != null && Overrides.TryGetValue(id, out float weight)) return weight;
+            if (!string.IsNullOrEmpty(id) && id.StartsWith("kit_", System.StringComparison.Ordinal))
+                return ConstructionKitWeight(id);
             ItemSpec spec = ItemCatalog.Spec(id);
             if (spec == null) return 1f;
             switch (spec.category)
@@ -72,6 +74,16 @@ namespace SheltreSim.Storage
                 case ItemCategory.Armor: return 8f;
                 default: return 1f;
             }
+        }
+
+        private static float ConstructionKitWeight(string kitId)
+        {
+            string pieceId = kitId.Substring(4);
+            if (!RecipeBook.PieceCosts.TryGetValue(pieceId, out Ingredient[] materials) || materials == null) return 12f;
+            float total = 0f;
+            foreach (Ingredient material in materials)
+                if (material.amount > 0) total += WeightOf(material.id) * material.amount;
+            return Mathf.Clamp(total, 1f, 100f);
         }
 
         public static float PackWeight(Inventory inventory)

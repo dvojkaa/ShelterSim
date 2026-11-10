@@ -47,6 +47,7 @@ namespace SheltreSim.World
         private readonly RaycastHit[] vehicleBlockHits = new RaycastHit[32];
         private readonly Collider[] vehicleOverlapHits = new Collider[32];
         private FirstPersonController rider;
+        private VehicleMountView mountView;
         private float oldWalk, oldSprint, fuelMeters, nextNoise, nextCooldownCleanup, nextTurretShot, nextDryTurretMessage;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
         private InputAction dismount, cargoAction, refuelAction, batteryAction, lightAction, turretAction;
@@ -86,7 +87,8 @@ namespace SheltreSim.World
         {
             StorageRegistry.Unregister(this);
             dismount?.Disable(); cargoAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable(); turretAction?.Disable();
-            if (mounted) Dismount();
+            if (mounted) ForceDismount();
+            else if (mountView != null && mountView.IsAttachedTo(transform) && mountView.IsTransitioning) mountView.ForceDismount(transform);
         }
 
         private void OnDestroy()
@@ -98,7 +100,8 @@ namespace SheltreSim.World
         {
             if (!mounted) return;
             CharacterController riderBody = rider != null ? rider.GetComponent<CharacterController>() : null;
-            if (rider == null || !rider.isActiveAndEnabled || riderBody == null || !riderBody.enabled) { Dismount(); return; }
+            if (rider == null || !rider.isActiveAndEnabled || riderBody == null || !riderBody.enabled) { ForceDismount(); return; }
+            if (mountView != null && mountView.IsTransitioning) return;
             if (Time.timeScale == 0f) return;
             if (dismount.WasPressedThisFrame()) { Dismount(); return; }
             if (cargoAction.WasPressedThisFrame())
@@ -167,6 +170,24 @@ namespace SheltreSim.World
             if (mounted || interactor == null) return;
             rider = interactor.GetComponentInParent<FirstPersonController>();
             if (rider == null) return;
+            mountView = VehicleMountView.For(rider);
+            if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
+            Vector3 parkedPosition = transform.position;
+            Quaternion parkedRotation = transform.rotation;
+            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            if (!RotationHasClearance(transform.position, desiredRotation)) desiredRotation = transform.rotation;
+            transform.rotation = desiredRotation;
+            Vector3 followPosition = FollowPosition(rider.transform.position, desiredRotation);
+            Vector3 resolvedPosition = ResolveVehicleMotion(followPosition, 0f);
+            resolvedPosition.y = followPosition.y;
+            transform.position = resolvedPosition;
+            if (!mountView.BeginMount(transform))
+            {
+                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
+                rider = null;
+                mountView = null;
+                return;
+            }
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
             lastRiderPosition = rider.transform.position;
@@ -174,8 +195,6 @@ namespace SheltreSim.World
             rider.sprintSpeed = fuelMeters > 0f ? sprintSpeed : 0f;
             rider.SetBicycleMounted(true);
             foreach (Collider collider in vehicleColliders) if (collider != null) collider.enabled = false;
-            transform.position = rider.transform.position - rider.transform.forward * 3f;
-            transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             lastBumperPosition = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
             GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan:0} m), J energy cell (+{BatteryRangePerCell:0} m), L lights, T turret (1 rifle round), Space dismount. Range: {fuelMeters:0} m. Ram at speed to damage enemies and structures.");
         }
@@ -522,6 +541,23 @@ namespace SheltreSim.World
         }
 
         private void Dismount()
+        {
+            if (!mounted || mountView == null || mountView.IsTransitioning) return;
+            if (!mountView.BeginDismount(transform))
+            {
+                GameMessageBus.Post("No capsule-clear space to leave the van.");
+                return;
+            }
+            FinishDismount();
+        }
+
+        private void ForceDismount()
+        {
+            if (mountView != null) mountView.ForceDismount(transform);
+            FinishDismount();
+        }
+
+        private void FinishDismount()
         {
             mounted = false;
             if (rider != null)

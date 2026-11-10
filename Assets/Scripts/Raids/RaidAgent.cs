@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using SheltreSim.Audio;
 using SheltreSim.Building;
+using SheltreSim.Core;
 using SheltreSim.Enemies;
 using SheltreSim.Interaction;
 using SheltreSim.Player;
@@ -737,6 +738,7 @@ namespace SheltreSim.Raids
             float bestDistance = radius * radius;
             foreach (IItemStore store in StorageRegistry.All)
             {
+                if (!IsRaidLootableStore(store)) continue;
                 float d = Flat(store.StorePosition - position).sqrMagnitude;
                 if (d > bestDistance || store.Contents == null) continue;
                 bool any = false;
@@ -747,6 +749,12 @@ namespace SheltreSim.Raids
                 best = store;
             }
             return best;
+        }
+
+        internal static bool IsRaidLootableStore(IItemStore store)
+        {
+            Component component = store as Component;
+            return store != null && (component == null || component.GetComponent<SupplyCageGuard>() == null);
         }
 
         /// <summary>Takes a few items into its bag, from which they drop when it dies. Destroys nothing.</summary>

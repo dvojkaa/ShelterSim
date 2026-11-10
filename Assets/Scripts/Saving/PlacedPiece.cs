@@ -10,6 +10,7 @@ namespace SheltreSim.Saving
     public class PlacedPiece : MonoBehaviour
     {
         public string pieceId;
+        public bool wasPlacedFromKit;
 
         private void OnEnable() => PlacedPieceRegistry.Register(this);
 

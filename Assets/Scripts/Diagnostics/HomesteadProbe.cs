@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using SheltreSim.Building;
+using SheltreSim.Crafting;
 using SheltreSim.Items;
 using SheltreSim.Player;
 using SheltreSim.Saving;
@@ -45,7 +46,7 @@ namespace SheltreSim.Diagnostics
             Teleport(new Vector3(cx + 1, 6.1f, cz - 6));
             yield return null;
 
-            IEnumerator[] steps = { Refusals(), House(), Door(), Shelter(), Tools(), SaveRoundTrip(), Palette() };
+            IEnumerator[] steps = { Refusals(), House(), Door(), Shelter(), Tools(), KitPlacement(), SaveRoundTrip(), Palette() };
             foreach (IEnumerator step in steps) yield return Run(step);
 
             Time.timeScale = 1f;
@@ -232,8 +233,57 @@ namespace SheltreSim.Diagnostics
             yield return null;
         }
 
+        private IEnumerator KitPlacement()
+        {
+            BuildPieceDefinition definition = build.availablePieces.FirstOrDefault(p => p != null && p.id == "workbench");
+            Check(definition != null && ItemCatalog.Def("kit_workbench") != null, "Workbench construction kit and build piece exist");
+            if (definition == null || ItemCatalog.Def("kit_workbench") == null) yield break;
+
+            Ray spot = default;
+            bool found = false;
+            for (int dx = 5; dx <= 21 && !found; dx += 2)
+                for (int dz = 5; dz <= 21; dz += 2)
+                    if (build.DebugPreview("workbench", Down(cx + dx, 6f, cz + dz), 0f, out _))
+                    {
+                        spot = Down(cx + dx, 6f, cz + dz);
+                        found = true;
+                        break;
+                    }
+            Check(found, "Found a clear workbench placement spot for the kit check");
+            if (!found) yield break;
+
+            var materialCounts = new System.Collections.Generic.Dictionary<string, int>();
+            foreach (CraftingCost line in definition.craftingCost)
+                if (line != null && line.resource != null)
+                    materialCounts[line.resource.id] = CraftingSystem.CountAvailable(inventory, line.resource.id);
+            inventory.SetCount("kit_workbench", 1);
+            GameObject first = build.DebugPlaceAt("workbench", spot, 0f, out string firstReason);
+            Check(first != null && inventory.GetCount("kit_workbench") == 0,
+                first != null ? "Placement consumes one kit" : "Kit placement succeeds: " + firstReason);
+            if (first == null) yield break;
+            PlacedPiece firstTag = first.GetComponent<PlacedPiece>();
+            Check(firstTag != null && firstTag.wasPlacedFromKit, "Placed piece records kit origin");
+            bool materialsUntouched = true;
+            foreach (var line in materialCounts)
+                materialsUntouched &= CraftingSystem.CountAvailable(inventory, line.Key) == line.Value;
+            Check(materialsUntouched, "Kit placement leaves recipe materials untouched");
+            Check(firstTag != null && HomesteadTools.DescribeRefund(definition, firstTag, true).Contains("Construction Kit"),
+                "A kit-built piece advertises a kit refund inside the 30-second window");
+
+            bool firstConfirm = build.DebugDismantle(firstTag);
+            bool secondConfirm = build.DebugDismantle(firstTag);
+            Check(!firstConfirm && secondConfirm, "Immediate dismantle confirms and removes the kit-built piece");
+            Check(inventory.GetCount("kit_workbench") == 1, "Immediate kit refund restores exactly one kit");
+            yield return null;
+
+            GameObject second = build.DebugPlaceAt("workbench", spot, 0f, out string secondReason);
+            Check(second != null && inventory.GetCount("kit_workbench") == 0 && second.GetComponent<PlacedPiece>().wasPlacedFromKit,
+                second != null ? "Second placement consumes the refunded kit and is saveable" : "Second kit placement: " + secondReason);
+            build.ExitBuildMode();
+        }
+
         private static string Signature() => string.Join("|", PlacedPieceRegistry.All
-            .Select(p => $"{p.pieceId}@{p.transform.position.x:F2},{p.transform.position.y:F2},{p.transform.position.z:F2}:{(p.GetComponent<HomesteadDoorPiece>()?.IsOpen ?? false)}")
+            .Select(p => $"{p.pieceId}@{p.transform.position.x:F2},{p.transform.position.y:F2},{p.transform.position.z:F2}:{(p.GetComponent<HomesteadDoorPiece>()?.IsOpen ?? false)}:kit={p.wasPlacedFromKit}")
             .OrderBy(s => s, StringComparer.Ordinal));
 
         private IEnumerator SaveRoundTrip()
@@ -251,6 +301,18 @@ namespace SheltreSim.Diagnostics
                 yield return null;
                 yield return null;
                 Check(Signature() == before, "Pieces and door states unchanged after load " + (i + 1));
+            }
+            PlacedPiece savedKit = PlacedPieceRegistry.All.FirstOrDefault(p => p.pieceId == "workbench" && p.wasPlacedFromKit);
+            BuildPieceDefinition workbench = build.availablePieces.FirstOrDefault(p => p != null && p.id == "workbench");
+            Check(savedKit != null && workbench != null && !HomesteadTools.DescribeRefund(workbench, savedKit, false).Contains("Construction Kit"),
+                "Kit origin survives save/load, but the immediate refund window does not");
+            if (savedKit != null)
+            {
+                int kits = inventory.GetCount("kit_workbench");
+                bool firstConfirm = build.DebugDismantle(savedKit);
+                bool secondConfirm = build.DebugDismantle(savedKit);
+                Check(!firstConfirm && secondConfirm && inventory.GetCount("kit_workbench") == kits,
+                    "An older kit-built piece dismantles and refunds recipe materials, not the kit");
             }
             foreach (string suffix in new[] { "", ".bak", ".tmp" }) if (File.Exists(path + suffix)) File.Delete(path + suffix);
         }

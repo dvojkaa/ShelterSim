@@ -32,7 +32,7 @@ See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic pr
 
 ## Gameplay Loop
 
-1. **Pre-Apocalypse:** Start on a suburban lot with **$25,000**. Use the site terminal to contract 4 stages of bunker construction and buy supplies. No raiders, hazards, or loot exist yet.
+1. **Pre-Apocalypse:** Start on a suburban lot with **$70,000**. Sign the mandatory **$20,000 bunker contract** to fund excavation, shell, stairs and life support; spend the remaining savings on rooms, kits, supplies, defense or a vehicle. Stages 1–3 run automatically. Choose when to seal the bunker; sealing closes the shop and starts life support. Purchases are delivered to the fixed Supply Cage. No raiders, hazards, or loot exist yet.
 2. **Apocalypse:** Completing the final stage triggers sirens (45 seconds to get underground). Bombs drop: surface burns, flash/quake damage above ground, and the world switches to its Ruined state.
 3. **Survival:** 20-minute day/night cycle with dynamic weather (clear, fog, rain, snow, overcast). Manage hunger, thirst, health, temperature exposure, and radiation hot spots.
 4. **Scavenging & Foraging:** Scavenge ruins and vehicle trunks; harvest trees, rocks, berry bushes, tall grass, and river reeds; collect dirty water directly from rivers and lakes.
@@ -77,11 +77,12 @@ Fast command-line verification without launching the Unity Editor GUI:
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --smoke-test -logFile /tmp/smoke.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --crafting-probe -logFile /tmp/crafting.log
 ./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --world-probe -logFile /tmp/world.log
+./Builds/Linux/SheltreSim.x86_64 -batchmode -nographics --m28-probe -logFile /tmp/m28.log
 ```
 
 ---
 
 ## Current Scope & Limitations
 
-* **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, brick/reinforced/concrete build tiers, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, telegraphed Mirelurker and Scavenger projectiles, Scrap Bicycle, fuel/energy-cell Scout Buggy with collision sweeps and capped impact impulses, a ramming and turret-equipped Armored Van, powered garage vehicle assembly/repair, backpack upgrades to 120 kg, radiation, water harvesting, crouch stealth, nearby-storage crafting and audio. The M27–M28 vehicle and structure pieces are wired into the build palette.
+* **Implemented:** Full pre-apocalypse to endgame loop, procedural world streaming, brick/reinforced/concrete build tiers, firearms and energy weapons, electricity & automation, raids & defense, 12 bestiary species with FBX animations, telegraphed Mirelurker and Scavenger projectiles, Scrap Bicycle, fuel/energy-cell Scout Buggy with collision sweeps and capped impact impulses, a ramming and turret-equipped Armored Van, eased vehicle seat-camera mount/dismount with capsule-checked exits, powered garage vehicle assembly/repair, backpack upgrades to 120 kg, radiation, water harvesting, crouch stealth, nearby-storage crafting and audio. The M27–M28 vehicle and structure pieces are wired into the build palette.
 * **Deliberately out of scope:** Multiplayer/co-op, swimming mechanics, NPC dialogue trees, second-floor building interiors in ruins. Vehicles use controller-driven movement with query-based collisions, not full Rigidbody vehicle simulation.

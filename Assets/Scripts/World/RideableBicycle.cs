@@ -20,6 +20,7 @@ namespace SheltreSim.World
         public string InteractPrompt => "Press E to ride bicycle";
 
         private FirstPersonController rider;
+        private VehicleMountView mountView;
         private float oldWalk, oldSprint;
         [Serializable] private sealed class SavedStack { public string id; public int count; }
         [Serializable] private sealed class SavedPanniers { public List<SavedStack> items = new List<SavedStack>(); }
@@ -51,14 +52,30 @@ namespace SheltreSim.World
         }
 
         private void OnEnable() { dismount?.Enable(); openPanniers?.Enable(); StorageRegistry.Register(this); }
-        private void OnDisable() { StorageRegistry.Unregister(this); dismount?.Disable(); openPanniers?.Disable(); if (mounted) Dismount(); }
+        private void OnDisable()
+        {
+            StorageRegistry.Unregister(this);
+            dismount?.Disable();
+            openPanniers?.Disable();
+            if (mounted)
+            {
+                mountView?.ForceDismount(transform);
+                FinishDismount();
+            }
+        }
         private void OnDestroy() { dismount?.Dispose(); openPanniers?.Dispose(); }
 
         private void Update()
         {
             if (!mounted) return;
-            if (rider == null || !rider.isActiveAndEnabled || !rider.GetComponent<CharacterController>().enabled) { Dismount(); return; }
+            if (rider == null || !rider.isActiveAndEnabled || rider.GetComponent<CharacterController>() == null || !rider.GetComponent<CharacterController>().enabled)
+            {
+                mountView?.ForceDismount(transform);
+                FinishDismount();
+                return;
+            }
             if (Time.timeScale == 0f) return;
+            if (mountView != null && mountView.IsTransitioning) return;
             if (dismount.WasPressedThisFrame()) { Dismount(); return; }
             if (openPanniers.WasPressedThisFrame())
             {
@@ -113,6 +130,20 @@ namespace SheltreSim.World
             if (mounted) return;
             rider = interactor.GetComponentInParent<FirstPersonController>();
             if (rider == null) return;
+            mountView = VehicleMountView.For(rider);
+            if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
+            Vector3 parkedPosition = transform.position;
+            Quaternion parkedRotation = transform.rotation;
+            transform.position = rider.transform.position - rider.transform.forward * 0.8f;
+            transform.position = new Vector3(transform.position.x, rider.transform.position.y - 0.65f, transform.position.z);
+            transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            if (mountView == null || !mountView.BeginMount(transform))
+            {
+                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
+                rider = null;
+                mountView = null;
+                return;
+            }
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
             rider.walkSpeed = walkSpeed; rider.sprintSpeed = sprintSpeed;
@@ -123,6 +154,17 @@ namespace SheltreSim.World
 
         private void Dismount()
         {
+            if (!mounted) return;
+            if (mountView != null && !mountView.BeginDismount(transform))
+            {
+                GameMessageBus.Post("No capsule-clear space to leave the bicycle.");
+                return;
+            }
+            FinishDismount();
+        }
+
+        private void FinishDismount()
+        {
             mounted = false;
             if (rider != null)
             {
@@ -130,6 +172,7 @@ namespace SheltreSim.World
                 rider.SetBicycleMounted(false);
                 rider = null;
             }
+            mountView = null;
             for (int i = 0; i < bikeColliders.Length; i++) if (bikeColliders[i] != null) bikeColliders[i].enabled = colliderStates[i];
         }
     }
