@@ -3,7 +3,7 @@
 SheltreSim is a first-person bunker-builder + survival game (Fallout-inspired, much smaller
 scope), built almost entirely by Claude with a human playtester giving iterative feedback
 between rounds. Read [`DESIGN_NOTES.md`](DESIGN_NOTES.md) for the full build log and every
-bug found/fixed so far — it's the authoritative history, continuously updated, and several
+bug found/fixed so far — it's the compact current state (full verbatim history: `docs/archive/DESIGN_NOTES_full_2026-11-10.md`; live GPT↔Claude mailbox: `DEV_COORDINATION.md`), continuously updated, and several
 entries document lessons that matter for *how* to work in this repo, not just what's in it.
 [`README.md`](README.md) is the public feature overview; [`SETUP.md`](SETUP.md) is the
 milestone-by-milestone human playtest checklist.
