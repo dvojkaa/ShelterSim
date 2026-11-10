@@ -58,7 +58,7 @@ namespace SheltreSim.Audio
 
         public const string MotorBuggy = "motor_buggy", MotorVan = "motor_van", BikeChain = "bike_chain";
 
-        public const string DrawerOpen = "drawer_open", CabinetOpen = "cabinet_open", EngineStart = "engine_start", EngineStop = "engine_stop",
+        public const string DrawerOpen = "drawer_open", CabinetOpen = "cabinet_open", EngineStart = "engine_start", EngineStop = "engine_stop", VehicleHorn = "vehicle_horn",
             AmbInterior = "amb_interior";
     }
 }

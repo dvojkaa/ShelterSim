@@ -80,9 +80,9 @@ namespace SheltreSim.Items
                 {
                     if (child == transform) continue;
                     string name = child.name;
-                    if (name == "Door_L" || name == "Door") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, -90f, 0f) });
-                    else if (name == "Door_R") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(0f, 90f, 0f) });
-                    else if (name == "Lid") detected.Add(new LootOpenPart { part = child, openLocalEulerAngles = new Vector3(-90f, 0f, 0f) });
+                    if (name == "Door_L" || name == "Door") detected.Add(new LootOpenPart { part = child, openLocalPosition = child.localPosition, openLocalEulerAngles = new Vector3(0f, -90f, 0f) });
+                    else if (name == "Door_R") detected.Add(new LootOpenPart { part = child, openLocalPosition = child.localPosition, openLocalEulerAngles = new Vector3(0f, 90f, 0f) });
+                    else if (name == "Lid") detected.Add(new LootOpenPart { part = child, openLocalPosition = child.localPosition, openLocalEulerAngles = new Vector3(-90f, 0f, 0f) });
                     else if (name.StartsWith("Drawer_", System.StringComparison.Ordinal))
                         detected.Add(new LootOpenPart { part = child, openLocalPosition = child.localPosition + child.localRotation * Vector3.forward * .25f });
                 }

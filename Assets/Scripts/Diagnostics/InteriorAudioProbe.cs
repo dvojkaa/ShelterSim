@@ -64,7 +64,12 @@ namespace SheltreSim.Diagnostics
             Check(drawers != null, "the house has a searchable container with drawers");
             Check(doors != null, "the house has a searchable container with doors");
             if (drawers != null) Check(Search(drawers, player, Sfx.DrawerOpen), "searching a drawer plays the drawer sound");
+            Transform door = doors != null ? doors.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Door_L" || t.name == "Door_R") : null;
+            Vector3 doorClosedPosition = door != null ? door.localPosition : Vector3.zero;
             if (doors != null) Check(Search(doors, player, Sfx.CabinetOpen), "searching a cupboard plays the cabinet sound");
+            yield return new WaitForSeconds(0.6f);
+            // The door swings on its hinge: its position must not slide toward the furniture's origin while it opens.
+            Check(door != null && (door.localPosition - doorClosedPosition).sqrMagnitude < 0.0001f, "an opened cupboard door stays on its hinge position");
 
             Teleport(player, house.TransformPoint(new Vector3(0f, .1f, -60f)));
             yield return new WaitForSeconds(3.5f);

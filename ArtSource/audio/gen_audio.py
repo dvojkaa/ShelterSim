@@ -1692,11 +1692,26 @@ def interior_loops():
     write_device_loop("amb_interior", x, sr, 0.35)
 
 
+def vehicle_horn(rng, _):
+    """A two-tone car horn: a thick, slightly detuned pair of reedy tones with a short rise and a clean release."""
+    n = n_of(0.75)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for f in (415.0, 523.0):  # a minor third apart, the classic pair
+        for k, a in enumerate((1.0, 0.55, 0.38, 0.22, 0.14), start=1):
+            x += a * np.sin(2 * np.pi * f * k * t * (1 + rng.uniform(-0.002, 0.002)) + rng.uniform(0, 6.28)) / k ** 0.2
+    x = np.tanh(1.5 * x / 3.0) * (0.85 + 0.15 * np.sin(2 * np.pi * 38 * t))  # buzz of the reed
+    attack = np.clip(t / 0.015, 0, 1)
+    release = np.clip((0.75 - t) / 0.08, 0, 1)
+    return room(x * attack * release, 0.06, 0.12, rng)
+
+
 def m30_clips():
     clip("drawer_open", drawer_open, 3, 0.8)
     clip("cabinet_open", cabinet_open, 3, 0.8)
     clip("engine_start", engine_start, None, 0.85)
     clip("engine_stop", engine_stop, None, 0.8)
+    clip("vehicle_horn", vehicle_horn, 2, 0.85)
     interior_loops()
 
 # ---------------------------------------------------------------- catalogue

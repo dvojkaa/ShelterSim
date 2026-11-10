@@ -24,14 +24,16 @@ m.box((1.54, 0.34, 0.012), (0, 0, -0.405), 'fabric_white')                      
 for x in (-0.80, 0.80):
     m.box((0.05, 0.36, 0.14), (x * 0.96, 0, -0.35), 'gunmetal', bevel=0.006)
     m.box((0.02, 0.2, 0.06), (x * 0.96 + (0.03 if x < 0 else -0.03), 0, -0.35), 'rust_dark')
-# Light strip: deep glowing tube-bank under the housing, white core, violet flanks and ends
-m.box((1.44, 0.24, 0.07), (0, 0, -0.44), 'lamp_warm', bevel=0.006)
-m.box((1.40, 0.07, 0.02), (0, 0, -0.482), 'fabric_white')
+# Light strip as a separate part `Strip` (pivot at its centre) so the game can give it an emissive material.
+strip = m.part('Strip', pivot=(0, 0, -0.45))
+# Light strip (its own part, so the game can give it an emissive material): deep glowing tube-bank under the housing, white core, violet flanks and ends
+strip.box((1.44, 0.24, 0.07), (0, 0, -0.44), 'lamp_warm', bevel=0.006)
+strip.box((1.40, 0.07, 0.02), (0, 0, -0.482), 'fabric_white')
 for x in (-0.55, -0.18, 0.18, 0.55):
-    m.box((0.28, 0.25, 0.04), (x, 0, -0.45), 'berry_light')
-    m.box((0.10, 0.26, 0.05), (x, 0, -0.455), 'lamp_warm')
-m.box((1.46, 0.02, 0.06), (0, -0.125, -0.445), 'berry_light')
-m.box((1.46, 0.02, 0.06), (0, 0.125, -0.445), 'berry_light')
+    strip.box((0.28, 0.25, 0.04), (x, 0, -0.45), 'berry_light')
+    strip.box((0.10, 0.26, 0.05), (x, 0, -0.455), 'lamp_warm')
+strip.box((1.46, 0.02, 0.06), (0, -0.125, -0.445), 'berry_light')
+strip.box((1.46, 0.02, 0.06), (0, 0.125, -0.445), 'berry_light')
 # Bottom diffuser edge frame
 m.box((1.48, 0.025, 0.04), (0, -0.14, -0.41), 'gunmetal')
 m.box((1.48, 0.025, 0.04), (0, 0.14, -0.41), 'gunmetal')

@@ -364,7 +364,7 @@ namespace SheltreSim.EditorTools
             Prop(hydro, "prop_hydro_tank", "HydroTank_B", new Vector3(70.2f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
             Prop(hydro, "prop_hydro_tank", "HydroTank_C", new Vector3(72.6f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
             for (int i = 0; i < 3; i++)
-                Visual(hydro, "prop_grow_light", new Vector3(68f + i * 3f, RoomHeight, center.z), 0f);
+                MakeGrowLight(Visual(hydro, "prop_grow_light", new Vector3(68f + i * 3f, RoomHeight, center.z), 0f));
             home.northWingShell = wing.gameObject;
             home.workshopWing = workshop.gameObject;
             home.hydroWing = hydro.gameObject;
@@ -516,6 +516,41 @@ namespace SheltreSim.EditorTools
             box.center = Vector3.up * size.y * 0.5f;
             box.size = size;
             return root;
+        }
+
+        /// <summary>The light strip is its own part of the model: it gets an emissive material, and a soft violet-white light under it.</summary>
+        private static void MakeGrowLight(GameObject lamp)
+        {
+            if (lamp == null) return;
+            Transform strip = null;
+            foreach (Transform t in lamp.GetComponentsInChildren<Transform>(true)) if (t.name == "Strip") { strip = t; break; }
+            if (strip != null && strip.GetComponent<Renderer>() != null) strip.GetComponent<Renderer>().sharedMaterial = GrowLightMaterial();
+            GameObject lightObject = new GameObject("GrowLightGlow");
+            lightObject.transform.SetParent(lamp.transform, false);
+            lightObject.transform.localPosition = new Vector3(0f, 0f, -0.35f);
+            Light light = lightObject.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.color = new Color(0.9f, 0.78f, 1f);
+            light.range = 7f;
+            light.intensity = 1.1f;
+            light.shadows = LightShadows.None;
+        }
+
+        private static Material GrowLightMaterial()
+        {
+            const string path = "Assets/Art/Materials/SS_GrowLight.mat";
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(atlas);
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", new Color(0.95f, 0.85f, 1f) * 1.8f);
+            if (atlas != null && atlas.mainTexture != null) material.SetTexture("_EmissionMap", atlas.mainTexture);
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         private static void AddLight(Transform parent, Vector3 position, float range, float intensity, bool shadows)
