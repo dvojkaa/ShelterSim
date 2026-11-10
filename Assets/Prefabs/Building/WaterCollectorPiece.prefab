@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &5573402326295707368
+--- !u!1 &2763065251095330837
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3139168248827389007}
-  - component: {fileID: 7009251660408862785}
-  - component: {fileID: 3513991698903488094}
+  - component: {fileID: 5387332687678985021}
+  - component: {fileID: 6539301660324750483}
+  - component: {fileID: 5325346223137435926}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -18,13 +18,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3139168248827389007
+--- !u!4 &5387332687678985021
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5573402326295707368}
+  m_GameObject: {fileID: 2763065251095330837}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -1, z: 0}
@@ -33,21 +33,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7741111420804891158}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &7009251660408862785
+--- !u!33 &6539301660324750483
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5573402326295707368}
+  m_GameObject: {fileID: 2763065251095330837}
   m_Mesh: {fileID: -5452506411958482133, guid: c98ef0d2245022123a212e49f797aad1, type: 3}
---- !u!23 &3513991698903488094
+--- !u!23 &5325346223137435926
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5573402326295707368}
+  m_GameObject: {fileID: 2763065251095330837}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -101,8 +101,8 @@ GameObject:
   - component: {fileID: 7741111420804891158}
   - component: {fileID: 6678582994054931816}
   - component: {fileID: 8182914006580954899}
-  - component: {fileID: 8634526022871674336}
-  - component: {fileID: 8843906754371262164}
+  - component: {fileID: -6848056707946489694}
+  - component: {fileID: 8336954507691420611}
   m_Layer: 0
   m_Name: WaterCollectorPiece
   m_TagString: Untagged
@@ -123,7 +123,7 @@ Transform:
   m_LocalScale: {x: 0.8, y: 0.6, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3139168248827389007}
+  - {fileID: 5387332687678985021}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &6678582994054931816
@@ -163,7 +163,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: water_collector
   wasPlacedFromKit: 0
---- !u!114 &8634526022871674336
+--- !u!114 &-6848056707946489694
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -178,7 +178,7 @@ MonoBehaviour:
   waterResource: {fileID: 11400000, guid: a8d8ec46303517218b575c2fd3e0eb71, type: 2}
   secondsPerUnit: 90
   maxStored: 5
---- !u!114 &8843906754371262164
+--- !u!114 &8336954507691420611
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

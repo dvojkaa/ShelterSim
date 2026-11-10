@@ -490,7 +490,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1509885609147733974}
-  - component: {fileID: 5976398280163024882}
+  - component: {fileID: 7757363673321994935}
   m_Layer: 0
   m_Name: boss_root_colossus
   m_TagString: Untagged
@@ -520,7 +520,7 @@ Transform:
   - {fileID: 7499979401858153796}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &5976398280163024882
+--- !u!95 &7757363673321994935
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

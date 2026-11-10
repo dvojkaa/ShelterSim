@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8372572284465094102}
   - component: {fileID: 5805190787176988096}
   - component: {fileID: 9048655006780901760}
-  - component: {fileID: 9093659894644023989}
+  - component: {fileID: 4951928854483408999}
   m_Layer: 0
   m_Name: PalisadePiece
   m_TagString: Untagged
@@ -85,7 +85,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 350
   targetPriority: 5
---- !u!114 &9093659894644023989
+--- !u!114 &4951928854483408999
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

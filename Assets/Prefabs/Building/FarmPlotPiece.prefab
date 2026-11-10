@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8023492754054898127}
   - component: {fileID: 8522203230504426923}
   - component: {fileID: 2844350464941352468}
-  - component: {fileID: 3864228764728600729}
+  - component: {fileID: 4476513537839187141}
   m_Layer: 0
   m_Name: FarmPlotPiece
   m_TagString: Untagged
@@ -86,7 +86,7 @@ MonoBehaviour:
   growSeconds: 240
   vegetableYield: 3
   seedYield: 1
---- !u!114 &3864228764728600729
+--- !u!114 &4476513537839187141
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

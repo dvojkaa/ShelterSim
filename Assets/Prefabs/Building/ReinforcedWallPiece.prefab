@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 2152969522325446028}
   - component: {fileID: 3211081351213722860}
   - component: {fileID: 5301122511574070613}
-  - component: {fileID: 2822949534461444325}
+  - component: {fileID: 6373625813443443979}
   m_Layer: 0
   m_Name: ReinforcedWallPiece
   m_TagString: Untagged
@@ -175,7 +175,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 1250
   targetPriority: 5
---- !u!114 &2822949534461444325
+--- !u!114 &6373625813443443979
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

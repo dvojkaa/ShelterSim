@@ -99,7 +99,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5687248646168456565}
-  - component: {fileID: 7911632505156659679}
+  - component: {fileID: 1694957264166536418}
   m_Layer: 0
   m_Name: enemy_screamer
   m_TagString: Untagged
@@ -129,7 +129,7 @@ Transform:
   - {fileID: 1715419414684822884}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &7911632505156659679
+--- !u!95 &1694957264166536418
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

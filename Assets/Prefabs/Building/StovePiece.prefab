@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 852186913910037375}
   - component: {fileID: 1751071665134006882}
   - component: {fileID: 8597210335757304629}
-  - component: {fileID: 9182053660736966046}
+  - component: {fileID: 1258882286611646268}
   m_Layer: 0
   m_Name: StovePiece
   m_TagString: Untagged
@@ -87,7 +87,7 @@ MonoBehaviour:
   craftingCost: []
   output: {fileID: 0}
   outputAmount: 1
---- !u!114 &9182053660736966046
+--- !u!114 &1258882286611646268
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
