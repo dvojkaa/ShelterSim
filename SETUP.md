@@ -225,6 +225,31 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 ---
 
+### Furnished Buildings, Stairs & Interiors
+
+- [AUTO] `--building-probe`: doorways admit a raider-wide capsule, every flight can be walked by the player and the raider-sized controller, floors and the roof are reachable, container counts match the design, ruined and normal passes agree (sealed apartment flats only drop their slots). `--interior-audio-probe`: room tone inside, drawer/cabinet sounds, an opened door stays on its hinge position. `--interior-shots <folder>` (with graphics) writes PNGs for a look.
+- [HUMAN] Walk into a house and an apartment block: furniture should look like furniture (sofa, bookcase, fridge, kitchen run), not boxes; stairs should be walkable, the handrail not block the climb; upper floors dark but playable with the flashlight (`F`).
+- [HUMAN] Search a wardrobe, dresser, kitchen run, fridge: drawers should slide out, doors swing on their hinges (not slide to the middle), each with a matching sound; searched state survives save/load.
+- [HUMAN] Apartment roof: reach it via the stair hut; AC unit and water tank stand there; about 40% of flats are sealed by rubble after the bombs.
+- [HUMAN] Raiders: they should follow you up house stairs (probe passes); apartment blocks are still being tuned.
+
+### Vehicle Sound, Slopes & Horn
+
+- [AUTO] `--vehicle-probe`: each vehicle is placed, mounted, driven and dismounted; it stays above ground and drawn, the camera is above terrain, the right motor loop plays (buggy, van; bicycle chain only when moving), the body makes no footsteps, the ignition sound plays, uphill slows and downhill speeds up on a generated slope.
+- [HUMAN] Buggy/van: starter and catch on mounting, idle loop pitching up with speed, stop sound on dismount. Bicycle: soft chain/ratchet only while moving. No footsteps while riding.
+- [HUMAN] Drive up and down a hill: body tilts with the ground (24° cap), speed drops uphill. The `vehicle_horn` clip exists; the key binding is GPT's to add.
+- [HUMAN] Van from the driver's seat: wide windscreen, dashboard, steering wheel; the buggy shows its cage, dashboard and wheel.
+
+### Held Tools & Melee Weapons
+
+- [AUTO] `--held-tool-probe`: with an iron axe, iron pickaxe and hammer in the pack and nothing equipped, aiming at a tree shows the axe, at a rock the pickaxe, at the sky the plain bat.
+- [HUMAN] Each melee weapon (makeshift blade, spiked club, machete, fire axe, steel sword) has its own model held upright; the swing has an anticipation, a fast strike, a short hit pause and a return.
+- [HUMAN] Doors ease open and closed over about a third of a second but collide (or not) immediately.
+
+### Bunker Fittings
+
+- [HUMAN] Supply Cage is a wire-mesh cage; the delivery pallet stands by the stair head from signing the contract until the bunker is sealed; the vault door has a frame and a leaf that swings; the Workshop wing has tool walls, the Hydroponics wing tanks and glowing grow lights; a purchased reinforced door shows a plated leaf.
+
 ### Radio Beacon & Rescue Finale
 
 - [HUMAN] Craft and place Radio Beacon. It draws 3 kW from the power grid.
