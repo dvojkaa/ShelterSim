@@ -1568,6 +1568,46 @@ def m24_clips():
     clip("geiger_click", geiger_click, 3, 0.7)
 
 
+# ---------------------------------------------------------------- vehicles (m29)
+
+def vehicle_loops():
+    """Engine and chain loops. Every tone has an integer cycle count over the loop and the noise wraps, so they repeat exactly.
+    The game plays them on the vehicle with the pitch following its speed."""
+    sr = 32000
+    seconds = 2
+    n = seconds * sr
+    t = np.arange(n) / sr
+
+    def engine(name, firing, harmonics, rasp, rumble, wobble):
+        r = rng_for(name)
+        x = np.zeros(n)
+        for k in range(1, harmonics + 1):
+            # A firing pulse train: harmonics of the firing rate, each with its own phase so it is not a pure buzz.
+            x += np.sin(2 * np.pi * firing * k * t + r.uniform(0, 2 * np.pi)) / k ** 0.85
+        # Uneven combustion: a slow half-rate wobble that wraps.
+        x *= 1.0 + wobble * np.sin(2 * np.pi * (firing / 2) * t) + 0.5 * wobble * np.sin(2 * np.pi * (firing / 4) * t)
+        x = np.tanh(1.4 * x)
+        # Mechanical rasp and exhaust rumble, both pulsed at the firing rate.
+        pulse = 0.5 + 0.5 * np.sin(2 * np.pi * firing * t)
+        x += rasp * band_noise(r, n, 600, 3500, sr) * pulse
+        x += rumble * band_noise(r, n, 40, 180, sr) * (0.6 + 0.4 * pulse)
+        write_device_loop(name, x, sr, 0.7)
+
+    engine("motor_buggy", 22, 18, 0.22, 0.45, 0.10)  # light, buzzy buggy engine
+    engine("motor_van", 14, 22, 0.14, 0.75, 0.06)  # heavy, low van diesel
+
+    # Bicycle: a freewheel ratchet and a soft chain whirr.
+    r = rng_for("bike_chain")
+    x = 0.18 * band_noise(r, n, 1200, 5500, sr) * (0.7 + 0.3 * np.sin(2 * np.pi * 3 * t))
+    clicks = np.zeros(n)
+    for i in range(24):  # 12 clicks per second
+        at = int(i * n / 24)
+        width = int(0.004 * sr)
+        clicks[at:at + width] += np.exp(-np.arange(width) / (0.0012 * sr)) * (1.0 if i % 2 == 0 else 0.7) * r.uniform(0.8, 1.0)
+    x += 0.5 * fft_band(clicks, 900, 7000, sr)
+    write_device_loop("bike_chain", x, sr, 0.55)
+
+
 # ---------------------------------------------------------------- catalogue
 
 def main():
@@ -1653,11 +1693,13 @@ def main():
         m22_clips()
     if want("m24"):
         m24_clips()
+    if want("m29"):
+        vehicle_loops()
 
     # Folder metas with stable GUIDs too, written bottom-up from the generated tree.
     folder = OUT
     assets = os.path.normpath(os.path.join(OUT, "..", "..", ".."))
-    while folder != assets and only not in ("m22", "m24"):
+    while folder != assets and only not in ("m22", "m24", "m29"):
         write_meta(folder, "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
         folder = os.path.dirname(folder)
     print(f"Wrote {len(written)} clips to {OUT}")

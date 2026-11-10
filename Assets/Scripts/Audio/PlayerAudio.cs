@@ -15,10 +15,14 @@ namespace SheltreSim.Audio
         private const float VitalRearm = 0.3f;
         private const float HurtThreshold = 2f; // Starving drains in tiny steps, and that isn't a blow.
 
+        /// <summary>Probes: how many strides and landings the player's own body has made (raiders have their own).</summary>
+        public static int StepsPlayed { get; private set; }
+
         private static float suppressUntil;
         private static float restUntil;
 
         private CharacterController controller;
+        private SheltreSim.Player.FirstPersonController body;
         private SurvivalStats stats;
         private float stride;
         private bool wasGrounded = true;
@@ -42,6 +46,7 @@ namespace SheltreSim.Audio
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            body = GetComponent<SheltreSim.Player.FirstPersonController>();
             stats = GetComponent<SurvivalStats>();
             suppressUntil = Time.unscaledTime + 0.6f; // The first ground contact isn't a landing.
             wasDead = stats != null && stats.IsDead;
@@ -114,6 +119,16 @@ namespace SheltreSim.Audio
             float speed = new Vector2(velocity.x, velocity.z).magnitude;
             bool grounded = controller.isGrounded;
 
+            // On a vehicle the body glides: no strides, no landings (VehicleAudio plays the motor instead).
+            if (body != null && body.IsRiding)
+            {
+                stride = 1.4f;
+                airborneSeconds = 0f;
+                fastestFall = 0f;
+                wasGrounded = grounded;
+                return;
+            }
+
             if (grounded)
             {
                 if (!wasGrounded && airborneSeconds > 0.15f && Time.unscaledTime > suppressUntil)
@@ -132,6 +147,7 @@ namespace SheltreSim.Audio
                     {
                         stride = 0f;
                         float volume = Mathf.Lerp(0.3f, 0.48f, Mathf.InverseLerp(4f, 7f, speed));
+                        StepsPlayed++;
                         GameAudio.Play2D(SurfaceAudio.FootstepAt(transform.position), volume, 0.07f);
                     }
                 }
@@ -161,6 +177,7 @@ namespace SheltreSim.Audio
             {
                 GameAudio.Play2D(Sfx.Land, Mathf.Lerp(0.4f, 0.8f, Mathf.InverseLerp(5f, 12f, fastestFall)), 0.08f);
             }
+            StepsPlayed++;
             GameAudio.Play2D(surface, 0.55f, 0.05f);
             stride = 0f;
         }

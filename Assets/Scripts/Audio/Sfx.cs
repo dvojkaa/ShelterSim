@@ -55,5 +55,7 @@ namespace SheltreSim.Audio
         public const string RadioStatic = "radio_static", RadioPing = "radio_ping", ObjectiveDone = "objective_done";
 
         public const string GeigerClick = "geiger_click";
+
+        public const string MotorBuggy = "motor_buggy", MotorVan = "motor_van", BikeChain = "bike_chain";
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using SheltreSim.Audio;
 using SheltreSim.Building;
 using SheltreSim.Crafting;
 using SheltreSim.Interaction;
@@ -19,6 +20,7 @@ namespace SheltreSim.Diagnostics
     public sealed class VehicleProbe : MonoBehaviour
     {
         private int failures;
+        private int stepsAtMount;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Initialize()
@@ -65,9 +67,11 @@ namespace SheltreSim.Diagnostics
 
                 IInteractable interactable = vehicle.GetComponent<IInteractable>();
                 if (interactable == null) { Fail(ids[i], "no IInteractable on the placed vehicle"); continue; }
+                stepsAtMount = PlayerAudio.StepsPlayed;
                 interactable.Interact(player.gameObject);
                 yield return new WaitForSeconds(1.2f);
                 Look(ids[i], "mounted", vehicle, player, GroundAt(vehicle.transform.position));
+                CheckAudio(ids[i], "mounted", player, ids[i] == "piece_bicycle" ? null : (ids[i] == "piece_armored_van" ? Sfx.MotorVan : Sfx.MotorBuggy));
 
                 // Drive: move the rider forward a few metres and let the vehicle follow.
                 CharacterController cc = player.GetComponent<CharacterController>();
@@ -80,6 +84,7 @@ namespace SheltreSim.Diagnostics
                 }
                 yield return new WaitForSeconds(0.3f);
                 Look(ids[i], "driven 6 m", vehicle, player, GroundAt(vehicle.transform.position));
+                CheckAudio(ids[i], "driven 6 m", player, ids[i] == "piece_bicycle" ? Sfx.BikeChain : (ids[i] == "piece_armored_van" ? Sfx.MotorVan : Sfx.MotorBuggy));
 
                 MethodInfo dismount = null;
                 foreach (MonoBehaviour behaviour in vehicle.GetComponents<MonoBehaviour>())
@@ -102,6 +107,17 @@ namespace SheltreSim.Diagnostics
 
             Debug.Log(failures == 0 ? "[VehicleProbe] ALL CHECKS PASSED" : $"[VehicleProbe] {failures} CHECKS FAILED");
             Application.Quit(failures == 0 ? 0 : 1);
+        }
+
+        /// <summary>The right motor loop plays while riding (null = must be silent) and no footstep was played since mounting.</summary>
+        private void CheckAudio(string id, string phase, FirstPersonController player, string expectedKey)
+        {
+            VehicleAudio audio = player.GetComponent<VehicleAudio>();
+            if (audio == null) { Fail(id, phase + ": the player has no VehicleAudio"); return; }
+            string playing = audio.PlayingKey;
+            Debug.Log($"[VehicleProbe] {id} {phase} audio: playing={playing ?? "nothing"} expected={expectedKey ?? "nothing"}");
+            if (playing != expectedKey) Fail(id, $"{phase}: vehicle audio plays '{playing ?? "nothing"}', expected '{expectedKey ?? "nothing"}'");
+            if (PlayerAudio.StepsPlayed != stepsAtMount) Fail(id, $"{phase}: the player's body played {PlayerAudio.StepsPlayed - stepsAtMount} footstep(s)/landing(s) while riding");
         }
 
         private static float GroundAt(Vector3 position)

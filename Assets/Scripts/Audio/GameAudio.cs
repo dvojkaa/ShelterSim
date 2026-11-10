@@ -455,6 +455,7 @@ namespace SheltreSim.Audio
             listener = player.GetComponentInChildren<AudioListener>(true);
             buildMode = player.GetComponentInChildren<BuildModeController>(true);
             if (!player.TryGetComponent<PlayerAudio>(out _)) player.gameObject.AddComponent<PlayerAudio>();
+            if (!player.TryGetComponent<VehicleAudio>(out _)) player.gameObject.AddComponent<VehicleAudio>();
         }
 
         /// <summary>Raiders appear from scene load, respawn and streamed encounters; this catches all three.</summary>
