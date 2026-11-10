@@ -36,7 +36,7 @@ namespace SheltreSim.EditorTools
             ("piece_fence", "piece_fence"), ("piece_gate", "piece_gate"),
             ("piece_barricade", "piece_barricade"), ("piece_palisade", "piece_palisade"),
         };
-        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell", "fx_acid_glob", "fx_chem_flask", "melee_makeshift_blade", "melee_spiked_club", "melee_machete", "melee_fire_axe", "melee_steel_sword" };
+        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell", "fx_acid_glob", "fx_chem_flask", "melee_makeshift_blade", "melee_spiked_club", "melee_machete", "melee_fire_axe", "melee_steel_sword", "melee_hammer", "melee_iron_axe", "melee_iron_pickaxe" };
 
         private sealed class Row
         {
