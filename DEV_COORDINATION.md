@@ -11,34 +11,21 @@ This file is the live mailbox. **Append new messages at the bottom; when it pass
 - Claude refreshes `Builds/Linux` after GPT pushes (ping here). A MonoBehaviour must live in a file named after the class. `grep m_Script: {fileID: 0}` over prefabs/scenes must stay empty.
 - Art contract: new models = `ArtSource/assets/<id>.py` → `Assets/Art/Models/<id>.fbx`; `M22SystemsSetup` auto-makes `Resources/Props/<id>.prefab` for `furn_*`/`bld_*`/`lmk_*`/`item_*` and the `PropIds` list. Conventions: origin floor centre, front −Y; melee grip at origin, +Z length.
 
-## State as of 2026-11-10 (~04:30)
-- **Verified by silent probes on the last full run:** smoke, world (one failure, below), building, raider-stair (house+block), crafting, held-tool, vehicle (incl. 52° slope, real W input), save-coverage, home, homestead, place, power, raid, objectives, encounters, expedition, animation, M28, weapons, bestiary, storage, interior-audio. Nobody has played the game as a human since today's changes.
-- **Delivered by Claude today:** furniture/stairs prefabs, turret split-file fix, vehicle roof/seat/anchors + audio (motors, bike chain, horn), interior/drawer audio, vault door, grow light, 8 `bld_door_*` leaves + `BuildingDoors.cs` (entrance doors real, room doors decorative), held-tool models, wildlife/camp/landmark-interactable models, 35 `lmk_*` landmark/boss models, 4 `item_*` ground-loot models, `--landmark-shots` probe, Fable design review (in `DESIGN_NOTES.md`).
-- **Delivered by GPT today:** raider stair navigation, building interiors/stairs/doors hookup, terrain/vehicle follow, economy pass, save coverage, performance pass, landmark runtime hookup, vehicle speed + wildlife collision.
+## State as of 2026-11-10 ~23:30 — everything is on `main` (commit `7808737`)
+- **Tree is clean:** all source, assets, docs and a refreshed `Builds/Linux` (129,709,176 bytes) are committed. Only `__pycache__` and `ProjectSettings/Packages/` are deliberately untracked.
+- **Verification:** isolated scratch build, 0 `error CS`; 32 silent probes pass (smoke, difficulty, radio-news, seal-readiness, display-settings, enemy-pathfinding, world, building, raider-stair, raid, raid12-perf, vehicle, vehicle-stream, crafting 135/135, home, homestead, place, power, objectives, encounters, expedition, animation, save-coverage, procedural-save, m28, weapons, bestiary, storage, held-tool, interior-audio, art-hook, worldgen-performance). `--weather-probe` needs a real graphics device and was not rerun. **Nobody has played it as a human.** Probes prove logic only.
+- **Shipped today (Claude):** furniture/stairs prefabs, turret fix, vehicle interiors + audio, vault door, grow light, 8 `bld_door_*` + `BuildingDoors.cs` (entrance doors real, room doors decorative), held-tool models, wildlife/camp models, 35 `lmk_*` landmark models, 4 `item_*` models, `--landmark-shots`, Fable review, docs compaction, probe fixes (menu skip, objectives, weapons).
+- **Shipped today (GPT):** raider stair navigation, building interiors, economy, save coverage, performance, landmark hookup, vehicle speed/fuel/range/wildlife collision, Fable #2 #3 #4 #5 #6 #7 #9 #10 (needs/farm/bed, raid scaling+salvage, autosave+main menu, presets/checklist, multi-direction raids, distance-tiered loot, post-victory hordes, radio trader/news), boss phases + arena barriers, destructible apartment seals, crafting search/pin, display settings, pathfinding.
 
 ## Open work
 | Item | Owner | Status |
 |---|---|---|
-| Current isolated Linux build succeeds (129,668,854 bytes); remaining full-player suite is partial | Claude (build/probes), GPT (gameplay fixes) | in progress |
-| `--world-probe` including revisit persistence and destroyed-structure chunk-state checks | GPT | passed on current isolated player |
-| `--building-clearance-probe`, `--structural-verification-probe` | GPT | passed on isolated player |
-| `--raid12-perf-probe`: 14/14, 20s, median 1.68 ms, P95 2.29 ms, max 31.70 ms | GPT | passed on isolated player |
-| `--vehicle-stream-probe` (3 km drive), `--worldgen-performance-probe` | GPT | passed; 0 ground gaps, 993 m fuel left, worst drive frame 21.8 ms; stream-frame median 11.38 ms block / 10.11 ms suburb |
-| Boss phase/add/barrier runtime check (`--encounters-probe`) | GPT | passed in isolated player after registering phase slots before lair configuration |
-| Landmark visual gaps from `--landmark-shots`: facade placement, flat brick decks, bunker terrain patch, unexpected farm-deck humanoid | Claude visual diagnosis; GPT placement/terrain fixes, if needed | open |
-| Fable #1: clean committed build and human 45-minute test pack/session | Claude prepares build/test pack; user plays | open |
-| Hand-test bombs inside a house, save mid-seal, load mid-raid, load while mounted; verify animal collisions in-player | user/Claude verification | open |
-| Window light quads, enemy hit-reaction visual check, human audio-level listen | Claude | open |
-| Replace the remaining enemy/wildlife scene-wide audio scans in `GameAudio` with registries (Claude-owned file); generated-object F5/F9 probe | Claude (GameAudio), GPT (probe) | scans open; probe passed |
-| Crafting search, pinned recipes, and can-craft filter; paper map starter item and access-gated world map | GPT | implemented; crafting probe passed |
-| Ten-minute radio deadline after bunker contract, persistent across save/load | GPT | implemented; radio-news probe passed |
-| Replace gameplay scene-wide scans with registries in `RaidAgent`, `BuildingStairNavigation`, `BedPiece`, and `AlarmPiece` | GPT | implemented; source compile passed |
-| New-game difficulty selection and balanced Easy/Normal/Hard profiles | GPT | integrated isolated-player `--difficulty-probe` passed |
-| Non-blocking food/water/power readiness warnings on bunker seal confirmation | GPT | integrated isolated-player `--seal-readiness-probe` passed |
-| Outdoor enemy pathfinding through concave/fenced obstacles | GPT | integrated isolated-player `--enemy-pathfinding-probe` passed for regular enemy and RaidAgent |
-| Resolution, fullscreen, VSync, and quality options | GPT | integrated isolated-player `--display-settings-probe` passed, including preview revert and persistence |
-| Integrated raid regression after pathfinding/startup changes | GPT | isolated-player `--raid-probe` passed; log included a sandbox-denied autosave write, so persistent save behavior still needs a normal user-profile run |
-| Source compile and whitespace review | GPT | 230 runtime + 29 editor files compile; `git diff --check` reports whitespace in concurrent Claude animator/scene YAML edits |
+| **45-minute human playtest** of `Builds/Linux` (Fable #1), report what feels wrong: pacing, raids, controls, menu, doors | user | next |
+| Landmark visual gaps (`--landmark-shots`): main buildings (hospital, factory, military block) still plain brick, `lmk_hospital_facade`/`lmk_mil_hangar` not visible; flat brick deck; bunker deck on a dark-water terrain patch; a humanoid on the farm deck | GPT checks placement, Claude art | open |
+| Room doors: real closed doors or keep decorative (stair probe failed when real) | user/GPT | undecided |
+| Human check of the 21.8 ms worst frame at speed on the 3 km drive; vehicle audio/mix by ear | user | open |
+| Boss arena/phase behaviour and farm/power balance are probe-verified only | user | open |
+| `SETUP.md` fuel numbers (700 m/can) predate GPT's 4 km/can retune; audio `.meta` files overwritten by the generator (restore via git checkout needs the user's OK) | Claude | small |
 
 ## Live mailbox (latest messages, newest last)
 
