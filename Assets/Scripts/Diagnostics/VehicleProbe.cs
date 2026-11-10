@@ -7,6 +7,7 @@ using SheltreSim.Crafting;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
 using SheltreSim.Player;
+using SheltreSim.World;
 using UnityEngine;
 
 namespace SheltreSim.Diagnostics
@@ -39,6 +40,8 @@ namespace SheltreSim.Diagnostics
             BuildModeController build = player.GetComponentInChildren<BuildModeController>();
             SheltreSim.Core.HomeBase.Active.DebugStartSurvival();
             yield return new WaitForSeconds(1f);
+
+            CheckGeneratedSlopeHandling(VehicleTerrain.CurrentSeed, player.transform.position);
 
             string[] ids = { "piece_scout_buggy", "piece_armored_van", "piece_bicycle" };
             for (int i = 0; i < ids.Length; i++)
@@ -107,6 +110,50 @@ namespace SheltreSim.Diagnostics
 
             Debug.Log(failures == 0 ? "[VehicleProbe] ALL CHECKS PASSED" : $"[VehicleProbe] {failures} CHECKS FAILED");
             Application.Quit(failures == 0 ? 0 : 1);
+        }
+
+        private void CheckGeneratedSlopeHandling(int seed, Vector3 around)
+        {
+            // Find a deterministic traversable slope near the current start area so this probe
+            // exercises generated terrain without teleporting a vehicle through the live world.
+            Vector3 sample = default;
+            float selectedGrade = 0f;
+            float selectedSlope = 0f;
+            bool found = false;
+            for (int radius = 128; radius <= 1024 && !found; radius += 128)
+            {
+                for (int x = -radius; x <= radius && !found; x += 16)
+                {
+                    for (int z = -radius; z <= radius; z += 16)
+                    {
+                        Vector3 candidate = new Vector3(around.x + x, 0f, around.z + z);
+                        VehicleTerrain.SamplePose(candidate, Quaternion.identity, 1f, 4f, seed,
+                            out Vector3 pose, out _, out float grade, out float slope);
+                        if (Mathf.Abs(grade) < .08f || slope < 3f || slope > VehicleTerrain.MaximumBodySlope + .1f)
+                            continue;
+                        sample = pose;
+                        selectedGrade = grade;
+                        selectedSlope = slope;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found)
+            {
+                Fail("terrain", "could not find a generated slope for the vehicle grade probe");
+                return;
+            }
+
+            float uphill = VehicleTerrain.GradeSpeedMultiplier(Mathf.Abs(selectedGrade), 1f);
+            float downhill = VehicleTerrain.GradeSpeedMultiplier(-Mathf.Abs(selectedGrade), 1f);
+            float reverseUphill = VehicleTerrain.GradeSpeedMultiplier(-Mathf.Abs(selectedGrade), -1f);
+            bool poseGrounded = Mathf.Abs(sample.y - (WorldLayout.HeightAt(sample.x, sample.z, seed) + 1f)) < .01f;
+            Debug.Log($"[VehicleProbe] generated slope at {sample:F1}: grade={selectedGrade:F3}, slope={selectedSlope:F1}°, speed scale uphill={uphill:F2} downhill={downhill:F2}");
+            if (!poseGrounded) Fail("terrain", "slope pose root height does not follow generated terrain");
+            if (!(uphill < 1f && downhill > 1f && reverseUphill < 1f))
+                Fail("terrain", "uphill/downhill speed scaling has the wrong direction");
         }
 
         /// <summary>The right motor loop plays while riding (null = must be silent) and no footstep was played since mounting.</summary>

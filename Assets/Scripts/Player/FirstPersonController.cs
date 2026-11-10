@@ -49,6 +49,7 @@ namespace SheltreSim.Player
         public bool IsCrouching => crouched;
         public Vector2 MoveInput => input != null ? Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
         private bool bicycleMounted;
+        public bool IsRiding => bicycleMounted;
 
         public void SetBicycleMounted(bool mounted)
         {

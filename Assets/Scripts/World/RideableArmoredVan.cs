@@ -48,11 +48,14 @@ namespace SheltreSim.World
         private readonly Collider[] vehicleOverlapHits = new Collider[32];
         private FirstPersonController rider;
         private VehicleMountView mountView;
-        private float oldWalk, oldSprint, fuelMeters, nextNoise, nextCooldownCleanup, nextTurretShot, nextDryTurretMessage;
+        private float oldWalk, oldSprint, fuelMeters, nextNoise, nextCooldownCleanup, nextTurretShot, nextDryTurretMessage, driveScale, currentSpeed;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
         private InputAction dismount, cargoAction, refuelAction, batteryAction, lightAction, turretAction;
         private Collider[] vehicleColliders;
         private bool[] colliderStates;
+        private Transform[] wheels;
+        private Quaternion[] wheelRestRotations;
+        private float wheelRotation;
         private bool mounted, lightsOn;
 
         // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
@@ -60,6 +63,10 @@ namespace SheltreSim.World
         public Vector3 StorePosition => transform.position;
         public IReadOnlyDictionary<string, int> Contents => contents;
         public float FuelRemainingMeters => fuelMeters;
+        public bool IsMounted => mounted;
+        public float Speed => currentSpeed;
+        public float Throttle01 => rider != null && mounted ? Mathf.Clamp01(rider.MoveInput.magnitude) : 0f;
+        public float FuelFraction01 => TankRange > 0f ? Mathf.Clamp01(fuelMeters / TankRange) : 0f;
         public int GetCount(string id) => id != null && contents.TryGetValue(id, out int count) ? count : 0;
         public int GetAddRoom(string id) => Mathf.Max(0, Mathf.FloorToInt((CargoCapacityKg - CargoWeight()) / Mathf.Max(.01f, Encumbrance.WeightOf(id))));
 
@@ -68,6 +75,7 @@ namespace SheltreSim.World
             vehicleColliders = GetComponentsInChildren<Collider>(true);
             colliderStates = new bool[vehicleColliders.Length];
             for (int i = 0; i < vehicleColliders.Length; i++) colliderStates[i] = vehicleColliders[i].enabled;
+            VehicleTerrain.CacheWheels(transform, out wheels, out wheelRestRotations);
             MeasureVehicleBounds();
             dismount = new InputAction("DismountArmoredVan", InputActionType.Button, "<Keyboard>/space");
             cargoAction = new InputAction("OpenVanCargo", InputActionType.Button, "<Keyboard>/p");
@@ -121,14 +129,10 @@ namespace SheltreSim.World
             Vector3 position = rider.transform.position;
             Vector3 movement = position - previousRiderPosition;
             float travelled = Vector3.Distance(position, previousRiderPosition);
-            float speed = Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f;
-            Quaternion previousRotation = transform.rotation;
-            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            if (!RotationHasClearance(transform.position, desiredRotation)) desiredRotation = previousRotation;
-
-            Vector3 follow = FollowPosition(position, desiredRotation);
+            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Vector3 follow = FollowPosition(position, yaw, out Quaternion desiredRotation, out float grade);
             Vector3 previousVehiclePosition = transform.position;
-            Vector3 resolved = ResolveVehicleMotion(follow, speed);
+            Vector3 resolved = ResolveVehicleMotion(follow, Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f, desiredRotation);
             Vector3 correction = resolved - follow;
             if (correction.sqrMagnitude > 0.0001f)
             {
@@ -138,24 +142,28 @@ namespace SheltreSim.World
                 position = rider.transform.position;
                 movement = position - previousRiderPosition;
                 travelled = Vector3.Distance(position, previousRiderPosition);
-                speed = Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f;
-                follow = FollowPosition(position, desiredRotation);
-                resolved = ResolveVehicleMotion(follow, speed);
+                follow = FollowPosition(position, yaw, out desiredRotation, out grade);
+                resolved = ResolveVehicleMotion(follow, Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f, desiredRotation);
             }
 
             transform.position = resolved;
             transform.rotation = desiredRotation;
             lastRiderPosition = position;
             fuelMeters = Mathf.Max(0f, fuelMeters - travelled);
-            rider.walkSpeed = fuelMeters > 0f ? walkSpeed : 0f;
-            rider.sprintSpeed = fuelMeters > 0f ? sprintSpeed : 0f;
+            currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, desiredRotation * Vector3.forward) : 0f;
+            VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .72f, Time.deltaTime);
+            float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, rider.MoveInput.y);
+            float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
+            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 1.3f);
+            rider.walkSpeed = walkSpeed * driveScale;
+            rider.sprintSpeed = sprintSpeed * driveScale;
 
             Vector3 previousBumper = lastBumperPosition;
             Vector3 bumper = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
             Vector3 vehicleMovement = transform.position - previousVehiclePosition;
             vehicleMovement.y = 0f;
             float vehicleSpeed = Time.deltaTime > 0f ? vehicleMovement.magnitude / Time.deltaTime : 0f;
-            if (fuelMeters > 0f && vehicleSpeed >= minimumRamSpeed && Vector3.Dot(vehicleMovement, transform.forward) > 0f)
+            if (fuelMeters > 0f && Mathf.Abs(currentSpeed) >= minimumRamSpeed && currentSpeed > 0f)
                 TryRam(previousBumper, bumper, vehicleSpeed);
             lastBumperPosition = bumper;
 
@@ -176,12 +184,11 @@ namespace SheltreSim.World
             if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
             Vector3 parkedPosition = transform.position;
             Quaternion parkedRotation = transform.rotation;
-            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            if (!RotationHasClearance(transform.position, desiredRotation)) desiredRotation = transform.rotation;
-            transform.rotation = desiredRotation;
-            Vector3 followPosition = FollowPosition(rider.transform.position, desiredRotation);
-            Vector3 resolvedPosition = ResolveVehicleMotion(followPosition, 0f);
-            resolvedPosition.y = followPosition.y;
+            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Vector3 followPosition = FollowPosition(rider.transform.position, yaw, out Quaternion groundRotation, out _);
+            if (!RotationHasClearance(transform.position, groundRotation)) groundRotation = transform.rotation;
+            transform.rotation = groundRotation;
+            Vector3 resolvedPosition = ResolveVehicleMotion(followPosition, 0f, groundRotation);
             transform.position = resolvedPosition;
             if (!mountView.BeginMount(transform))
             {
@@ -193,19 +200,21 @@ namespace SheltreSim.World
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
             lastRiderPosition = rider.transform.position;
-            rider.walkSpeed = fuelMeters > 0f ? walkSpeed : 0f;
-            rider.sprintSpeed = fuelMeters > 0f ? sprintSpeed : 0f;
+            driveScale = currentSpeed = 0f;
+            rider.walkSpeed = 0f;
+            rider.sprintSpeed = 0f;
             rider.SetBicycleMounted(true);
             foreach (Collider collider in vehicleColliders) if (collider != null) collider.enabled = false;
             lastBumperPosition = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
             GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan:0} m), J energy cell (+{BatteryRangePerCell:0} m), L lights, T turret (1 rifle round), Space dismount. Range: {fuelMeters:0} m. Ram at speed to damage enemies and structures.");
         }
 
-        private Vector3 FollowPosition(Vector3 riderPosition, Quaternion rotation)
+        private Vector3 FollowPosition(Vector3 riderPosition, Quaternion yaw, out Quaternion groundRotation, out float grade)
         {
-            Vector3 follow = riderPosition - rotation * Vector3.forward * 3f;
-            follow.y = riderPosition.y + RootHeight;
-            return follow;
+            Vector3 follow = riderPosition - yaw * Vector3.forward * 3f;
+            VehicleTerrain.SamplePose(follow, yaw, RootHeight, 4.05f, VehicleTerrain.CurrentSeed,
+                out Vector3 position, out groundRotation, out grade, out _);
+            return position;
         }
 
         private void MeasureVehicleBounds()
@@ -239,7 +248,7 @@ namespace SheltreSim.World
             vehicleLocalHalfExtents = new Vector3(Mathf.Max(.1f, size.x * .47f), Mathf.Max(.1f, size.y * .44f), Mathf.Max(.1f, size.z * .47f));
         }
 
-        private Vector3 ResolveVehicleMotion(Vector3 desiredPosition, float speed)
+        private Vector3 ResolveVehicleMotion(Vector3 desiredPosition, float speed, Quaternion desiredRotation)
         {
             Vector3 movement = desiredPosition - transform.position;
             movement.y = 0f;
@@ -247,9 +256,10 @@ namespace SheltreSim.World
             if (distance <= .001f) return desiredPosition;
 
             Vector3 direction = movement / distance;
-            Vector3 center = transform.TransformPoint(vehicleLocalCenter);
+            Vector3 scaledCenter = Vector3.Scale(vehicleLocalCenter, transform.lossyScale);
+            Vector3 center = transform.position + desiredRotation * scaledCenter;
             int count = Physics.BoxCastNonAlloc(center, VehicleHalfExtents(), direction, vehicleBlockHits,
-                transform.rotation, distance, ~0, QueryTriggerInteraction.Ignore);
+                desiredRotation, distance, ~0, QueryTriggerInteraction.Ignore);
             float nearest = distance;
             for (int i = 0; i < count; i++)
             {
@@ -562,6 +572,7 @@ namespace SheltreSim.World
         private void FinishDismount()
         {
             mounted = false;
+            driveScale = currentSpeed = 0f;
             if (rider != null)
             {
                 rider.walkSpeed = oldWalk; rider.sprintSpeed = oldSprint;

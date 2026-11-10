@@ -22,18 +22,27 @@ namespace SheltreSim.World
         private FirstPersonController rider;
         private VehicleMountView mountView;
         private float oldWalk, oldSprint;
+        private float driveScale, currentSpeed;
+        private Vector3 lastRiderPosition;
         [Serializable] private sealed class SavedStack { public string id; public int count; }
         [Serializable] private sealed class SavedPanniers { public List<SavedStack> items = new List<SavedStack>(); }
         private readonly Dictionary<string, int> contents = new Dictionary<string, int>();
         private InputAction dismount, openPanniers;
         private Collider[] bikeColliders;
         private bool[] colliderStates;
+        private Transform[] wheels;
+        private Quaternion[] wheelRestRotations;
+        private float wheelRotation;
         private bool mounted;
 
         // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
         private const float RootHeight = 0.65f; // footprint 1.3 m high
         public Vector3 StorePosition => transform.position;
         public IReadOnlyDictionary<string, int> Contents => contents;
+        public bool IsMounted => mounted;
+        public float Speed => currentSpeed;
+        public float Throttle01 => rider != null && mounted ? Mathf.Clamp01(rider.MoveInput.magnitude) : 0f;
+        public float FuelFraction01 => 1f;
         public int GetCount(string id) => id != null && contents.TryGetValue(id, out int count) ? count : 0;
         public int GetAddRoom(string id) => Mathf.Max(0, Mathf.FloorToInt((PannierCapacityKg - ContentsWeight()) / Mathf.Max(.01f, Encumbrance.WeightOf(id))));
 
@@ -49,6 +58,7 @@ namespace SheltreSim.World
             bikeColliders = GetComponentsInChildren<Collider>(true);
             colliderStates = new bool[bikeColliders.Length];
             for (int i = 0; i < bikeColliders.Length; i++) colliderStates[i] = bikeColliders[i].enabled;
+            VehicleTerrain.CacheWheels(transform, out wheels, out wheelRestRotations);
             dismount = new InputAction("DismountBicycle", InputActionType.Button, "<Keyboard>/space");
             openPanniers = new InputAction("OpenBicyclePanniers", InputActionType.Button, "<Keyboard>/p");
         }
@@ -85,10 +95,20 @@ namespace SheltreSim.World
                 if (inventory != null) StorageUI.Open(this, this, inventory);
                 return;
             }
-            Vector3 follow = rider.transform.position - rider.transform.forward * .8f;
-            follow.y = rider.transform.position.y + RootHeight;
-            transform.position = follow;
-            transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Vector3 position = rider.transform.position;
+            Vector3 movement = position - lastRiderPosition;
+            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            VehicleTerrain.SamplePose(position - yaw * Vector3.forward * .8f, yaw, RootHeight, 1.4f,
+                VehicleTerrain.CurrentSeed, out Vector3 follow, out Quaternion groundRotation, out float grade, out _);
+            currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, yaw * Vector3.forward) : 0f;
+            VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .33f, Time.deltaTime);
+            lastRiderPosition = position;
+            float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, rider.MoveInput.y);
+            float targetScale = gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f);
+            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.2f);
+            rider.walkSpeed = walkSpeed * driveScale;
+            rider.sprintSpeed = sprintSpeed * driveScale;
+            transform.SetPositionAndRotation(follow, groundRotation);
         }
 
         public void Add(string id, int amount)
@@ -136,9 +156,10 @@ namespace SheltreSim.World
             if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
             Vector3 parkedPosition = transform.position;
             Quaternion parkedRotation = transform.rotation;
-            transform.position = rider.transform.position - rider.transform.forward * 0.8f;
-            transform.position = new Vector3(transform.position.x, rider.transform.position.y + RootHeight, transform.position.z);
-            transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            VehicleTerrain.SamplePose(rider.transform.position - yaw * Vector3.forward * .8f, yaw, RootHeight, 1.4f,
+                VehicleTerrain.CurrentSeed, out Vector3 mountedPosition, out Quaternion groundRotation, out _, out _);
+            transform.SetPositionAndRotation(mountedPosition, groundRotation);
             if (mountView == null || !mountView.BeginMount(transform))
             {
                 transform.SetPositionAndRotation(parkedPosition, parkedRotation);
@@ -148,7 +169,10 @@ namespace SheltreSim.World
             }
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
-            rider.walkSpeed = walkSpeed; rider.sprintSpeed = sprintSpeed;
+            lastRiderPosition = rider.transform.position;
+            driveScale = 0f;
+            currentSpeed = 0f;
+            rider.walkSpeed = 0f; rider.sprintSpeed = 0f;
             rider.SetBicycleMounted(true);
             foreach (Collider c in bikeColliders) if (c != null) c.enabled = false;
             GameMessageBus.Post("Bicycle: WASD to ride, P to open panniers, Space to dismount.");
@@ -168,6 +192,7 @@ namespace SheltreSim.World
         private void FinishDismount()
         {
             mounted = false;
+            currentSpeed = driveScale = 0f;
             if (rider != null)
             {
                 rider.walkSpeed = oldWalk; rider.sprintSpeed = oldSprint;

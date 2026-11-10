@@ -45,11 +45,14 @@ namespace SheltreSim.World
         private readonly Collider[] vehicleOverlapHits = new Collider[32];
         private FirstPersonController rider;
         private VehicleMountView mountView;
-        private float oldWalk, oldSprint, fuelMeters, nextNoise, nextRamCleanup;
+        private float oldWalk, oldSprint, fuelMeters, nextNoise, nextRamCleanup, driveScale, currentSpeed;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
         private InputAction dismount, trunkAction, refuelAction, batteryAction, lightAction;
         private Collider[] vehicleColliders;
         private bool[] colliderStates;
+        private Transform[] wheels;
+        private Quaternion[] wheelRestRotations;
+        private float wheelRotation;
         private bool mounted, lightsOn, lowFuelWarningSent, emptyFuelWarningSent, ramSweepReady;
 
         // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
@@ -59,12 +62,17 @@ namespace SheltreSim.World
         public int GetCount(string id) => id != null && contents.TryGetValue(id, out int count) ? count : 0;
         public int GetAddRoom(string id) => Mathf.Max(0, Mathf.FloorToInt((TrunkCapacityKg - TrunkWeight()) / Mathf.Max(.01f, Encumbrance.WeightOf(id))));
         public float FuelRemainingMeters => fuelMeters;
+        public bool IsMounted => mounted;
+        public float Speed => currentSpeed;
+        public float Throttle01 => rider != null && mounted ? Mathf.Clamp01(rider.MoveInput.magnitude) : 0f;
+        public float FuelFraction01 => TankRange > 0f ? Mathf.Clamp01(fuelMeters / TankRange) : 0f;
 
         private void Awake()
         {
             vehicleColliders = GetComponentsInChildren<Collider>(true);
             colliderStates = new bool[vehicleColliders.Length];
             for (int i = 0; i < vehicleColliders.Length; i++) colliderStates[i] = vehicleColliders[i].enabled;
+            VehicleTerrain.CacheWheels(transform, out wheels, out wheelRestRotations);
             MeasureVehicleBounds();
             dismount = new InputAction("DismountBuggy", InputActionType.Button, "<Keyboard>/space");
             trunkAction = new InputAction("OpenBuggyTrunk", InputActionType.Button, "<Keyboard>/p");
@@ -113,9 +121,7 @@ namespace SheltreSim.World
 
             Vector3 position = rider.transform.position;
             Vector3 movement = position - lastRiderPosition;
-            movement.y = 0f;
             float travelled = movement.magnitude;
-            float movementSpeed = Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f;
             lastRiderPosition = position;
             fuelMeters = Mathf.Max(0f, fuelMeters - travelled);
             if (fuelMeters <= 0f && !emptyFuelWarningSent)
@@ -128,22 +134,28 @@ namespace SheltreSim.World
                 lowFuelWarningSent = true;
                 GameMessageBus.Post("Buggy fuel low — less than 140 m of range remains.");
             }
-            float driveScale = fuelMeters > 0f ? 1f : 0f;
-            rider.walkSpeed = walkSpeed * driveScale;
-            rider.sprintSpeed = sprintSpeed * driveScale;
-
             Vector3 follow = position - rider.transform.forward * 1.55f;
-            follow.y = position.y + RootHeight;
             Vector3 previousVehiclePosition = transform.position;
             Quaternion previousVehicleRotation = transform.rotation;
-            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+            VehicleTerrain.SamplePose(follow, yaw, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
+                out Vector3 terrainFollow, out Quaternion desiredRotation, out float grade, out _);
+            follow = terrainFollow;
+            float inputY = rider.MoveInput.y;
+            float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, inputY);
+            float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
+            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 1.6f);
+            rider.walkSpeed = walkSpeed * driveScale;
+            rider.sprintSpeed = sprintSpeed * driveScale;
+            currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, yaw * Vector3.forward) : 0f;
+            VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .53f, Time.deltaTime);
             follow = ResolveVehicleMotion(follow, desiredRotation);
             transform.position = follow;
             transform.rotation = RotationHasClearance(follow, desiredRotation) ? desiredRotation : previousVehicleRotation;
             Vector3 bumper = BumperPosition();
             Vector3 vehicleMovement = transform.position - previousVehiclePosition;
             vehicleMovement.y = 0f;
-            float vehicleSpeed = Time.deltaTime > 0f ? vehicleMovement.magnitude / Time.deltaTime : 0f;
+            float vehicleSpeed = Mathf.Abs(currentSpeed);
             bool movingForward = vehicleMovement.sqrMagnitude > 0.0001f && Vector3.Dot(vehicleMovement.normalized, transform.forward) > 0.5f;
             if (ramSweepReady && fuelMeters > 0f && vehicleSpeed >= RamMinSpeed && movingForward)
                 TryRam(lastBumperPosition, bumper, vehicleSpeed);
@@ -167,12 +179,12 @@ namespace SheltreSim.World
             Vector3 parkedPosition = transform.position;
             Quaternion parkedRotation = transform.rotation;
             Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            Vector3 follow = rider.transform.position - rider.transform.forward * 1.55f;
-            follow.y = rider.transform.position.y + RootHeight;
-            Vector3 resolved = ResolveVehicleMotion(follow, desiredRotation);
-            resolved.y = follow.y;
+            Vector3 follow = rider.transform.position - desiredRotation * Vector3.forward * 1.55f;
+            VehicleTerrain.SamplePose(follow, desiredRotation, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
+                out follow, out Quaternion groundRotation, out _, out _);
+            Vector3 resolved = ResolveVehicleMotion(follow, groundRotation);
             transform.position = resolved;
-            if (RotationHasClearance(follow, desiredRotation)) transform.rotation = desiredRotation;
+            if (RotationHasClearance(follow, groundRotation)) transform.rotation = groundRotation;
             if (!mountView.BeginMount(transform))
             {
                 transform.SetPositionAndRotation(parkedPosition, parkedRotation);
@@ -183,7 +195,9 @@ namespace SheltreSim.World
             mounted = true;
             oldWalk = rider.walkSpeed; oldSprint = rider.sprintSpeed;
             lastRiderPosition = rider.transform.position;
-            rider.walkSpeed = walkSpeed; rider.sprintSpeed = sprintSpeed;
+            driveScale = 0f;
+            currentSpeed = 0f;
+            rider.walkSpeed = 0f; rider.sprintSpeed = 0f;
             rider.SetBicycleMounted(true);
             foreach (Collider c in vehicleColliders) if (c != null) c.enabled = false;
             ramSweepReady = false;
@@ -232,9 +246,9 @@ namespace SheltreSim.World
             if (distance <= 0.001f) return desiredPosition;
 
             Vector3 direction = movement / distance;
-            Vector3 center = transform.TransformPoint(vehicleLocalCenter);
+            Vector3 center = transform.position + desiredRotation * Vector3.Scale(vehicleLocalCenter, transform.lossyScale);
             int count = Physics.BoxCastNonAlloc(center, VehicleHalfExtents(), direction, vehicleBlockHits,
-                transform.rotation, distance, ~0, QueryTriggerInteraction.Ignore);
+                desiredRotation, distance, ~0, QueryTriggerInteraction.Ignore);
             float nearest = distance;
             RaycastHit nearestHit = default;
             for (int i = 0; i < count; i++)
@@ -498,6 +512,7 @@ namespace SheltreSim.World
             }
 
             mounted = false;
+            driveScale = currentSpeed = 0f;
             ramSweepReady = false;
             ramReadyAt.Clear();
             impactReadyAt.Clear();
