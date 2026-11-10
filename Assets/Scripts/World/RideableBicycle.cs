@@ -30,6 +30,8 @@ namespace SheltreSim.World
         private bool[] colliderStates;
         private bool mounted;
 
+        // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
+        private const float RootHeight = 0.65f; // footprint 1.3 m high
         public Vector3 StorePosition => transform.position;
         public IReadOnlyDictionary<string, int> Contents => contents;
         public int GetCount(string id) => id != null && contents.TryGetValue(id, out int count) ? count : 0;
@@ -84,7 +86,7 @@ namespace SheltreSim.World
                 return;
             }
             Vector3 follow = rider.transform.position - rider.transform.forward * .8f;
-            follow.y = rider.transform.position.y - .65f;
+            follow.y = rider.transform.position.y + RootHeight;
             transform.position = follow;
             transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
         }
@@ -135,7 +137,7 @@ namespace SheltreSim.World
             Vector3 parkedPosition = transform.position;
             Quaternion parkedRotation = transform.rotation;
             transform.position = rider.transform.position - rider.transform.forward * 0.8f;
-            transform.position = new Vector3(transform.position.x, rider.transform.position.y - 0.65f, transform.position.z);
+            transform.position = new Vector3(transform.position.x, rider.transform.position.y + RootHeight, transform.position.z);
             transform.rotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             if (mountView == null || !mountView.BeginMount(transform))
             {

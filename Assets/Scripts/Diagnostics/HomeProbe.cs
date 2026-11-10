@@ -234,7 +234,7 @@ namespace SheltreSim.Diagnostics
             Check((home.Rooms & BunkerShop.RoomBits.Hydro) != 0 && home.HasAnnex, "Room bitmask records the selected wing and annex");
             Check(home.northWingShell != null && home.northWingShell.activeSelf && home.hydroWing.activeSelf,
                 "The selected hydro wing shell is visible");
-            Check(CapsuleClear(new Vector3(68f, .58f, -211.65f), new Vector3(68f, 1.22f, -211.65f), .58f),
+            Check(RaiderCapsuleClear(new Vector3(68f, 0f, -211.65f)),
                 "The north-wing opening fits a raider capsule with skin width");
 
             int savedMoney = home.Money;
@@ -261,7 +261,7 @@ namespace SheltreSim.Diagnostics
             InteractableDoor vaultDoor = home.vaultRoom.GetComponentInChildren<InteractableDoor>(true);
             vaultDoor.RestoreState(true);
             Physics.SyncTransforms();
-            Check(CapsuleClear(new Vector3(83f, .58f, -213.35f), new Vector3(83f, 1.22f, -213.35f), .58f),
+            Check(RaiderCapsuleClear(new Vector3(83f, 0f, -213.35f)),
                 "The open vault doorway fits a raider capsule with skin width");
             Check(home.TryBuyOffer(BunkerShop.Get("door_reinforced"), out _) &&
                   Mathf.Approximately(home.mainBlastDoor.maxRaidHealth, 750f),
@@ -336,12 +336,34 @@ namespace SheltreSim.Diagnostics
 
         private const float RoomDoorZ = -223.5f;
 
+        // Matches the smallest human raider (1.9 m tall, 0.45 m radius) plus the
+        // CharacterController's 0.08 m skin width. The feet are on the bunker floor.
+        private bool RaiderCapsuleClear(Vector3 feet)
+        {
+            const float radius = .45f + .08f;
+            const float height = 1.9f;
+            // 2 cm up: standing exactly on the floor plane would make the bottom sphere tangent to the floor collider, which the physics
+            // overlap test answers either way depending on rounding. The controller rests on its skin width anyway.
+            const float lift = .02f;
+            Vector3 bottom = feet + Vector3.up * (radius + lift);
+            Vector3 top = feet + Vector3.up * (height - radius + lift);
+            return CapsuleClear(bottom, top, radius);
+        }
+
         private bool CapsuleClear(Vector3 bottom, Vector3 top, float radius)
         {
             Physics.SyncTransforms();
+            float feetY = bottom.y - radius;
             foreach (Collider collider in Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore))
             {
                 if (collider == null || collider.GetComponentInParent<FirstPersonController>() != null) continue;
+                // OverlapCapsule includes contact at exactly zero separation. The test
+                // capsule intentionally rests on the floor, so ignore only support
+                // surfaces underneath its feet; wall and doorway overlaps still count.
+                if (collider.bounds.max.y <= feetY + .02f) continue;
+                string path = collider.name;
+                for (Transform t = collider.transform.parent; t != null; t = t.parent) path = t.name + "/" + path;
+                Debug.Log($"[HomeProbe] capsule {bottom}..{top} r={radius} blocked by {path} ({collider.GetType().Name}) bounds {collider.bounds.min}..{collider.bounds.max}");
                 return false;
             }
             return true;

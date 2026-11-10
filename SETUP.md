@@ -5,6 +5,8 @@
 
 ---
 
+> **Run probes silent:** `tools/run_probe_silent.sh Builds/Linux --smoke-test /tmp/smoke.log` starts the player with no audio device so tests make no noise. Do not run `--audio-probe` unless you need the audio mix.
+
 ## Quick Start
 
 ### Standalone (Linux testers — no Unity)

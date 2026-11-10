@@ -72,7 +72,11 @@ namespace SheltreSim.Diagnostics
             Transform[] ruinedHomes = Roots(suburb, "House_");
             Transform[] ruinedBuildings = Roots(town, "Building_");
             Check(LayoutHash(suburb) == suburbLayout, "suburb placement and furniture slots are unchanged by the bombs");
-            Check(LayoutHash(town) == townLayout, "town lot assignment and furniture slots are unchanged by the bombs");
+            string ruinedTown = LayoutHash(town);
+            if (ruinedTown != townLayout) LogLayoutDifference("town", townLayout, ruinedTown);
+            // After the bombs some apartment flats are sealed by rubble, so their furniture slots (C##) disappear on purpose.
+            // Nothing may be added or moved, and only slots may be missing.
+            Check(TownUnchangedExceptSealedSlots(townLayout, ruinedTown), "town lot assignment is unchanged by the bombs; only sealed-flat slots disappear");
             Check(ruinedHomes.Length == suburbHomes.Length && ruinedBuildings.Length == townBuildings.Length,
                 "the same occupied lots remain after the bombs");
 
@@ -104,6 +108,32 @@ namespace SheltreSim.Diagnostics
                         (t.parent == null || !t.parent.name.StartsWith(prefix, StringComparison.Ordinal))).ToArray();
 
         private static int FloorCount(Transform building) => building.Cast<Transform>().Count(t => t.name.StartsWith("Floor_", StringComparison.Ordinal));
+
+        private static bool TownUnchangedExceptSealedSlots(string normal, string ruined)
+        {
+            var a = new System.Collections.Generic.HashSet<string>(normal.Split('\n'));
+            var b = new System.Collections.Generic.HashSet<string>(ruined.Split('\n'));
+            foreach (string row in b) if (row.Length > 0 && !a.Contains(row)) return false;
+            foreach (string row in a)
+            {
+                if (row.Length == 0 || b.Contains(row)) continue;
+                string path = row.Substring(0, row.IndexOf('|'));
+                string leaf = path.Substring(path.LastIndexOf('/') + 1);
+                if (!IsSlotName(leaf)) return false;
+            }
+            return true;
+        }
+
+        private static void LogLayoutDifference(string label, string normal, string ruined)
+        {
+            var a = new System.Collections.Generic.HashSet<string>(normal.Split('\n'));
+            var b = new System.Collections.Generic.HashSet<string>(ruined.Split('\n'));
+            int shown = 0;
+            foreach (string row in a) if (!b.Contains(row) && shown++ < 6) Debug.Log($"[BuildingProbe] {label} only in normal pass: {row}");
+            shown = 0;
+            foreach (string row in b) if (!a.Contains(row) && shown++ < 6) Debug.Log($"[BuildingProbe] {label} only in ruined pass: {row}");
+            Debug.Log($"[BuildingProbe] {label} rows normal={a.Count} ruined={b.Count}");
+        }
 
         private static string LayoutHash(GameObject chunk)
         {

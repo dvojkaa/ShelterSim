@@ -55,6 +55,8 @@ namespace SheltreSim.World
         private bool[] colliderStates;
         private bool mounted, lightsOn;
 
+        // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
+        private const float RootHeight = 1.25f; // footprint 2.5 m high
         public Vector3 StorePosition => transform.position;
         public IReadOnlyDictionary<string, int> Contents => contents;
         public float FuelRemainingMeters => fuelMeters;
@@ -202,7 +204,7 @@ namespace SheltreSim.World
         private Vector3 FollowPosition(Vector3 riderPosition, Quaternion rotation)
         {
             Vector3 follow = riderPosition - rotation * Vector3.forward * 3f;
-            follow.y = riderPosition.y - 1f;
+            follow.y = riderPosition.y + RootHeight;
             return follow;
         }
 

@@ -200,7 +200,10 @@ namespace SheltreSim.Diagnostics
             Check(build.availablePieces.First(p => p.id == "piece_stove").prefab.GetComponent<WorkbenchStation>().kind == StationKind.Stove, "stove prefab is a Stove station");
             var oldBench = build.availablePieces.First(p => p.id == "workbench").prefab.GetComponent<WorkbenchStation>();
             Check(oldBench != null && oldBench.kind == StationKind.Workbench, "existing workbench prefab is a Workbench station");
-            Check(FindObjectsByType<WorkbenchStation>(FindObjectsSortMode.None).Any(w => w.kind == StationKind.Workbench), "starting workbench exists in the scene");
+            // The bench is a bunker shop item now (kit_workbench), so the scene starts without one: place one for the checks below.
+            if (!FindObjectsByType<WorkbenchStation>(FindObjectsSortMode.None).Any(w => w.kind == StationKind.Workbench))
+                Instantiate(build.availablePieces.First(p => p.id == "workbench").prefab, new Vector3(0f, -400f, 0f), Quaternion.identity);
+            Check(FindObjectsByType<WorkbenchStation>(FindObjectsSortMode.None).Any(w => w.kind == StationKind.Workbench), "a workbench station exists once the bench is placed (it is a shop item now)");
         }
 
         // ---------- real crafting path ----------
@@ -242,6 +245,9 @@ namespace SheltreSim.Diagnostics
         {
             var es = EventSystem.current;
             if (es == null) return false;
+            // Opening a modal and setting its first row can precede the next automatic
+            // canvas rebuild. Raycast against the same settled rects a player sees.
+            Canvas.ForceUpdateCanvases();
             var rt = (RectTransform)button.transform;
             var corners = new Vector3[4];
             rt.GetWorldCorners(corners);
@@ -249,7 +255,11 @@ namespace SheltreSim.Diagnostics
             var data = new PointerEventData(es) { position = point };
             var results = new List<RaycastResult>();
             es.RaycastAll(data, results);
-            return results.Count > 0 && (results[0].gameObject == button.gameObject || results[0].gameObject.transform.IsChildOf(button.transform));
+            bool targetHit = results.Count > 0 &&
+                (results[0].gameObject == button.gameObject || results[0].gameObject.transform.IsChildOf(button.transform));
+            if (!targetHit)
+                Debug.LogError($"[CraftingProbe] UI raycast missed '{button.name}' at {point}; top hit: {(results.Count > 0 ? results[0].gameObject.name : "none")}");
+            return targetHit;
         }
 
         private static void Click(Button button)
