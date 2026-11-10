@@ -51,7 +51,7 @@ grep -E "(PASSED|FAILED|ERROR)" /tmp/smoke.log
 
 ---
 
-## Full Playtest Checklist (M1 → M28)
+## Current Playtest Checklist
 
 Work through each section in a fresh standalone build or Editor Play session. Items marked
 **[AUTO]** are covered by the headless probes above; items marked **[HUMAN]** require eyes.
@@ -78,7 +78,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] HUD: health (red), hunger (brown), thirst (blue), radiation (purple) bars all tick correctly.
 - [HUMAN] Passive decay starts only after the apocalypse triggers. Raider damage is active from the start.
 - [AUTO]  Save (`F5`) and load (`F9`) round-trip preserves position, stats, inventory, placed pieces.
-- [AUTO]  Save format v5/v6 supported; saves v0–v3 are rejected with a clear error.
+- [AUTO]  Save format v5/v6/v7 supported (v7 current, migrated from older); saves v0–v3 are rejected with a clear error.
 
 ---
 
@@ -194,7 +194,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 ### Scout Buggy
 
 - [HUMAN] Craft at Workbench (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape) and place the build piece.
-- [HUMAN] `E` mounts; walk/sprint speeds are 18/22 m/s. `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
+- [HUMAN] `E` mounts; walk/sprint speeds are 26/34 m/s (Scout Buggy) and 20/27 m/s (Armored Van). `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
 - [HUMAN] The buggy remains visible through the mount transition. The camera eases to its `Seat`; dismount eases to a capsule-clear exit and leaves the buggy parked at the same transform.
 - [HUMAN] Trunk holds up to 120 kg and participates in nearby-storage crafting. Fuel, headlight state, trunk contents and vehicle placement persist after save/load.
 - [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Collision sweeps should stop on blocking geometry; fast contacts should impart a capped impulse to dynamic props without repeated damage while blocked.
@@ -227,17 +227,17 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 ### Furnished Buildings, Stairs & Interiors
 
-- [AUTO] `--building-probe`: doorways admit a raider-wide capsule, every flight can be walked by the player and the raider-sized controller, floors and the roof are reachable, container counts match the design, ruined and normal passes agree (sealed apartment flats only drop their slots). `--interior-audio-probe`: room tone inside, drawer/cabinet sounds, an opened door stays on its hinge position. `--interior-shots <folder>` (with graphics) writes PNGs for a look.
+- [AUTO] `--building-probe`: generated house/block layouts, loot slots, room openings and ruined/normal layout invariants. `--raider-stair-probe`: raider capsule reaches the target floor in a house and a multi-storey block. `--interior-audio-probe`: room tone inside, drawer/cabinet sounds, an opened door stays on its hinge position. `--interior-shots <folder>` (with graphics) writes PNGs for a look.
 - [HUMAN] Walk into a house and an apartment block: furniture should look like furniture (sofa, bookcase, fridge, kitchen run), not boxes; stairs should be walkable, the handrail not block the climb; upper floors dark but playable with the flashlight (`F`).
 - [HUMAN] Search a wardrobe, dresser, kitchen run, fridge: drawers should slide out, doors swing on their hinges (not slide to the middle), each with a matching sound; searched state survives save/load.
 - [HUMAN] Apartment roof: reach it via the stair hut; AC unit and water tank stand there; about 40% of flats are sealed by rubble after the bombs.
-- [HUMAN] Raiders: they should follow you up house stairs (probe passes); apartment blocks are still being tuned.
+- [HUMAN] Raiders: verify in play that they follow you up house and apartment-block stairs and still attack at the upper floors. The automated stair probe has reached the target floor in both building types.
 
 ### Vehicle Sound, Slopes & Horn
 
-- [AUTO] `--vehicle-probe`: each vehicle is placed, mounted, driven and dismounted; it stays above ground and drawn, the camera is above terrain, the right motor loop plays (buggy, van; bicycle chain only when moving), the body makes no footsteps, the ignition sound plays, uphill slows and downhill speeds up on a generated slope.
+- [AUTO] `--vehicle-probe` exercises placement, mounting, driving, dismounting, audio and generated slopes. Claude traced the prior Armored Van clearance failure to the spinning wheel's rotated renderer AABB (the tyre stays at ground height); the probe now measures body clearance separately and checks wheel bounds at rest. Rerun it after the vehicle mount/collision updates.
 - [HUMAN] Buggy/van: starter and catch on mounting, idle loop pitching up with speed, stop sound on dismount. Bicycle: soft chain/ratchet only while moving. No footsteps while riding.
-- [HUMAN] Drive up and down a hill: body tilts with the ground (24° cap), speed drops uphill. The `vehicle_horn` clip exists; the key binding is GPT's to add.
+- [AUTO/HUMAN] Vehicle horn is bound to K on the Buggy and Van, plays the prepared clip, and alerts nearby threats; verify playback and alert range in a runtime build. Drive up and down a hill: body tilts with the ground (24° cap), speed drops uphill.
 - [HUMAN] Van from the driver's seat: wide windscreen, dashboard, steering wheel; the buggy shows its cage, dashboard and wheel.
 
 ### Held Tools & Melee Weapons
@@ -269,12 +269,18 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 | Version | Status |
 |---|---|
-| v6 | Current (M22+) |
+| v7 | Current (bunker shop, autosave) |
+| v6 | Supported (migrated) |
 | v5 | Supported |
 | v0–v3 | Rejected — incompatible world format |
 
-Loot crate searched-state and resource-node depletion persist within a session but **not** across
-save/load — this is a known gap (needs stable per-object IDs).
+SaveManager captures and restores searched state for non-procedural loot containers and charge/depletion state for
+non-procedural resource nodes using stable transform IDs. The save coverage probe also verifies a searched furniture
+container's inventory and open pose. Generated chunks use a separate deterministic snapshot keyed by chunk coordinate
+and relative hierarchy path: it records changed resource-node charges/regrowth, searched generated containers, and
+encounter health/defeat, then reapplies that state when the chunk is rebuilt. A dedicated end-to-end F5/F9 probe for
+those generated objects is still missing; current `--save-coverage-probe` covers non-procedural furniture and placed
+objects plus chunk unload persistence.
 
 ---
 
