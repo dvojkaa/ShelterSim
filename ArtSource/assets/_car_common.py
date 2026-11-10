@@ -182,8 +182,13 @@ def cabin(m, paint, shape, zbelt, panes):
     def ring(z_edge):
         w = side_x(z_edge)
         return [(side_x(z_low), z_low), (w, z_edge), (0.0, z_edge + CROWN * w), (-w, z_edge), (-side_x(z_low), z_low)]
-    # Dark core: what you see through every smashed pane. Sits under the panes, pillars and roof.
-    loft(m, [(dy, ring(z_lip)), (rr, ring(ROOF_Z)), (ry, ring(ROOF_Z)), (cy, ring(z_lip))], lambda j, y, z: 'black')
+    # Dark cabin shell sits under the panels. Leave the front screen segments open: the shared
+    # atlas is opaque, so a full 'glass' facet reads as paint and hides the cockpit.
+    def core_color(j, y, z):
+        if j in (1, 2) and ry < y < cy:
+            return None
+        return 'black'
+    loft(m, [(dy, ring(z_lip)), (rr, ring(ROOF_Z)), (ry, ring(ROOF_Z)), (cy, ring(z_lip))], core_color)
 
     # Pillars stand proud of the glass, so the windows read as recessed.
     for s in (-1, 1):
@@ -230,6 +235,19 @@ def cabin(m, paint, shape, zbelt, panes):
     for side, yzs, color in panes.get('side', []):
         pts = [(side * side_x(z), y, z) for y, z in yzs]
         facet(m, pts, color, (side, 0, 0.25))
+
+    # Simple, dark readable interior now visible through the clear/open screen.
+    dash_y = cy - 0.20
+    m.box((1.42, 0.34, 0.13), (0, dash_y, z_lip - 0.17), 'gunmetal', bevel=0.025)
+    m.box((0.56, 0.46, 0.16), (-0.38, cy - 0.03, z_lip - 0.13), 'black', bevel=0.025)  # instrument binnacle
+    for x in (-0.39, 0.39):
+        m.box((0.52, 0.44, 0.15), (x, -0.05, 0.73), 'leather_dark', bevel=0.035)
+        m.box((0.50, 0.15, 0.46), (x, -0.28, 0.96), 'leather', bevel=0.035)
+    # Steering wheel ring, oriented toward +Y.
+    wheel = [(-0.65 + 0.16 * math.cos(i * math.tau / 8), cy - 0.03,
+              z_lip - 0.13 + 0.16 * math.sin(i * math.tau / 8)) for i in range(9)]
+    m.tube(wheel, 0.018, 'steel_dark', seg=5)
+    m.tube([(-0.65, cy - 0.03, z_lip - 0.13), (-0.65, cy - 0.20, z_lip - 0.23)], 0.025, 'gunmetal', seg=6)
 
 
 FULL = [(0.06, 0.06), (0.93, 0.06), (0.93, 0.93), (0.06, 0.93)]
@@ -334,9 +352,9 @@ def build_sedan(m, paint):
     loft(m, [(y, body_ring(shape, y, dents)) for y in station_list(shape, [door_y0, door_y1])], col)
     panes = {
         'roof_rust': [(-0.42, 0.0, (2,), 'rust'), (0.1, 0.42, (5,), 'rust_dark')],
-        # Driver half of the screen holds with a star of cracks, the other half is mostly gone.
-        'wind': [(-1, FULL, 'glass'),
-                 (1, [(0.06, 0.06), (0.93, 0.06), (0.42, 0.28), (0.5, 0.5), (0.22, 0.42), (0.28, 0.72), (0.12, 0.6), (0.06, 0.93)], 'glass_dirty')],
+        # The screen is clear/open across most of its area; only a few edge shards remain.
+        'wind': [(-1, [(0.05, 0.08), (0.29, 0.07), (0.17, 0.24), (0.06, 0.30)], 'glass'),
+                 (1, [(0.82, 0.93), (0.94, 0.92), (0.91, 0.66), (0.85, 0.72)], 'glass_dirty')],
         'rear': [(-1, [(0.06, 0.06), (0.93, 0.06), (0.93, 0.5), (0.55, 0.3), (0.4, 0.6), (0.2, 0.42), (0.06, 0.7)], 'glass_dirty'),
                  (1, FULL, 'glass')],
         'side': [

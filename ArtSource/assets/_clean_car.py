@@ -25,12 +25,12 @@ def build(name, paint, kind):
     # grille
     m.box((0.6, 0.05, 0.14), (0, 2.18, 0.66), 'gunmetal')
     # hood / trunk panel lines are implied by darker strips
-    # cabin
+    # Cabin frame. The atlas material is opaque, so leave the windshield as an aperture
+    # instead of filling it with a dark 'glass' polygon that blocks the view inside.
     if wag:
         cab = [(-1.95, 1.02), (-1.98, 1.55), (-1.8, 1.72), (0.4, 1.72), (0.95, 1.05)]
     else:
         cab = [(-2.0, 1.02), (-2.02, 1.35), (-1.55, 1.68), (0.3, 1.68), (0.95, 1.05)]
-    side(m, cab, 1.6, 'glass')
     # roof slab, pillars
     ry0, ry1 = (-1.82, 0.38) if wag else (-1.55, 0.3)
     m.box((1.66, ry1 - ry0, 0.08), (0, (ry0 + ry1) / 2, 1.7), paint, bevel=0.02)
@@ -54,6 +54,19 @@ def build(name, paint, kind):
         else:
             m.box((0.08, 0.14, 0.7), (x, -0.55, 1.4), paint)
             pillar(-2.0, 1.05, -1.55, 1.66, x)
+    # Windshield wiper pair helps the empty aperture read as clear glass rather than a missing frame.
+    m.tube([(-0.55, 0.91, 1.13), (-0.12, 0.90, 1.10)], 0.012, 'steel_dark', seg=4)
+    m.tube([(0.08, 0.90, 1.10), (0.51, 0.91, 1.13)], 0.012, 'steel_dark', seg=4)
+    # Simple cockpit visible through the transparent windshield.
+    m.box((1.35, 0.34, 0.14), (0, 0.72, 1.0), 'gunmetal', bevel=0.02)
+    m.box((0.56, 0.42, 0.14), (-0.38, 0.66, 1.12), 'black', bevel=0.02)
+    for sx in (-0.38, 0.38):
+        m.box((0.52, 0.42, 0.15), (sx, -0.03, 0.72), 'leather_dark', bevel=0.03)
+        m.box((0.50, 0.15, 0.44), (sx, -0.24, 0.94), 'leather', bevel=0.03)
+    ring = [(-0.65 + 0.15 * math.cos(i * math.tau / 8), 0.62,
+            1.08 + 0.15 * math.sin(i * math.tau / 8)) for i in range(9)]
+    m.tube(ring, 0.018, 'steel_dark', seg=5)
+    m.tube([(-0.65, 0.62, 1.08), (-0.65, 0.48, 0.96)], 0.024, 'gunmetal', seg=6)
     # side window trim line (door cut) and door handles
     for s in (-1, 1):
         m.box((0.02, 0.03, 0.55), (s * 0.88, 0.15, 0.7), 'black') if False else None
