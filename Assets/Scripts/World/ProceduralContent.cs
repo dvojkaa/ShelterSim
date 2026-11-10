@@ -600,6 +600,7 @@ namespace SheltreSim.World
                 Furniture(roof, "roof", new Vector3(width / 2f - 1.1f, roofY, -depth / 2f + .7f), 180f,
                     new Vector3(1f, .6f, .65f), 99, lot, coordinate, seed, assets, ruined);
             Decor(roof, "roof_hvac", new Vector3(-width / 2f + 1.5f, roofY, back - 1f), 0f, new Vector3(2f, 1.1f, 1.5f), assets);
+            Decor(roof, "roof_tank", new Vector3(width / 2f - 2.2f, roofY, back - 1.8f), 0f, new Vector3(2f, 3f, 2f), assets);
             FinishStructure(structure);
             building.gameObject.AddComponent<BuildingInterior>().Configure(width, depth, floors + 1);
         }
@@ -939,7 +940,7 @@ namespace SheltreSim.World
         {
             string modelId = kind == "pantry_shelf" ? "furn_bookcase" : kind == "linen_closet" || kind == "lockers" ? "furn_wardrobe"
                 : kind == "counter" ? "furn_shop_counter" : kind == "roof" ? "furn_toolbox"
-                : kind == "roof_hvac" ? "bld_roof_hvac" : "furn_" + kind;
+                : kind == "roof_hvac" ? "bld_roof_hvac" : kind == "roof_tank" ? "bld_roof_water_tank" : "furn_" + kind;
             GameObject model = Prop(modelId);
             if (model == null)
             {

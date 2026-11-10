@@ -100,6 +100,13 @@ namespace SheltreSim.EditorTools
             BuildWeaponPrefabs(atlas);
             Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
             foreach (string id in PropIds) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
+            // Furniture and building parts for the procedural interiors (ProceduralContent.Prop loads Resources/Props/<id>): every
+            // furn_* and bld_* model gets a prefab, so a new model only needs its FBX.
+            foreach (string fbx in Directory.GetFiles(WeaponModels.TrimEnd('/'), "*.fbx"))
+            {
+                string id = Path.GetFileNameWithoutExtension(fbx);
+                if (id.StartsWith("furn_") || id.StartsWith("bld_")) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
+            }
             Directory.CreateDirectory(EnemyPrefabs.TrimEnd('/'));
             foreach (var species in SheltreSim.Bestiary.SpeciesSpec.All)
             {
