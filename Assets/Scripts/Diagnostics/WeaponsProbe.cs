@@ -456,7 +456,7 @@ namespace SheltreSim.Diagnostics
             gun.DebugSetRounds("plasma_rifle", 12);
             Shot();
             yield return WaitBolts();
-            Check(Same(structure.Health, structure.maxHealth), "Gunfire and plasma don't damage build pieces");
+            Check(structure.Health < structure.maxHealth, "Gunfire and plasma damage build pieces (M27-M28 structure damage rules)");
         }
 
         private IEnumerator CheckHands()

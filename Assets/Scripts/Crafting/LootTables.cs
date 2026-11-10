@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using SheltreSim.Items;
+using SheltreSim.Bestiary;
+using UnityEngine;
 
 namespace SheltreSim.Crafting
 {
@@ -145,6 +147,13 @@ namespace SheltreSim.Crafting
 
         /// <summary>Rolls the named table into loot.entries using only the supplied random. Unknown tables leave the container empty.</summary>
         public static void Fill(LootContainer loot, string tableName, System.Random random)
+            => Fill(loot, tableName, random, 0);
+
+        /// <summary>Distance-tiered version of Fill; farther expeditions improve rare finds without changing seeded draw order.</summary>
+        public static void FillAtWorldPosition(LootContainer loot, string tableName, System.Random random, Vector3 worldPosition)
+            => Fill(loot, tableName, random, EncounterHabitats.DistanceRing(worldPosition) * 2);
+
+        private static void Fill(LootContainer loot, string tableName, System.Random random, int tier)
         {
             if (loot == null) return;
             loot.entries = new List<LootEntry>();
@@ -153,7 +162,8 @@ namespace SheltreSim.Crafting
             {
                 double roll = random.NextDouble();
                 int amount = row.min + (row.max > row.min ? random.Next(row.max - row.min + 1) : random.Next(1));
-                if (roll >= row.chance || loot.entries.Count >= MaxStacksPerContainer) continue;
+                double chance = row.chance * (RareRows.Contains(row.id) ? System.Math.Min(1.6, 1.0 + .12 * System.Math.Max(0, tier)) : 1.0);
+                if (roll >= chance || loot.entries.Count >= MaxStacksPerContainer) continue;
                 var def = ItemCatalog.Def(row.id);
                 if (def == null) continue;
                 loot.entries.Add(new LootEntry { resource = def, amount = amount });

@@ -55,6 +55,10 @@ namespace SheltreSim.Diagnostics
             string suburbLayout = LayoutHash(suburb);
             string townLayout = LayoutHash(town);
             Check(suburbHomes.Length > 0, "normal suburb has family houses");
+            Check(suburbHomes.Any(h =>
+                    h.Find("Floor_0/Interior/Decor_dining_set")?.GetComponentInChildren<Renderer>(true) != null &&
+                    h.Find("Floor_0/Interior/Decor_dining_set")?.GetComponent<SheltreSim.Items.LootContainer>() == null),
+                "family house has the authored dining set as non-searchable decor");
             Check(townBuildings.Length > 0, "normal town has buildings");
             Check(suburb.GetComponentsInChildren<SheltreSim.Items.LootContainer>(true).Length == 0 &&
                   town.GetComponentsInChildren<SheltreSim.Items.LootContainer>(true).Length == 0,
@@ -64,7 +68,11 @@ namespace SheltreSim.Diagnostics
                 int storeys = FloorCount(building);
                 Check(storeys >= 2, building.name + " has distinct walkable floor groups");
                 Check(FrontDoorClear(building), building.name + " has a clear standing-player front entrance");
+                Check(DoorLeavesNavigable(building), building.name + " generated doors have visible leaves without blocking raider colliders");
             }
+            Check(town.GetComponentsInChildren<Transform>(true).Any(t => t.name.StartsWith("Door_", StringComparison.Ordinal)),
+                "town doorway openings receive authored door leaves");
+            int normalDoorCount = town.GetComponentsInChildren<Transform>(true).Count(t => t.name.StartsWith("Door_", StringComparison.Ordinal));
 
             world.SetRuined(true);
             suburb = world.EnsureChunk(suburbCoordinate);
@@ -84,6 +92,13 @@ namespace SheltreSim.Diagnostics
             Check(lootHouse != null, "a ruined family house exposes at least nine furniture loot slots");
             Check(ruinedBuildings.SelectMany(b => b.GetComponentsInChildren<SheltreSim.Items.LootContainer>(true)).Any(),
                 "ruined town buildings expose searchable furniture");
+            Check(ruinedBuildings.Any(b => b.GetComponentsInChildren<Transform>(true).Any(t => t.name.StartsWith("Door_", StringComparison.Ordinal))),
+                "ruined town retains door leaves where the structure remains");
+            Transform[] ruinedLeaves = town.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Door_", StringComparison.Ordinal)).ToArray();
+            Check(ruinedLeaves.Length < normalDoorCount, "ruined town has some missing doorway leaves");
+            Check(ruinedBuildings.Any(b => b.GetComponentsInChildren<Transform>(true)
+                    .Any(t => t.name.StartsWith("Door_", StringComparison.Ordinal) && IsOpenLeaf(t) && OpenLeafClearsPassage(t, b))),
+                "a ruined open leaf swings on its hinge clear of a raider-width doorway path");
             Check(SlotTablesAreDeterministic(), "all furniture loot tables are deterministic and produce valid bounded stacks");
 
             Finish();
@@ -178,6 +193,58 @@ namespace SheltreSim.Diagnostics
                 return false;
             }
             return true;
+        }
+
+        private static bool DoorLeavesNavigable(Transform building)
+        {
+            Transform[] leaves = building.GetComponentsInChildren<Transform>(true)
+                .Where(t => t.name.StartsWith("Door_", StringComparison.Ordinal)).ToArray();
+            return leaves.Length > 0 && leaves.All(leaf =>
+                leaf.GetComponentInChildren<Renderer>(true) != null &&
+                // Only entrance doors (an InteractableDoor: closed ones block, raiders force them) may collide; room doors are dressing.
+                leaf.GetComponentsInChildren<Collider>(true).All(c => c.GetComponentInParent<SheltreSim.Interaction.InteractableDoor>() != null) &&
+                (!IsOpenLeaf(leaf) || OpenLeafClearsPassage(leaf, building)));
+        }
+
+        private static bool IsOpenLeaf(Transform doorway)
+        {
+            Transform leaf = doorway.Find("Leaf");
+            return leaf != null && Mathf.Abs(Mathf.DeltaAngle(0f, leaf.localEulerAngles.y)) > 45f;
+        }
+
+        private static bool OpenLeafClearsPassage(Transform doorway, Transform building)
+        {
+            Transform leaf = doorway.Find("Leaf");
+            Transform model = leaf != null ? leaf.Find("Model") : null;
+            if (leaf == null || model == null) return false;
+            float halfWidth = model.localPosition.x;
+            Vector3 widthAxis = doorway.right;
+            Vector3 passageCenter = doorway.position + widthAxis * halfWidth;
+            float minAcross = float.PositiveInfinity, maxAcross = float.NegativeInfinity;
+            float minY = float.PositiveInfinity, maxY = float.NegativeInfinity;
+            Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) return false;
+            foreach (Renderer renderer in renderers)
+            {
+                Bounds bounds = renderer.localBounds;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 local = bounds.center + Vector3.Scale(bounds.extents, new Vector3(
+                        (corner & 1) == 0 ? -1f : 1f, (corner & 2) == 0 ? -1f : 1f, (corner & 4) == 0 ? -1f : 1f));
+                    Vector3 point = building.InverseTransformPoint(renderer.transform.TransformPoint(local));
+                    Vector3 center = building.InverseTransformPoint(passageCenter);
+                    Vector3 axis = building.InverseTransformDirection(widthAxis).normalized;
+                    float across = Vector3.Dot(point - center, axis);
+                    minAcross = Mathf.Min(minAcross, across);
+                    maxAcross = Mathf.Max(maxAcross, across);
+                    minY = Mathf.Min(minY, point.y);
+                    maxY = Mathf.Max(maxY, point.y);
+                }
+            }
+            Vector3 localPassage = building.InverseTransformPoint(passageCenter);
+            bool overlapsCapsuleWidth = minAcross < .35f && maxAcross > -.35f;
+            bool overlapsCapsuleHeight = minY < localPassage.y + 1.43f && maxY > localPassage.y + .37f;
+            return !overlapsCapsuleWidth || !overlapsCapsuleHeight;
         }
 
         private static bool SlotTablesAreDeterministic()

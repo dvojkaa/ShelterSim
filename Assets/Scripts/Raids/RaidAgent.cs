@@ -9,6 +9,7 @@ using SheltreSim.Power;
 using SheltreSim.Storage;
 using SheltreSim.Survival;
 using SheltreSim.UI;
+using SheltreSim.World;
 using UnityEngine;
 
 namespace SheltreSim.Raids
@@ -34,6 +35,7 @@ namespace SheltreSim.Raids
         public RaidVariant Variant { get; private set; }
         public RaidVariantSpec Spec { get; private set; }
         public int RaidNumber { get; private set; }
+        public int AttackSide { get; private set; }
         public string State { get; private set; } = "new";
         public string LastStuckReason { get; private set; } = "";
         public int RouteIndex => routeIndex;
@@ -44,6 +46,7 @@ namespace SheltreSim.Raids
         public int StructureHits { get; private set; }
         /// <summary>Standing at something and hitting it, as opposed to walking or queueing.</summary>
         public bool IsBreaking { get; private set; }
+        public StructureHealth TargetStructure => attackStructure;
 
         private readonly Dictionary<string, int> stolen = new Dictionary<string, int>();
         private List<Vector3> route = new List<Vector3>();
@@ -67,6 +70,7 @@ namespace SheltreSim.Raids
         private Vector3 movementSample;
         private float nextMovementSample;
         private float nextDefenceCheck;
+        private float nextSurfaceTargetCheck;
         private Collider attackCollider;
         private StructureHealth attackStructure;
         private InteractableDoor attackDoor;
@@ -78,17 +82,23 @@ namespace SheltreSim.Raids
         private int stealCount;
         private System.Random stealRandom;
         private EnemyAI jamPartner;
+        private Vector3 breachOutside = RaidRoute.GateOutside;
+        private Vector3 breachInside = RaidRoute.GateInside;
 
-        public void Setup(RaidVariant variant, int raidNumber, int seed)
+        public void Setup(RaidVariant variant, int raidNumber, int seed, int attackSide = 0, Vector3? breachOutside = null, Vector3? breachInside = null)
         {
             enemy = GetComponent<EnemyAI>();
             body = enemy.Body;
             Variant = variant;
             RaidNumber = raidNumber;
+            AttackSide = Mathf.Clamp(attackSide, 0, 3);
+            this.breachOutside = breachOutside ?? RaidRoute.GateOutside;
+            this.breachInside = breachInside ?? RaidRoute.GateInside;
             Spec = RaidVariantSpec.Of(variant);
             stealRandom = new System.Random(seed);
             enemy.SetBodySize(Spec.Scale, Spec.BodyRadius, Spec.BodyHeight);
-            enemy.Configure(Spec.Health, Spec.Speed, Spec.Damage, Spec.AttackCooldown, Spec.AttackWindup, Spec.AttackRange);
+            enemy.Configure(Spec.Health * RaidDirector.StatMultiplierFor(raidNumber), Spec.Speed,
+                Spec.Damage * RaidDirector.DamageMultiplierFor(raidNumber), Spec.AttackCooldown, Spec.AttackWindup, Spec.AttackRange);
             enemy.superArmor = Spec.SuperArmor;
             enemy.ApplyTint(Spec.Tint);
             enemy.SetBrain(this);
@@ -109,7 +119,7 @@ namespace SheltreSim.Raids
 
         private void FindPlayer()
         {
-            FirstPersonController controller = Object.FindFirstObjectByType<FirstPersonController>(FindObjectsInactive.Include);
+            FirstPersonController controller = FirstPersonController.Active;
             if (controller == null) return;
             player = controller.transform;
             playerBody = controller.GetComponent<CharacterController>();
@@ -170,6 +180,7 @@ namespace SheltreSim.Raids
             {
                 if (TickStructureAttack()) return;
             }
+            if (!RaidRoute.Underground(transform.position) && TickSurfaceAssetTarget()) return;
             if (Time.time >= nextDefenceCheck)
             {
                 nextDefenceCheck = Time.time + 1f;
@@ -181,6 +192,42 @@ namespace SheltreSim.Raids
             }
             TickRoute(distance);
         }
+
+        /// <summary>Nearby surface power, water and parked vehicle pieces draw attackers before they reach the bunker.</summary>
+        private bool TickSurfaceAssetTarget()
+        {
+            if (Time.time < nextSurfaceTargetCheck) return false;
+            nextSurfaceTargetCheck = Time.time + 0.5f;
+            StructureHealth target = NearestSurfaceAsset(transform.position, 24f);
+            if (target == null) return false;
+            Collider collider = target.GetComponentInChildren<Collider>();
+            if (collider == null) return false;
+            if (attackStructure != target) SetAttack(collider, target, null);
+            return TickStructureAttack();
+        }
+
+        private static StructureHealth NearestSurfaceAsset(Vector3 position, float radius)
+        {
+            StructureHealth best = null;
+            float bestDistance = radius * radius;
+            foreach (StructureHealth candidate in StructureHealth.All)
+            {
+                if (candidate == null || candidate.IsDestroyed || RaidRoute.Underground(candidate.transform.position)
+                    || candidate.GetComponent<IRaidIgnored>() != null || !IsSurfaceAsset(candidate)) continue;
+                float distance = (candidate.transform.position - position).sqrMagnitude;
+                if (distance >= bestDistance) continue;
+                Collider collider = candidate.GetComponentInChildren<Collider>();
+                if (collider == null || !RaidSight.Clear(position + Vector3.up, collider.bounds.center, null, candidate.transform)) continue;
+                bestDistance = distance;
+                best = candidate;
+            }
+            return best;
+        }
+
+        private static bool IsSurfaceAsset(StructureHealth structure) =>
+            structure.GetComponent<IPowerSource>() != null || structure.GetComponent<IPowerConsumer>() != null
+            || structure.GetComponent<IPowerStorage>() != null || structure.GetComponent<WaterCollectorPiece>() != null
+            || structure.GetComponent<RideableScoutBuggy>() != null || structure.GetComponent<RideableArmoredVan>() != null;
 
         /// <summary>Turrets within a few metres, in plain sight, are worth stopping for. Otherwise nothing ever shoots back at them.</summary>
         private bool FindDefenceNearby(out StructureHealth structure, out Collider collider)
@@ -241,7 +288,7 @@ namespace SheltreSim.Raids
             RaidTracer.Show(Muzzle, PlayerCenter, new Color(1f, 0.82f, 0.45f), 0.05f);
             if (playerStats == null) return;
             float before = playerStats.health;
-            playerStats.TakeDamage(Spec.RangedDamage);
+            playerStats.TakeDamage(Spec.RangedDamage * RaidDirector.DamageMultiplierFor(RaidNumber));
             if (before - playerStats.health > 0f)
             {
                 DamageDirection.Report(transform.position);
@@ -253,7 +300,7 @@ namespace SheltreSim.Raids
 
         private void RebuildRoute()
         {
-            route = routeOutward ? RaidRoute.Outward(transform.position) : RaidRoute.Inward(transform.position);
+            route = routeOutward ? RaidRoute.Outward(transform.position) : RaidRoute.Inward(transform.position, AttackSide, breachOutside, breachInside);
             routeIndex = 0;
             ResetProgress();
         }
@@ -356,6 +403,13 @@ namespace SheltreSim.Raids
 
         private void Walk(Vector3 destination, float stopDistance)
         {
+            bool guidedByStairs = BuildingStairNavigation.TryGetNextWaypoint(enemy.GetEntityId(), enemy.FeetPosition, destination, out Vector3 stairWaypoint);
+            if (guidedByStairs)
+            {
+                destination = stairWaypoint;
+                stopDistance = Mathf.Min(stopDistance, 0.35f);
+                State = "climbing stairs";
+            }
             Vector3 flat = Flat(destination - transform.position);
             if (flat.magnitude <= stopDistance)
             {
@@ -365,8 +419,16 @@ namespace SheltreSim.Raids
             if (Time.time >= nextSteer)
             {
                 nextSteer = Time.time + SteerInterval;
-                steering = Choose(flat.normalized);
-                if (attackCollider != null)
+                steering = guidedByStairs ? flat.normalized : Choose(flat.normalized);
+                // Keep the raid's deliberate structure/door breach target. When ordinary geometry
+                // has stopped the capsule long enough to be a real trap, use the shared bounded A* detour.
+                bool isBreachWaypoint = Flat(destination - breachOutside).sqrMagnitude < 1f
+                    || Flat(destination - breachInside).sqrMagnitude < 1f;
+                if (!guidedByStairs && attackCollider == null && attackStructure == null && attackDoor == null
+                    && !isBreachWaypoint
+                    && enemy.TryGetPathDirection(destination, out Vector3 pathDirection))
+                    steering = pathDirection;
+                if (attackCollider != null && !guidedByStairs)
                 {
                     // A blocker was found: stop and hit it next frame instead of sliding along it.
                     enemy.BrainMove(Vector3.zero);
@@ -540,7 +602,7 @@ namespace SheltreSim.Raids
             windingUp = false;
             nextStrike = Time.time + Spec.AttackCooldown;
             enemy.BrainPoseWeapon(-1f);
-            Strike(Spec.StructureDamage);
+            Strike(Spec.StructureDamage * RaidDirector.DamageMultiplierFor(RaidNumber));
             return true;
         }
 
@@ -587,8 +649,9 @@ namespace SheltreSim.Raids
             StructureHits++;
             InteractableDoor door = attackDoor;
             StructureHealth structure = attackStructure;
-            if (door != null) door.TakeRaidDamage(Spec.RangedDamage);
-            else if (structure != null) structure.TakeDamage(Spec.RangedDamage);
+            float damage = Spec.RangedDamage * RaidDirector.DamageMultiplierFor(RaidNumber);
+            if (door != null) door.TakeRaidDamage(damage);
+            else if (structure != null) structure.TakeDamage(damage);
         }
 
         // ---------- Being stuck ----------
@@ -654,7 +717,7 @@ namespace SheltreSim.Raids
                 float d = (c.bounds.ClosestPoint(position) - position).sqrMagnitude;
                 if (d < best) { best = d; collider = c; structure = candidate; door = null; }
             }
-            foreach (InteractableDoor candidate in Object.FindObjectsByType<InteractableDoor>(FindObjectsSortMode.None))
+            foreach (InteractableDoor candidate in InteractableDoor.Registry)
             {
                 if (candidate.IsOpen) continue;
                 Collider c = candidate.GetComponent<Collider>();

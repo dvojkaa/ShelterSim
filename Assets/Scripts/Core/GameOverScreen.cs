@@ -32,12 +32,12 @@ namespace SheltreSim.Core
             IsOpen = true;
             panel.SetActive(true);
             if (saveManager == null) saveManager = Object.FindFirstObjectByType<SaveManager>();
-            bool hasSave = saveManager != null && saveManager.HasSave;
+            bool hasSave = saveManager != null && saveManager.HasContinueSave;
             loadButton.interactable = hasSave;
             detailLabel.text = hasSave
-                ? "Your shelter is still out there. Load your last save to continue,\nor restart from the preparation phase."
-                : "Start again, prepare supplies and build a Water Collector.\nSave with F5 so your next run has a way back.";
-            statusLabel.text = hasSave ? "F9 also loads your last saved game." : "No saved game available.";
+                ? "Your shelter is still out there. Continue from your latest save,\nor start a fresh run from the main menu."
+                : "Start again from the main menu and prepare a new run.\nF5 keeps a manual save alongside autosaves.";
+            statusLabel.text = hasSave ? "F9 loads the manual F5 save." : "No saved game available.";
         }
 
         /// <summary>RestoreVitals and validated loads use this to release death ownership.</summary>
@@ -66,16 +66,16 @@ namespace SheltreSim.Core
                 new Vector2(748f, 66f), 50, bold: true);
             detailLabel = GameUI.Label(card, "Details", string.Empty, TopLeft, TopLeft,
                 new Vector2(36f, -160f), new Vector2(748f, 86f), 21, GameUI.Muted);
-            loadButton = GameUI.Button(card, "LoadButton", "Load saved game", TopLeft, TopLeft,
-                new Vector2(36f, -276f), new Vector2(356f, 58f), () => { saveManager?.TryLoad(); }, true);
-            GameUI.Button(card, "RestartButton", "Restart from beginning", TopLeft, TopLeft,
+            loadButton = GameUI.Button(card, "LoadButton", "Continue from save", TopLeft, TopLeft,
+                new Vector2(36f, -276f), new Vector2(356f, 58f), () => { saveManager?.TryLoadContinue(); }, true);
+            GameUI.Button(card, "RestartButton", "New game", TopLeft, TopLeft,
                 new Vector2(428f, -276f), new Vector2(356f, 58f), RestartGame);
+            GameUI.Button(card, "MainMenuButton", "Main menu", TopLeft, TopLeft,
+                new Vector2(36f, -424f), new Vector2(356f, 50f), ReturnToMainMenu);
             statusLabel = GameUI.Label(card, "LoadStatus", string.Empty, TopLeft, TopLeft,
-                new Vector2(36f, -364f), new Vector2(748f, 66f), 19, GameUI.Accent);
-            GameUI.Label(card, "RestartHint", "Restart creates a fresh run. Your saved game is kept.", TopLeft, TopLeft,
-                new Vector2(36f, -448f), new Vector2(748f, 30f), 17, GameUI.Muted);
+                new Vector2(36f, -364f), new Vector2(748f, 48f), 19, GameUI.Accent);
             GameUI.Button(card, "QuitButton", "Quit", TopLeft, TopLeft,
-                new Vector2(36f, -494f), new Vector2(160f, 44f), QuitGame);
+                new Vector2(428f, -424f), new Vector2(160f, 50f), QuitGame);
             panel.SetActive(false);
         }
 
@@ -98,6 +98,12 @@ namespace SheltreSim.Core
             Show();
             statusLabel.text = "This scene is missing from the build. Load a save or quit.";
 #endif
+        }
+
+        private void ReturnToMainMenu()
+        {
+            Hide();
+            MainMenuController.ReturnToMenu();
         }
 
         private void QuitGame()

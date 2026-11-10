@@ -131,6 +131,22 @@ namespace SheltreSim.Crafting
             return name;
         }
 
+        /// <summary>Item id of the best owned tool of this type, or null if none is owned.</summary>
+        public string BestOwnedToolId(ToolKind kind)
+        {
+            Bind();
+            if (kind == ToolKind.None || inventory == null) return null;
+            int bestTier = 0;
+            string bestId = null;
+            foreach (ItemSpec spec in ItemCatalog.All)
+            {
+                if (spec.tool != kind || inventory.GetCount(spec.id) < 1 || spec.tier <= bestTier) continue;
+                bestTier = spec.tier;
+                bestId = spec.id;
+            }
+            return bestId;
+        }
+
         public string Equipped(GearSlot slot) => slot == GearSlot.Weapon ? weaponId : slot == GearSlot.Armor ? armorId : slot == GearSlot.Coat ? coatId : slot == GearSlot.Ranged ? rangedId : "";
 
         public bool IsEquipped(string id) => !string.IsNullOrEmpty(id) && (id == weaponId || id == armorId || id == coatId || id == rangedId);

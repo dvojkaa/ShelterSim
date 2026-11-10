@@ -43,6 +43,7 @@ namespace SheltreSim.Crafting
     {
         private static readonly List<Recipe> all = new List<Recipe>();
         private static readonly Dictionary<string, Recipe> byId = new Dictionary<string, Recipe>();
+        public static event Action<StationKind> StationCrafted;
         public static IReadOnlyList<Recipe> All => all;
         public static Recipe Get(string id) => id != null && byId.TryGetValue(id, out var r) ? r : null;
 
@@ -284,6 +285,7 @@ namespace SheltreSim.Crafting
             var name = ItemCatalog.NameOf(recipe.output);
             if (!CraftingSystem.TrySpend(inventory, recipe.ToCost(times))) { message = $"Not enough materials for {name}."; return false; }
             inventory.Add(recipe.output, recipe.outputAmount * times);
+            if (recipe.station != StationKind.Hand) StationCrafted?.Invoke(recipe.station);
             message = $"Crafted {recipe.outputAmount * times} {name}.";
             return true;
         }
@@ -306,6 +308,7 @@ namespace SheltreSim.Crafting
         {
             var errors = new List<string>();
             var raw = new HashSet<string>(ItemCatalog.GatheredSources);
+            foreach (string id in ItemCatalog.NonCraftedSources) raw.Add(id);
             foreach (var id in LootTables.AllItemIds()) raw.Add(id);
             foreach (var id in raw) if (!ItemCatalog.Exists(id)) errors.Add("raw source with unknown item: " + id);
             foreach (var t in LootTables.TableNames) if (!LootTables.Has(t)) errors.Add("missing loot table " + t);

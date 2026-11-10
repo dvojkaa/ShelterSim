@@ -1,3 +1,4 @@
+using System;
 using SheltreSim.Player;
 using UnityEngine;
 
@@ -14,6 +15,8 @@ namespace SheltreSim.World
         private Transform player;
         private Transform[] legs;
         private Transform[] wings;
+        private Quaternion[] limbRestRotations;
+        private readonly RaycastHit[] movementHits = new RaycastHit[24];
         private Vector3 destination;
         private float decisionTimer, animationTime;
         private float birdAltitude;
@@ -49,9 +52,15 @@ namespace SheltreSim.World
                 if (species == 2) go.transform.position += Vector3.up * actor.birdAltitude;
                 actor.decisionTimer = (float)actor.random.NextDouble() * 3f;
                 actor.destination = go.transform.position;
-                actor.BuildBody(ChooseMaterial(assets, biome));
+                actor.BuildBody(ChooseMaterial(assets, biome), ModelFor(assets, species));
                 actor.MakeHuntable();
             }
+        }
+
+        private static GameObject ModelFor(ProceduralWorldAssets assets, int species)
+        {
+            if (assets == null) return null;
+            return species == 0 ? assets.wildlifeDeer : species == 1 ? assets.wildlifeBoar : assets.wildlifeCrow;
         }
 
         private static Material ChooseMaterial(ProceduralWorldAssets assets, int biome)
@@ -68,7 +77,7 @@ namespace SheltreSim.World
             if (controller != null) playerStats = controller.GetComponent<SheltreSim.Survival.SurvivalStats>();
         }
 
-        /// <summary>Adds a hit collider and health to deer and boar. Birds stay unhittable.</summary>
+        /// <summary>Adds a vertical, body-sized solid collider and health to deer and boar. Birds stay nonblocking.</summary>
         public void MakeHuntable()
         {
             if (species == 2 || GetComponent<Collider>() != null) return;
@@ -76,10 +85,12 @@ namespace SheltreSim.World
             var body = gameObject.AddComponent<Rigidbody>();
             body.isKinematic = true;
             var capsule = gameObject.AddComponent<CapsuleCollider>();
-            capsule.direction = 2;
-            capsule.radius = species == 0 ? .4f : .38f;
-            capsule.height = 1.5f;
-            capsule.center = new Vector3(0f, species == 0 ? 1.1f : .58f, .1f);
+            // CapsuleCollider.direction is an axis index: 2 means Z, which made the old
+            // "animal" capsule lie along its nose and only block the player's shins.
+            capsule.direction = 1;
+            capsule.radius = species == 0 ? .38f : .36f;
+            capsule.height = species == 0 ? 1.9f : 1.2f;
+            capsule.center = new Vector3(0f, species == 0 ? .98f : .62f, species == 0 ? .02f : .04f);
         }
 
         /// <summary>Test hook: puts the animal in a known place and state.</summary>
@@ -140,8 +151,37 @@ namespace SheltreSim.World
             Destroy(gameObject);
         }
 
-        private void BuildBody(Material material)
+        private void BuildBody(Material material, GameObject model = null)
         {
+            if (model != null)
+            {
+                Transform visual = Instantiate(model, transform, false).transform;
+                visual.name = "Visual_" + SpeciesName;
+                // The crow mesh is authored around its body centre; its feet sit 0.15 m below that origin.
+                if (species == 2) visual.localPosition = Vector3.up * 0.15f;
+                if (material != null)
+                {
+                    var block = new MaterialPropertyBlock();
+                    block.SetColor("_Color", material.color);
+                    block.SetColor("_BaseColor", material.color);
+                    foreach (Renderer renderer in visual.GetComponentsInChildren<Renderer>(true)) renderer.SetPropertyBlock(block);
+                }
+
+                if (species == 2)
+                {
+                    wings = new[] { FindPart(visual, "Wing_L"), FindPart(visual, "Wing_R") };
+                    limbRestRotations = RestRotations(wings);
+                }
+                else
+                {
+                    // C3 models use semantic fore/hind leg names (the older cube rig used Leg_FL etc.).
+                    legs = new[] { FindPart(visual, "Foreleg_L"), FindPart(visual, "Foreleg_R"),
+                        FindPart(visual, "Hindleg_L"), FindPart(visual, "Hindleg_R") };
+                    limbRestRotations = RestRotations(legs);
+                }
+                return;
+            }
+
             if (species == 2)
             {
                 Part("Body", new Vector3(0f, 0f, 0f), new Vector3(.22f, .20f, .48f), material);
@@ -157,6 +197,7 @@ namespace SheltreSim.World
                     Part("Wing", new Vector3(side * .25f, 0f, 0f), new Vector3(.54f, .045f, .26f), material, pivot);
                     wings[i] = pivot;
                 }
+                limbRestRotations = RestRotations(wings);
                 return;
             }
             bool deer = species == 0;
@@ -187,7 +228,22 @@ namespace SheltreSim.World
                 Part("Leg", new Vector3(0f, -length * .5f, 0f), new Vector3(.13f, length, .13f), material, pivot);
                 legs[i] = pivot;
             }
+            limbRestRotations = RestRotations(legs);
             Part("Tail", new Vector3(0f, bodyHeight + .05f, -.67f), new Vector3(.12f, .13f, .3f), material);
+        }
+
+        private static Transform FindPart(Transform root, string partName)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+                if (child.name == partName) return child;
+            return null;
+        }
+
+        private static Quaternion[] RestRotations(Transform[] parts)
+        {
+            var result = new Quaternion[parts.Length];
+            for (int i = 0; i < parts.Length; i++) result[i] = parts[i] != null ? parts[i].localRotation : Quaternion.identity;
+            return result;
         }
 
         private void Part(string name, Vector3 position, Vector3 scale, Material material, Transform parent = null)
@@ -247,7 +303,11 @@ namespace SheltreSim.World
             {
                 Vector3 proposed = ClampToChunk(position + offset.normalized * Mathf.Min(speed * dt, offset.magnitude));
                 if (!WorldLayout.IsHomePlot(proposed.x, proposed.z) && !WorldLayout.IsRoad(proposed.x, proposed.z, 2f))
-                    position = proposed;
+                {
+                    Vector3 movement = proposed - position;
+                    position += SweepBody(movement);
+                    if ((proposed - position).sqrMagnitude > .0004f) decisionTimer = 0f;
+                }
                 else decisionTimer = 0f;
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(offset), dt * 5f);
             }
@@ -256,10 +316,37 @@ namespace SheltreSim.World
             transform.position = position;
             if (legs != null)
                 for (int i = 0; i < legs.Length; i++)
-                    legs[i].localRotation = Quaternion.Euler(moving ? Mathf.Sin(animationTime + (i == 0 || i == 3 ? 0f : Mathf.PI)) * 24f : 0f, 0f, 0f);
+                    if (legs[i] != null) legs[i].localRotation = limbRestRotations[i] * Quaternion.Euler(moving ? Mathf.Sin(animationTime + (i == 0 || i == 3 ? 0f : Mathf.PI)) * 24f : 0f, 0f, 0f);
             if (wings != null)
                 for (int i = 0; i < wings.Length; i++)
-                    wings[i].localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(animationTime) * (i == 0 ? 32f : -32f));
+                    if (wings[i] != null) wings[i].localRotation = limbRestRotations[i] * Quaternion.Euler(0f, 0f, Mathf.Sin(animationTime) * (i == 0 ? 32f : -32f));
+        }
+
+        /// <summary>Move huntable wildlife only as far as its solid capsule can travel without crossing a collider.</summary>
+        private Vector3 SweepBody(Vector3 movement)
+        {
+            CapsuleCollider capsule = GetComponent<CapsuleCollider>();
+            float distance = movement.magnitude;
+            if (capsule == null || distance <= .0001f) return movement;
+
+            Vector3 scale = transform.lossyScale;
+            float radius = capsule.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+            float height = Mathf.Max(capsule.height * Mathf.Abs(scale.y), radius * 2f);
+            Vector3 center = transform.TransformPoint(capsule.center) + Vector3.up * .04f;
+            Vector3 halfAxis = Vector3.up * Mathf.Max(0f, height * .5f - radius);
+            Vector3 bottom = center - halfAxis;
+            Vector3 top = center + halfAxis;
+            int count = Physics.CapsuleCastNonAlloc(bottom, top, radius, movement / distance, movementHits,
+                distance, ~0, QueryTriggerInteraction.Ignore);
+            float allowedDistance = distance;
+            for (int i = 0; i < count; i++)
+            {
+                Collider hitCollider = movementHits[i].collider;
+                if (hitCollider == null || hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform)) continue;
+                allowedDistance = Mathf.Min(allowedDistance, Mathf.Max(0f, movementHits[i].distance - .035f));
+            }
+            Array.Clear(movementHits, 0, count);
+            return movement / distance * allowedDistance;
         }
 
         private Vector3 ClampToChunk(Vector3 position)

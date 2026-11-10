@@ -5,6 +5,7 @@ using SheltreSim.Power;
 using SheltreSim.Saving;
 using SheltreSim.Storage;
 using SheltreSim.UI;
+using SheltreSim.World;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,9 +13,9 @@ using UnityEngine;
 namespace SheltreSim.Building
 {
     /// <summary>
-    /// Farm Plot: plant a seed (E), wait, harvest vegetables and a few seeds back. A simple timer like
-    /// WaterCollectorPiece. Save with Capture/Restore (state 0 empty, 1 growing, 2 ready). Fertilizer and a powered
-    /// Irrigator each double the growth speed. Fertilizer lasts for one crop and is saved through IPieceState.
+    /// Farm Plot: plant a seed (E), wait, harvest vegetables and a few seeds back. Indoor plots need a powered
+    /// light, outdoor plots grow only during daylight and raiders can destroy a growing crop. Save with
+    /// Capture/Restore (state 0 empty, 1 growing, 2 ready). Fertilizer and a powered Irrigator each double growth.
     /// </summary>
     public class FarmPlot : MonoBehaviour, IInteractable, IPieceState
     {
@@ -27,13 +28,20 @@ namespace SheltreSim.Building
         /// <summary>Every enabled plot, for automation.</summary>
         public static IReadOnlyList<FarmPlot> All => all;
 
-        [Min(1f)] public float growSeconds = 240f;
-        public int vegetableYield = 3;
+        [Min(1f)] public float growSeconds = 3600f;
+        public int vegetableYield = 2;
         public int seedYield = 1;
+        public float growLightRange = 9f;
+        public float raidRadius = 2.5f;
 
         private int state;
         private float elapsed;
         private bool fertilized;
+        private float nextRaidCheck;
+        private float nextEnvironmentCheck;
+        private bool raiderNearby;
+        private bool environmentIsOutdoor;
+        private bool environmentAllowsGrowth;
 
         [Serializable]
         private class PieceState { public bool fertilized; }
@@ -54,7 +62,8 @@ namespace SheltreSim.Building
             }
         }
 
-        private int SecondsLeft => Mathf.CeilToInt(Mathf.Max(0f, growSeconds - elapsed) / SpeedMultiplier);
+        private float CropDuration => Mathf.Max(1f, growSeconds);
+        private int SecondsLeft => Mathf.CeilToInt(Mathf.Max(0f, CropDuration - elapsed) / SpeedMultiplier);
 
         public string InteractPrompt => state == Empty ? "Press E to plant a Seed"
             : state == Growing ? $"Crops growing... ({SecondsLeft}s{(SpeedMultiplier > 1f ? $", x{SpeedMultiplier:0} speed" : "")}){(fertilized ? "" : ". Press E to use Fertilizer")}"
@@ -65,6 +74,16 @@ namespace SheltreSim.Building
 
         private void OnEnable() { if (!all.Contains(this)) all.Add(this); }
         private void OnDisable() => all.Remove(this);
+
+        private void Awake()
+        {
+            // Migrate the old serialized prefab defaults. Keep authored/custom plot values intact.
+            if (Mathf.Approximately(growSeconds, 240f) && vegetableYield == 3)
+            {
+                growSeconds = 3600f;
+                vegetableYield = 2;
+            }
+        }
 
         public string CapturePieceState() => state == Growing && fertilized ? JsonUtility.ToJson(new PieceState { fertilized = true }) : null;
 
@@ -81,20 +100,96 @@ namespace SheltreSim.Building
         public void RestoreState(int savedState, float growElapsed)
         {
             state = Mathf.Clamp(savedState, Empty, Ready);
-            elapsed = state == Growing && !float.IsNaN(growElapsed) && !float.IsInfinity(growElapsed) ? Mathf.Clamp(growElapsed, 0f, growSeconds) : 0f;
+            elapsed = state == Growing && !float.IsNaN(growElapsed) && !float.IsInfinity(growElapsed) ? Mathf.Clamp(growElapsed, 0f, CropDuration) : 0f;
             fertilized = false; // SaveManager restores the piece state after this.
         }
 
         public void Restore(int savedState, float growElapsed) => RestoreState(savedState, growElapsed);
 
-        private void Update() => AdvanceGrowth(Time.deltaTime);
+        private void Update()
+        {
+            if (state != Growing) return;
+            if (Time.time >= nextEnvironmentCheck)
+            {
+                nextEnvironmentCheck = Time.time + 0.5f;
+                environmentIsOutdoor = IsOutdoor;
+                if (environmentIsOutdoor && IsRaiderNear())
+                {
+                    // Raids can wipe an exposed crop without destroying the plot itself.
+                    state = Empty;
+                    elapsed = 0f;
+                    fertilized = false;
+                    return;
+                }
+                environmentAllowsGrowth = environmentIsOutdoor ? IsDaylightAvailable() : HasPoweredGrowLight();
+            }
+            if (environmentIsOutdoor && IsRaiderNear())
+            {
+                // Raids can wipe an exposed crop without destroying the plot itself.
+                state = Empty;
+                elapsed = 0f;
+                fertilized = false;
+                return;
+            }
+            if (environmentAllowsGrowth) AdvanceGrowth(Time.deltaTime);
+        }
 
         /// <summary>Game time only. Public so a probe can drive the exact same code in fixed steps.</summary>
         public void AdvanceGrowth(float seconds)
         {
             if (state != Growing) return;
             elapsed += seconds * SpeedMultiplier;
-            if (elapsed >= growSeconds) { state = Ready; elapsed = 0f; fertilized = false; }
+            if (elapsed >= CropDuration) { state = Ready; elapsed = 0f; fertilized = false; }
+        }
+
+        /// <summary>True for hours with direct sun, matching the world's solar window.</summary>
+        public static bool IsDaylightHour(float hour) => hour > 5f && hour < 19f;
+
+        private bool IsDaylightAvailable()
+        {
+            WorldAtmosphere atmosphere = FindFirstObjectByType<WorldAtmosphere>();
+            return atmosphere != null && IsDaylightHour(atmosphere.Hour);
+        }
+
+        private bool HasPoweredGrowLight()
+        {
+            LightPiece[] lights = FindObjectsByType<LightPiece>(FindObjectsSortMode.None);
+            float radius = Mathf.Max(0f, growLightRange);
+            for (int i = 0; i < lights.Length; i++)
+                if (lights[i] != null && lights[i].isActiveAndEnabled && lights[i].PowerRunning
+                    && (lights[i].transform.position - transform.position).sqrMagnitude <= radius * radius)
+                    return true;
+            return false;
+        }
+
+        private bool IsOutdoor
+        {
+            get
+            {
+                if (WorldLayout.UndergroundAmount(transform.position + Vector3.up * 0.5f) > 0.5f) return false;
+                RaycastHit[] hits = Physics.RaycastAll(transform.position + Vector3.up * 0.5f, Vector3.up, 8f,
+                    ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < hits.Length; i++)
+                    if (hits[i].transform != transform && !hits[i].transform.IsChildOf(transform)) return false;
+                return true;
+            }
+        }
+
+        private bool IsRaiderNear()
+        {
+            if (Time.time < nextRaidCheck) return raiderNearby;
+            nextRaidCheck = Time.time + 0.5f;
+            raiderNearby = false;
+            float radius = Mathf.Max(0f, raidRadius);
+            SheltreSim.Enemies.EnemyAI[] enemies = FindObjectsByType<SheltreSim.Enemies.EnemyAI>(FindObjectsSortMode.None);
+            for (int i = 0; i < enemies.Length; i++)
+                if (enemies[i] != null && enemies[i].isActiveAndEnabled && enemies[i].health > 0f
+                    && (enemies[i].transform.position - transform.position).sqrMagnitude <= radius * radius)
+                {
+                    raiderNearby = true;
+                    break;
+                }
+            return raiderNearby;
         }
 
         /// <summary>Harvests a ready crop into the nearest crate in reach. Without one the crop stays ready.</summary>

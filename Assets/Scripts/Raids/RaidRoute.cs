@@ -58,6 +58,15 @@ namespace SheltreSim.Raids
             return route;
         }
 
+        /// <summary>Uses the selected, validated surface breach before joining the ordinary stair path.</summary>
+        public static List<Vector3> Inward(Vector3 from, int side, Vector3 breachOutside, Vector3 breachInside)
+        {
+            if (side == 0 || InLot(from)) return Inward(from);
+            var route = new List<Vector3> { breachOutside, breachInside };
+            route.AddRange(Inward(breachInside));
+            return route;
+        }
+
         /// <summary>From the room or shaft back out to the surface.</summary>
         public static List<Vector3> Outward(Vector3 from)
         {

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using SheltreSim.Saving;
 using UnityEngine;
 
@@ -12,6 +13,7 @@ namespace SheltreSim.Building
     /// </summary>
     public class BuildModeController : MonoBehaviour
     {
+        public static event Action PiecePlaced;
         public Camera raycastCamera;
         public LayerMask groundMask = ~0;
         public float placementRange = 12f;
@@ -241,6 +243,7 @@ namespace SheltreSim.Building
             }
             Physics.SyncTransforms();
             HomesteadWorldGuard.ClearFootprint(placed);
+            PiecePlaced?.Invoke();
             SheltreSim.UI.GameMessageBus.Post($"Placed {piece.displayName}.");
             RefreshPlacement();
             return true;

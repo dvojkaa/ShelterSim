@@ -13,6 +13,7 @@ namespace SheltreSim.World
         private Text status, supplies;
         private Text[] descriptions = new Text[3];
         private Button[] buttons = new Button[3];
+        private Button convoyButton;
         private bool open, closeRequested;
         private InputAction cancel;
         private void Awake() => cancel = new InputAction("CloseUpgrades", InputActionType.Button, "<Keyboard>/escape");
@@ -27,7 +28,7 @@ namespace SheltreSim.World
             if (canvas == null) BuildUI();
             open = true;
             canvas.gameObject.SetActive(true);
-            status.text = "Recover parts from landmarks. Explore further, return better equipped.";
+            status.text = "Recover parts from landmarks. Install upgrades, then contact the radio trader after rescue.";
             Refresh();
         }
         private void BuildUI()
@@ -44,6 +45,7 @@ namespace SheltreSim.World
                 descriptions[i]=GameUI.Label(row,"Description","",new Vector2(0,1),new Vector2(0,1),new Vector2(16,-5),new Vector2(600,118),16);
                 buttons[i]=GameUI.Button(row,"Install","INSTALL",new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-16,0),new Vector2(185,50),()=>Buy(index));
             }
+            convoyButton=GameUI.Button(p,"ConvoyCache","RADIO TRADER",new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,118),new Vector2(300,40),BuyConvoyCache);
             status=GameUI.Label(p,"Status","",new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,66),new Vector2(820,58),18,GameUI.Muted,TextAnchor.MiddleCenter);
             GameUI.Button(p,"Close","CLOSE [ESC]",new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,14),new Vector2(240,42),Close);
         }
@@ -53,11 +55,18 @@ namespace SheltreSim.World
             status.text=result;
             Refresh();
         }
+        private void BuyConvoyCache()
+        {
+            ExpeditionProgression.Active.TryRequestConvoyCache(out string result);
+            status.text=result;
+            Refresh();
+        }
         private void Refresh()
         {
             var p=ExpeditionProgression.Active;
             var inv=p.GetComponent<SheltreSim.Items.Inventory>();
-            supplies.text=$"Landmarks discovered: {p.DiscoveryCount}   /   Expedition parts: {inv.GetCount(p.expeditionParts.id)}";
+            string partsId=p.expeditionParts!=null?p.expeditionParts.id:"expedition_parts";
+            supplies.text=$"Landmarks discovered: {p.DiscoveryCount}   /   Expedition parts: {inv.GetCount(partsId)}";
             for(int i=0;i<3;i++)
             {
                 var cost=p.UpgradeCost(i);
@@ -72,6 +81,11 @@ namespace SheltreSim.World
                 buttons[i].interactable=!p.HasUpgrade(i)&&p.DiscoveryCount>=i+1&&SheltreSim.Crafting.CraftingSystem.TryAfford(inv,cost);
                 buttons[i].GetComponentInChildren<Text>().text=p.HasUpgrade(i)?"INSTALLED":"INSTALL";
             }
+            bool traderReady=SheltreSim.Objectives.ObjectiveTracker.Victory&&(p.UpgradeMask&7)==7;
+            convoyButton.interactable=traderReady&&inv.GetCount(partsId)>=ExpeditionProgression.ConvoyCachePartCost;
+            convoyButton.GetComponentInChildren<Text>().text=traderReady
+                ? $"RADIO CACHE • {ExpeditionProgression.ConvoyCachePartCost} PARTS"
+                : SheltreSim.Objectives.ObjectiveTracker.Victory?"INSTALL ALL UPGRADES FIRST":"UNLOCK AFTER RESCUE";
         }
         private void LateUpdate() { if(closeRequested) Close(); }
         public void Close()

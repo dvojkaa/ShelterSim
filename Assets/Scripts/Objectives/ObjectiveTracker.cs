@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using SheltreSim.Audio;
+using SheltreSim.Building;
 using SheltreSim.Core;
+using SheltreSim.Crafting;
 using SheltreSim.Items;
 using SheltreSim.Player;
+using SheltreSim.Power;
 using SheltreSim.Saving;
 using SheltreSim.Survival;
 using SheltreSim.UI;
@@ -40,6 +43,7 @@ namespace SheltreSim.Objectives
             public string relayLocated, relayRepaired;
             public bool relayRewarded;
             public bool victory;
+            public bool tutorialDrankWater, tutorialCraftedAtStation, tutorialPlacedPiece, tutorialVisitedTown, tutorialManualSaved;
             public List<string> revealed = new List<string>();
         }
 
@@ -55,6 +59,8 @@ namespace SheltreSim.Objectives
         private GameStateManager gameState;
         private float nextRefresh;
         private int checkedDiscoveries = -1;
+        private float lastObservedThirst = -1f;
+        private bool manualSaveBeforeAttempt;
 
         public static ObjectiveTracker Instance => instance;
         public static bool Victory => instance != null && instance.state.victory;
@@ -108,6 +114,56 @@ namespace SheltreSim.Objectives
             SaveableSystems.Register(this);
         }
 
+        private void OnEnable()
+        {
+            RecipeBook.StationCrafted += OnStationCrafted;
+            BuildModeController.PiecePlaced += OnTutorialPiecePlaced;
+            SaveManager.ManualSaveStarted += OnManualSaveStarted;
+            SaveManager.ManualSaveFinished += OnManualSaveFinished;
+        }
+
+        private void OnDisable()
+        {
+            RecipeBook.StationCrafted -= OnStationCrafted;
+            BuildModeController.PiecePlaced -= OnTutorialPiecePlaced;
+            SaveManager.ManualSaveStarted -= OnManualSaveStarted;
+            SaveManager.ManualSaveFinished -= OnManualSaveFinished;
+        }
+
+        private void OnStationCrafted(StationKind station)
+        {
+            if (station == StationKind.Hand || state.tutorialCraftedAtStation || !IsSurvivalPhase()) return;
+            state.tutorialCraftedAtStation = true;
+            nextRefresh = 0f;
+        }
+
+        private void OnTutorialPiecePlaced()
+        {
+            if (state.tutorialPlacedPiece || !IsSurvivalPhase()) return;
+            state.tutorialPlacedPiece = true;
+            nextRefresh = 0f;
+        }
+
+        private void OnManualSaveStarted()
+        {
+            manualSaveBeforeAttempt = state.tutorialManualSaved;
+            if (!IsSurvivalPhase()) return;
+            state.tutorialManualSaved = true;
+            nextRefresh = 0f;
+        }
+
+        private void OnManualSaveFinished(bool saved)
+        {
+            if (!saved) state.tutorialManualSaved = manualSaveBeforeAttempt;
+            nextRefresh = 0f;
+        }
+
+        private bool IsSurvivalPhase()
+        {
+            if (gameState == null) gameState = FindFirstObjectByType<GameStateManager>();
+            return gameState != null && gameState.CurrentPhase == GamePhase.Survival;
+        }
+
         private void OnDestroy()
         {
             SaveableSystems.Unregister(this);
@@ -130,6 +186,7 @@ namespace SheltreSim.Objectives
                 float.IsInfinity(state.waypointX) || float.IsInfinity(state.waypointZ)) state.hasWaypoint = false;
             checkedDiscoveries = -1;
             nextRefresh = 0f;
+            lastObservedThirst = -1f;
         }
 
         public void SetWaypoint(Vector3 position, string title, string landmarkId = null)
@@ -329,6 +386,49 @@ namespace SheltreSim.Objectives
             return string.Join("\n", lines);
         }
 
+        /// <summary>Short, state-derived preparation checklist shown before the bombs.</summary>
+        private string OpeningChecklistText()
+        {
+            HomeBase home = HomeBase.Active;
+            GamePhase phase = gameState != null ? gameState.CurrentPhase : GamePhase.Building;
+            if (phase == GamePhase.Apocalypse)
+            {
+                bool underground = player != null && WorldLayout.UndergroundAmount(player.position + Vector3.up) > .5f;
+                return underground
+                    ? "OPENING 5/5  •  Shelter reached\nStay below until the blast passes."
+                    : "OPENING 5/5  •  GET UNDERGROUND\nThe blast is inbound. Follow the bunker stairs now.";
+            }
+            if (phase != GamePhase.Building) return string.Empty;
+            if (home == null || !home.HasContract)
+                return "OPENING 1/5  •  Sign the bunker contract at the site terminal.";
+
+            int water = inventory != null ? inventory.GetCount("bottled_water") + inventory.GetCount("water") : 0;
+            int food = inventory != null ? inventory.GetCount("canned_food") + inventory.GetCount("food_berries") : 0;
+            if (home.supplyCage != null)
+            {
+                water += home.supplyCage.GetCount("bottled_water") + home.supplyCage.GetCount("water");
+                food += home.supplyCage.GetCount("canned_food");
+            }
+            bool waterReady = water > 0 || FindFirstObjectByType<WaterCollectorPiece>() != null;
+            if (!waterReady || food <= 0)
+                return $"OPENING 2/5  •  Prepare food and clean water.\nReady: food {(food > 0 ? "✓" : "—")}  /  water {(waterReady ? "✓" : "—")}.";
+
+            if (home.IsSealing)
+                return "OPENING 4/5  •  Life support is being installed.\nHead underground and wait for the bunker to finish.";
+            if (home.CanSeal)
+                return "OPENING 4/5  •  Seal the bunker at the terminal.\nThen head downstairs before the blast.";
+
+            bool powerReady = home.PurchaseCount("kit_generator") > 0 || home.PurchaseCount("solar_array") > 0 ||
+                FindFirstObjectByType<GeneratorPiece>() != null || FindFirstObjectByType<SolarPanelPiece>() != null;
+            if (!powerReady && home.CompletedStages == 0 && !home.CanSeal)
+                return "OPENING 3/5  •  Optional: buy a generator or solar array.\nYou can also start without base power and scavenge it later.";
+
+            string stage = home.IsBuilding && home.CompletedStages < HomeBase.Stages.Length
+                ? HomeBase.Stages[home.CompletedStages].name
+                : "bunker construction";
+            return $"OPENING 4/5  •  Finish {stage}, then seal the bunker.";
+        }
+
         private void FindPlayer()
         {
             if (player != null) return;
@@ -348,12 +448,42 @@ namespace SheltreSim.Objectives
             bool alive = stats == null || !stats.IsDead;
             if (gameState == null) gameState = FindFirstObjectByType<GameStateManager>();
             bool survival = gameState == null || gameState.CurrentPhase == GamePhase.Survival;
+            if (survival && Time.timeScale > 0f) ObserveOpeningTutorial();
             if (alive && survival && Time.timeScale > 0f)
             {
                 NoticeDiscoveredOutpost();
                 CheckArrival();
             }
             RefreshHud(survival);
+        }
+
+        private void ObserveOpeningTutorial()
+        {
+            if (stats != null)
+            {
+                if (lastObservedThirst >= 0f && stats.thirst > lastObservedThirst + .1f)
+                    state.tutorialDrankWater = true;
+                lastObservedThirst = stats.thirst;
+            }
+            if (!state.tutorialVisitedTown && player != null &&
+                Vector2.Distance(new Vector2(player.position.x, player.position.z),
+                    new Vector2(WorldLayout.BunkerCenter.x, WorldLayout.BunkerCenter.z)) > 250f)
+            {
+                ProceduralWorld world = ProceduralWorld.Active;
+                if (world != null && WorldLayout.IsTownChunk(WorldLayout.Coordinate(player.position), world.Seed))
+                    state.tutorialVisitedTown = true;
+            }
+        }
+
+        private string PostBombTutorialText()
+        {
+            if (state.tutorialDrankWater && state.tutorialCraftedAtStation && state.tutorialPlacedPiece &&
+                state.tutorialVisitedTown && state.tutorialManualSaved) return string.Empty;
+            if (!state.tutorialDrankWater) return "SURVIVAL 1/5  •  Drink clean water from your inventory or quick slot.";
+            if (!state.tutorialCraftedAtStation) return "SURVIVAL 2/5  •  Craft an item at a workbench, stove, or other station.";
+            if (!state.tutorialPlacedPiece) return "SURVIVAL 3/5  •  Press B, choose a build piece, and place it.";
+            if (!state.tutorialVisitedTown) return "SURVIVAL 4/5  •  Explore beyond the homestead and enter a town.";
+            return "SURVIVAL 5/5  •  Save your run with F5.";
         }
 
         // Walking into an outpost finds it just as well as the radio does.
@@ -396,14 +526,15 @@ namespace SheltreSim.Objectives
                 text.Append("<color=#A1DEA8><b>WAYPOINT</b>  ").Append(WaypointTitle).Append("\n")
                     .Append(direction.magnitude.ToString("0")).Append(" m ").Append(Bearing(player.forward, direction)).Append("</color>");
             }
-            string goal = survival ? GoalText() : "";
+            string tutorial = survival ? PostBombTutorialText() : string.Empty;
+            string goal = survival ? (tutorial.Length > 0 ? tutorial : GoalText()) : OpeningChecklistText();
             if (goal.Length > 0)
             {
                 if (text.Length > 0) text.Append('\n');
                 text.Append(goal);
             }
             label.text = text.ToString();
-            panel.SetActive(survival && text.Length > 0);
+            panel.SetActive((survival || !string.IsNullOrEmpty(goal)) && text.Length > 0);
         }
 
         private void BuildHud()

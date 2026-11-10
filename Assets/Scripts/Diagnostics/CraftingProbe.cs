@@ -10,6 +10,7 @@ using SheltreSim.Crafting;
 using SheltreSim.Items;
 using SheltreSim.Player;
 using SheltreSim.Survival;
+using SheltreSim.Storage;
 using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
@@ -51,6 +52,8 @@ namespace SheltreSim.Diagnostics
         {
             started = Time.realtimeSinceStartup;
             yield return null; yield return null;
+            if (ModalUI.IsOpen) ModalUI.DismissCurrent();
+            Time.timeScale = 1f;
             var stack = new Stack<IEnumerator>();
             stack.Push(Run());
             while (stack.Count > 0 && !finished)
@@ -122,6 +125,8 @@ namespace SheltreSim.Diagnostics
             Check(errors.Count == 0, "recipe validation: ids resolve, every item/station reachable from raw sources, no cycles");
             Check(ItemCatalog.All.Count >= 50 && ItemCatalog.All.Count <= 130, $"item count in range ({ItemCatalog.All.Count})");
             Check(RecipeBook.All.Count >= 45 && RecipeBook.All.Count <= 110, $"recipe count in range ({RecipeBook.All.Count})");
+            Check(Mathf.Approximately(CraftingSystem.NearbyCrateRadius, 25f), "crafting draws from nearby storage within the 25 m base-logistics radius");
+            CheckCrateRadius();
             Check(ItemCatalog.All.All(s => ItemCatalog.Def(s.id) != null && ItemCatalog.Def(s.id).id == s.id), "every catalog item has a ResourceDefinition asset");
             Check(ItemCatalog.All.All(s => { var d = ItemCatalog.Def(s.id); return d != null && d.displayName == s.name && d.category == s.category; }), "assets match the catalog");
             Check(RecipeBook.All.All(r => r.Resolves()), "every recipe resolves to assets");
@@ -134,6 +139,48 @@ namespace SheltreSim.Diagnostics
             Check(offers.Count == 30 && offers.All(o => o != null && o.price > 0 && o.limit > 0 && o.grants != null), $"bunker shop table valid ({offers.Count} offers)");
             Check(BunkerShop.Get("bunker_contract") != null && BunkerShop.Get("bunker_contract").price == HomeBase.ContractPrice,
                 "mandatory bunker contract is priced consistently");
+            BunkerShop.Offer buggy = BunkerShop.Get("buggy");
+            BunkerShop.Offer mgTurret = BunkerShop.Get("mg_turret");
+            Check(buggy != null && buggy.price == 12000 && buggy.requiredRooms == BunkerShop.RoomBits.Annex,
+                "the $12k Scout Buggy is gated behind an Annex budget choice");
+            Check(mgTurret != null && mgTurret.requiredRooms == BunkerShop.RoomBits.Workshop,
+                "the MG turret is gated behind the Workshop specialization");
+        }
+
+        private void CheckCrateRadius()
+        {
+            var near = new ProbeStore(inv.transform.position + Vector3.forward * 24f, "craft_probe_token", 2);
+            var far = new ProbeStore(inv.transform.position + Vector3.forward * 26f, "craft_probe_token", 3);
+            StorageRegistry.Register(near);
+            StorageRegistry.Register(far);
+            try
+            {
+                Check(CraftingSystem.CountInCrates(inv, "craft_probe_token") == 2 &&
+                    CraftingSystem.NearbyCrateCount(inv) >= 1,
+                    "crafting sees the store at 24 m and excludes the one at 26 m");
+            }
+            finally
+            {
+                StorageRegistry.Unregister(near);
+                StorageRegistry.Unregister(far);
+            }
+        }
+
+        private sealed class ProbeStore : IItemStore
+        {
+            private readonly Dictionary<string, int> items = new Dictionary<string, int>();
+            public Vector3 StorePosition { get; }
+            public IReadOnlyDictionary<string, int> Contents => items;
+            public ProbeStore(Vector3 position, string id, int count) { StorePosition = position; items[id] = count; }
+            public int GetCount(string id) => items.TryGetValue(id, out int count) ? count : 0;
+            public int GetAddRoom(string id) => int.MaxValue;
+            public void Add(string id, int amount) { items[id] = GetCount(id) + amount; }
+            public bool TryTake(string id, int amount)
+            {
+                if (GetCount(id) < amount) return false;
+                items[id] -= amount;
+                return true;
+            }
         }
 
         private void CheckLootTables()
@@ -276,12 +323,29 @@ namespace SheltreSim.Diagnostics
             float scaleBefore = Time.timeScale;
             inv.Clear();
             inv.SetCount("wood", 2);
-            Check(ui.OpenHand(), "hand crafting opens");
+            bool opened = ui.OpenHand();
+            Check(opened, "hand crafting opens");
+            if (!opened) yield break;
             yield return null;
             Check(ModalUI.IsOpen && ui.IsOpen, "ModalUI owns the crafting window");
             Check(Time.timeScale == 0f, "world is paused while crafting");
             Check(Cursor.lockState == CursorLockMode.None && Cursor.visible, "cursor is free while crafting");
             Check(ui.VisibleRowCount == RecipeBook.ForStation(StationKind.Hand).Count, "hand list shows the hand recipes");
+            ui.SetSearchForProbe("planks");
+            Check(ui.VisibleRowCount == 1 && ui.HasVisibleRecipe("planks") && !ui.HasVisibleRecipe("wooden_club"),
+                "recipe search matches output names and filters unrelated recipes");
+            ui.SetSearchForProbe(string.Empty);
+            ui.SetCraftableOnlyForProbe(true);
+            Check(ui.HasVisibleRecipe("planks") && ui.CraftableVisibleRowCount == ui.VisibleRowCount,
+                "Can Craft filter shows only recipes affordable from pack and nearby storage");
+            ui.SetCraftableOnlyForProbe(false);
+            Button pin = ui.PinButton("planks");
+            Check(pin != null, "each recipe has a pin control");
+            if (pin != null) Click(pin);
+            ui.SetPinnedOnlyForProbe(true);
+            Check(ui.VisibleRowCount == 1 && ui.HasVisibleRecipe("planks"), "Pinned filter shows saved favorite recipes");
+            ui.SetPinnedOnlyForProbe(false);
+            if (pin != null) Click(pin);
             var planksButton = ui.CraftButton("planks");
             var fiveButton = ui.CraftButton("planks", true);
             var clubButton = ui.CraftButton("wooden_club");
@@ -508,13 +572,16 @@ namespace SheltreSim.Diagnostics
             inv.SetCount("seeds", 2);
             farm.Interact(player.gameObject);
             Check(farm.State == FarmPlot.Growing && inv.GetCount("seeds") == 1, "planting consumes a seed and starts growing");
+            int expectedVegetables = farm.vegetableYield;
+            int expectedSeeds = 1 + farm.seedYield;
             farm.Capture(out int s, out float e);
             farm.RestoreState(FarmPlot.Empty, 0f);
             farm.RestoreState(s, e);
             Check(farm.State == FarmPlot.Growing, "FarmPlot Capture/Restore round-trips");
             farm.RestoreState(FarmPlot.Ready, 0f);
             farm.Interact(player.gameObject);
-            Check(farm.State == FarmPlot.Empty && inv.GetCount("vegetables") == 3 && inv.GetCount("seeds") == 2, "harvest yields vegetables and a seed back");
+            Check(farm.State == FarmPlot.Empty && inv.GetCount("vegetables") == expectedVegetables && inv.GetCount("seeds") == expectedSeeds,
+                $"harvest yields configured crop and seed amounts ({expectedVegetables}/{farm.seedYield})");
             farm.RestoreState(99, float.NaN);
             Check(farm.State == FarmPlot.Ready, "FarmPlot.RestoreState clamps bad input");
             Destroy(farm.gameObject);
@@ -553,10 +620,84 @@ namespace SheltreSim.Diagnostics
             }
             Vector3 spot = eye.position + eye.forward * 1.7f - Vector3.up * 1.1f;
 
+            // Passive gathering tools should be both visible and functional on the same target.
+            // A normal tree node yields one charge per matching swing; cutOnHit plants retain
+            // their existing full-node strike behavior.
+            inv.SetCount("iron_axe", 1);
+            var woodNode = MakeNode("wood", 2);
+            woodNode.transform.position = spot;
+            woodNode.GetComponent<BoxCollider>().center = Vector3.up * .95f;
+            woodNode.GetComponent<BoxCollider>().size = new Vector3(.8f, 1.9f, .8f);
+            Physics.SyncTransforms();
+            yield return new WaitForSecondsRealtime(.15f);
+            MeleeViewmodel viewmodel = FindFirstObjectByType<MeleeViewmodel>();
+            Check(melee.ContextualToolId() == "iron_axe" && viewmodel != null && viewmodel.ShownModelId == "melee_iron_axe",
+                "the matching owned axe is held while aiming at a harvestable tree node");
+            int woodBefore = inv.GetCount("wood");
+            bool woodSwing = melee.TryAttack();
+            Check(woodSwing && woodNode.remainingCharges == 19 && inv.GetCount("wood") == woodBefore + 4,
+                "a real iron-axe swing harvests exactly one normal tree charge with the tool bonus");
+            Destroy(woodNode.gameObject);
+            yield return new WaitForSeconds(melee.attackCooldown + .1f);
+
+            inv.Clear(); gear.ResetAll();
+            inv.SetCount("iron_axe", 1); // Wrong tool for ore: no harvest and no misleading held pickaxe.
+            var oreNode = MakeNode("iron_ore", 1);
+            oreNode.transform.position = spot;
+            oreNode.GetComponent<BoxCollider>().center = Vector3.up * .95f;
+            oreNode.GetComponent<BoxCollider>().size = new Vector3(.8f, 1.9f, .8f);
+            Physics.SyncTransforms();
+            Check(!oreNode.CanStrike(player.gameObject) && melee.ContextualToolId() == null,
+                "an axe cannot be swung as a pickaxe on an ore node");
+            int oreBefore = inv.GetCount("iron_ore");
+            melee.TryAttack();
+            Check(oreNode.remainingCharges == 20 && inv.GetCount("iron_ore") == oreBefore,
+                "a wrong-tool swing leaves the ore node unchanged");
+            Destroy(oreNode.gameObject);
+            yield return new WaitForSeconds(melee.attackCooldown + .1f);
+
             inv.SetCount("steel_sword", 1); gear.Equip("steel_sword", out _);
             var deer = WorldWildlife.SpawnForTest(parent, spot, 0);
             Physics.SyncTransforms();
             Check(deer.GetComponent<Collider>() != null && deer.IsHuntable && !deer.IsDead, "deer has a collider and health");
+            CapsuleCollider deerBody = deer.GetComponent<CapsuleCollider>();
+            Check(deerBody != null && deerBody.direction == 1 && deerBody.bounds.size.y > deerBody.bounds.size.z,
+                "deer collision capsule is upright and covers its body");
+            if (deerBody != null)
+            {
+                CharacterController playerBody = player.GetComponent<CharacterController>();
+                Vector3 savedPlayerPosition = player.transform.position;
+                Quaternion savedPlayerRotation = player.transform.rotation;
+                Vector3 testCenter = new Vector3(1000f, 40f, 1000f);
+                deer.transform.position = testCenter;
+                if (playerBody != null)
+                {
+                    playerBody.enabled = false;
+                    player.transform.SetPositionAndRotation(testCenter - Vector3.forward * 2f, Quaternion.identity);
+                    playerBody.enabled = true;
+                    Physics.SyncTransforms();
+                    Vector3 beforeCollision = player.transform.position;
+                    playerBody.Move(Vector3.forward * 3f);
+                    float animalBlockedTravel = Vector3.Distance(beforeCollision, player.transform.position);
+                    Check(animalBlockedTravel < 2.7f,
+                        $"deer body physically blocks the player's CharacterController ({animalBlockedTravel:F2} m of 3 m)");
+                    playerBody.enabled = false;
+                    player.transform.SetPositionAndRotation(savedPlayerPosition, savedPlayerRotation);
+                    playerBody.enabled = true;
+                }
+                MethodInfo sweep = typeof(WorldWildlife).GetMethod("SweepBody", BindingFlags.Instance | BindingFlags.NonPublic);
+                GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = "WildlifeCollisionProbeWall";
+                wall.transform.position = testCenter + Vector3.forward * 1.7f + Vector3.up;
+                wall.transform.localScale = new Vector3(3f, 2f, .2f);
+                Physics.SyncTransforms();
+                Vector3 allowed = sweep != null ? (Vector3)sweep.Invoke(deer, new object[] { Vector3.forward * 3f }) : Vector3.forward * 3f;
+                Check(sweep != null && allowed.magnitude < 1.5f,
+                    $"deer collision-aware movement stops at walls ({allowed.magnitude:F2} m of 3 m)");
+                Destroy(wall);
+                deer.transform.position = spot;
+                Physics.SyncTransforms();
+            }
             bool swung = melee.TryAttack();
             Check(swung && deer.IsDead, "a real melee swing kills a deer (60 HP, sword 72)");
             yield return null;
@@ -575,6 +716,9 @@ namespace SheltreSim.Diagnostics
             yield return new WaitForSeconds(.7f);
             var boar = WorldWildlife.SpawnForTest(parent, spot, 1);
             Physics.SyncTransforms();
+            CapsuleCollider boarBody = boar.GetComponent<CapsuleCollider>();
+            Check(boarBody != null && boarBody.direction == 1 && boarBody.bounds.size.y > boarBody.bounds.size.z,
+                "boar collision capsule is upright and covers its body");
             string messageSeen = null;
             Action<string> listen = m => { if (m.StartsWith("Hit boar")) messageSeen = m; };
             GameMessageBus.OnMessage += listen;

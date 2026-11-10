@@ -8,7 +8,7 @@ namespace SheltreSim.World
     {
         public const int ChunkSize = 128;
         /// <summary>Bump when terrain or placement generation changes, so a save can tell it was made on a different world.</summary>
-        public const int GenerationVersion = 3;
+        public const int GenerationVersion = 4;
         public const int MaximumChunkCoordinate = 100000;
         public static readonly string[] BiomeNames = { "Wasteland", "Pine forest", "Red desert", "Frozen wilderness", "Wetlands", "Highlands" };
 
@@ -221,6 +221,10 @@ namespace SheltreSim.World
         // Normal-world town dressing. Every one may be null: generation falls back to plain boxes or skips it.
         public GameObject[] houseRoofs, carsClean, rubble, scrapPiles;
         public GameObject houseWindow, houseWindowBroken, houseDoor, fenceWood, hedge, streetLamp, powerPole, mailbox, gardenShed, busStop, dumpster;
+        // Batch 6-8 models wired by M18 setup; null stays supported in minimal test worlds.
+        public GameObject wildlifeDeer, wildlifeBoar, wildlifeCrow;
+        public GameObject campTent, campFire, campLockedChest;
+        public GameObject landmarkRelayCabinet, landmarkFuelPump, lairWarningPost;
         public Material plasterMaterial;
         public Material[] houseCleanMaterials;
     }

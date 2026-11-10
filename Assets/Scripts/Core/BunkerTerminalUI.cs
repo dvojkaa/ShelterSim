@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Text;
+using SheltreSim.Building;
 using SheltreSim.Crafting;
+using SheltreSim.Items;
+using SheltreSim.Saving;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -20,27 +23,45 @@ namespace SheltreSim.Core
             BunkerShop.Category.PowerAndWater, BunkerShop.Category.Defence, BunkerShop.Category.Vehicles
         };
         private static readonly string[] CategoryNames = { "SUPPLIES", "GEAR", "STATIONS", "POWER & WATER", "DEFENCE", "VEHICLES" };
+        // Presets highlight a suggested shopping route; they never auto-purchase or lock the catalogue.
+        private static readonly string[] PresetNames = { "HOMESTEADER", "FORTRESS", "ROAMER" };
+        private static readonly string[][] PresetOfferIds =
+        {
+            new[] { "room_wing_hydro", "solar_array", "water_collectors", "seed_sack", "pantry", "medical", "tool_set", "backpack_frame", "alarm", "bicycle" },
+            new[] { "room_wing_workshop", "kit_generator", "fuel_drums", "sandbags", "spike_traps", "alarm", "mg_turret", "shotgun_kit", "pistol_kit", "medical" },
+            new[] { "room_annex", "buggy", "tool_set", "hazard_kit", "backpack_frame", "pantry", "medical", "pistol_kit", "bicycle" }
+        };
+        private static readonly string[] PresetDescriptions =
+        {
+            "Food and water production with a lighter perimeter.",
+            "Workshop, powered defenses, and a stronger bunker perimeter.",
+            "Scavenging mobility, tools, and expedition supplies."
+        };
 
         private Canvas canvas;
         private Text balance, progress, contractText, sealText, status;
+        private Text sealReadiness;
         private Button contractButton, sealButton;
         private readonly List<Text> roomTexts = new List<Text>();
         private readonly List<Button> roomButtons = new List<Button>();
         private readonly List<BunkerShop.Offer> roomOffers = new List<BunkerShop.Offer>();
         private readonly List<Button> tabButtons = new List<Button>();
         private readonly List<Text> tabLabels = new List<Text>();
+        private readonly List<Button> presetButtons = new List<Button>();
+        private readonly List<Text> presetButtonLabels = new List<Text>();
         private RectTransform offerContent;
         private readonly List<OfferRow> offerRows = new List<OfferRow>();
         private InputAction cancel;
         private bool open, closeRequested, sealArmed;
         private float sealArmExpires;
         private int selectedCategory;
+        private int selectedPreset = -1;
 
         private sealed class OfferRow
         {
             public BunkerShop.Offer offer;
             public Button button;
-            public Text buttonText, details, effect, warning;
+            public Text name, buttonText, details, effect, warning;
         }
 
         public static void Open(GameObject interactor)
@@ -78,6 +99,7 @@ namespace SheltreSim.Core
             open = true;
             sealArmed = false;
             canvas.gameObject.SetActive(true);
+            if (sealReadiness != null) sealReadiness.gameObject.SetActive(false);
             status.text = "Sign the contract to unlock the catalogue. Orders are delivered to the Supply Cage.";
             Refresh();
         }
@@ -113,6 +135,12 @@ namespace SheltreSim.Core
             }
             sealButton = GameUI.Button(left, "Seal", "SEAL THE BUNKER", tl, tl, new Vector2(12f,-672f), new Vector2(496f,58f), Seal, true);
             sealText = sealButton.GetComponentInChildren<Text>();
+            sealReadiness = GameUI.Label(left, "SealReadiness", string.Empty, tl, tl,
+                new Vector2(14f, -736f), new Vector2(478f, 102f), 13, Color.white);
+            sealReadiness.alignment = TextAnchor.UpperLeft;
+            sealReadiness.horizontalOverflow = HorizontalWrapMode.Wrap;
+            sealReadiness.verticalOverflow = VerticalWrapMode.Truncate;
+            sealReadiness.gameObject.SetActive(false);
 
             Transform right = GameUI.Panel(card, "ShopColumn", tl, tl, new Vector2(560f,-104f), new Vector2(836f,744f), new Color(.07f,.105f,.11f)).transform;
             GameUI.Label(right, "ShopHeader", "PRE-APOCALYPSE SUPPLY CAGE", tl, tl, new Vector2(14f,-12f), new Vector2(790f,30f), 19, GameUI.Accent, bold:true);
@@ -124,7 +152,15 @@ namespace SheltreSim.Core
                 tabButtons.Add(tab);
                 tabLabels.Add(tab.GetComponentInChildren<Text>());
             }
-            offerContent=GameUI.ScrollContent(right,"Offers",new Vector2(12f,-100f),new Vector2(808f,600f));
+            for (int i = 0; i < PresetNames.Length; i++)
+            {
+                int index = i;
+                Button preset = GameUI.Button(right, "Preset" + i, PresetNames[i], tl, tl,
+                    new Vector2(14f + i * 264f, -96f), new Vector2(252f, 38f), () => SelectPreset(index));
+                presetButtons.Add(preset);
+                presetButtonLabels.Add(preset.GetComponentInChildren<Text>());
+            }
+            offerContent=GameUI.ScrollContent(right,"Offers",new Vector2(12f,-144f),new Vector2(808f,556f));
             status=GameUI.Label(card,"Status",string.Empty,tl,tl,new Vector2(24f,-864f),new Vector2(1370f,42f),17,GameUI.Warning);
             BuildOfferRows();
         }
@@ -143,7 +179,7 @@ namespace SheltreSim.Core
                 Text warning=GameUI.Label(row,"DependencyWarning",string.Empty,new Vector2(0f,1f),new Vector2(0f,1f),new Vector2(12f,-96f),new Vector2(760f,22f),12,GameUI.Warning);
                 BunkerShop.Offer captured=offer;
                 Button button=GameUI.Button(row,"Buy","",Vector2.one,Vector2.one,new Vector2(-9f,-7f),new Vector2(164f,42f),()=>BuyOffer(captured));
-                offerRows.Add(new OfferRow{offer=offer,button=button,buttonText=button.GetComponentInChildren<Text>(),details=details,effect=effect,warning=warning});
+                offerRows.Add(new OfferRow{offer=offer,button=button,name=name,buttonText=button.GetComponentInChildren<Text>(),details=details,effect=effect,warning=warning});
                 y+=132f;
             }
             offerContent.sizeDelta=new Vector2(0f,y);
@@ -202,6 +238,22 @@ namespace SheltreSim.Core
             Refresh();
         }
 
+        private void SelectPreset(int index)
+        {
+            selectedPreset = selectedPreset == index ? -1 : index;
+            status.text = selectedPreset < 0
+                ? "Preset cleared. All catalogue items remain available."
+                : $"{PresetNames[selectedPreset]} plan selected: {PresetDescriptions[selectedPreset]} Highlighted items are suggestions only; buy and edit each order yourself.";
+            Refresh();
+        }
+
+        private bool IsRecommended(string offerId)
+        {
+            if (selectedPreset < 0 || selectedPreset >= PresetOfferIds.Length) return false;
+            foreach (string id in PresetOfferIds[selectedPreset]) if (id == offerId) return true;
+            return false;
+        }
+
         private void BuyContract() => Report(HomeBase.Active.TryBuyContract(out string result),result);
         private void BuyOffer(BunkerShop.Offer offer) => Report(HomeBase.Active.TryBuyOffer(offer,out string result),result);
         private void Seal()
@@ -213,6 +265,11 @@ namespace SheltreSim.Core
                 sealArmed=true;
                 sealArmExpires=Time.unscaledTime+3f;
                 status.text=$"Click again within 3 seconds to seal. Unspent ${home.UnspentSavings:N0} is lost.";
+                string readiness = SealReadinessWarnings(home);
+                sealReadiness.text = string.IsNullOrEmpty(readiness)
+                    ? "<color=#79D99A>READINESS CHECK PASSED</color>  Food, water and power provisions are stocked."
+                    : "<color=#FF4B4B>READINESS WARNINGS — confirm still allowed</color>\n" + readiness;
+                sealReadiness.gameObject.SetActive(true);
                 sealText.text="CONFIRM SEAL";
                 return;
             }
@@ -224,8 +281,58 @@ namespace SheltreSim.Core
         {
             if(!success) SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.UiDeny,.4f);
             sealArmed=false;
+            if (sealReadiness != null) sealReadiness.gameObject.SetActive(false);
             status.text=result;
             Refresh();
+        }
+
+        private static string SealReadinessWarnings(HomeBase home)
+        {
+            if (home == null) return string.Empty;
+            const int recommendedStock = 6;
+            var warnings = new List<string>();
+            int food = 0;
+            foreach (ItemSpec item in ItemCatalog.All)
+                if (item.food && !item.medicine) food += OwnedCount(home, item.id);
+            bool farmAvailable = OwnedCount(home, "kit_piece_farm") + OwnedCount(home, "piece_farm") > 0
+                && OwnedCount(home, "seeds") > 0 || HasPlaced(home, "piece_farm") && OwnedCount(home, "seeds") > 0;
+            if (food < recommendedStock && !farmAvailable)
+                warnings.Add($"<color=#FF4B4B>FOOD</color> — {food} portions; stock {recommendedStock}+ or add Pantry / Farm + Seeds.");
+
+            int water = OwnedCount(home, "bottled_water") + OwnedCount(home, "water");
+            bool waterSource = OwnedCount(home, "kit_water_collector") + OwnedCount(home, "kit_piece_pump") > 0
+                || HasPlaced(home, "water_collector", "piece_pump");
+            if (water < recommendedStock && !waterSource)
+                warnings.Add($"<color=#FF4B4B>WATER</color> — {water} clean drinks; stock {recommendedStock}+ or add Collectors / Well.");
+
+            foreach (string hint in BunkerShop.DependencyHints(home))
+                if (hint.StartsWith("Needs power:", System.StringComparison.Ordinal)
+                    || hint.StartsWith("Needs fuel:", System.StringComparison.Ordinal))
+                    warnings.Add("<color=#FF4B4B>POWER</color> — " + hint);
+
+            if (warnings.Count == 0) return string.Empty;
+            var sb = new StringBuilder();
+            for (int i = 0; i < warnings.Count; i++)
+            {
+                if (i > 0) sb.Append('\n');
+                sb.Append("• ").Append(warnings[i]);
+            }
+            return sb.ToString();
+        }
+
+        private static int OwnedCount(HomeBase home, string id)
+        {
+            int count = home.inventory != null ? home.inventory.GetCount(id) : 0;
+            if (home.supplyCage != null) count = (int)System.Math.Min(int.MaxValue, (long)count + home.supplyCage.GetCount(id));
+            return count;
+        }
+
+        private static bool HasPlaced(HomeBase home, params string[] ids)
+        {
+            foreach (PlacedPiece piece in PlacedPieceRegistry.All)
+                if (piece != null && piece.isActiveAndEnabled)
+                    foreach (string id in ids) if (piece.pieceId == id) return true;
+            return false;
         }
 
         private string BlockReason(HomeBase home,BunkerShop.Offer offer)
@@ -269,14 +376,18 @@ namespace SheltreSim.Core
                 bool owned=(home.Rooms&offer.roomBit)!=0;
                 string reason=BlockReason(home,offer);
                 string roomHint=owned&&offer.id=="room_wing_hydro"?DependencyHint(home,offer.id):string.Empty;
-                roomTexts[i].text=$"{offer.displayName}  /  {(owned?"OWNED":reason.Length==0?"AVAILABLE":reason)}"+
+                bool recommended = IsRecommended(offer.id);
+                roomTexts[i].text=$"{(recommended?"★ ":string.Empty)}{offer.displayName}  /  {(owned?"OWNED":reason.Length==0?"AVAILABLE":reason)}"+
                     (roomHint.Length>0?"\n⚠ "+roomHint:string.Empty);
-                roomTexts[i].color=roomHint.Length>0?GameUI.Warning:owned?GameUI.Accent:reason.Length==0?Color.white:GameUI.Muted;
+                roomTexts[i].color=roomHint.Length>0?GameUI.Warning:recommended?GameUI.Accent:owned?GameUI.Accent:reason.Length==0?Color.white:GameUI.Muted;
                 roomButtons[i].interactable=!owned&&reason.Length==0;
                 roomButtons[i].GetComponentInChildren<Text>().text=owned?"OWNED":"$"+offer.price.ToString("N0");
             }
             foreach(OfferRow row in offerRows)
             {
+                bool recommended = IsRecommended(row.offer.id);
+                row.name.text = (recommended ? "★  " : string.Empty) + row.offer.displayName;
+                row.name.color = recommended ? GameUI.Accent : Color.white;
                 int count=home.PurchaseCount(row.offer.id);
                 string reason=BlockReason(home,row.offer);
                 row.details.text=$"${row.offer.price:N0}    {count}/{(row.offer.limit>=100000?"∞":row.offer.limit.ToString())} purchased"+(reason.Length>0?"    •  "+reason:"");
@@ -292,6 +403,11 @@ namespace SheltreSim.Core
             {
                 tabButtons[i].interactable=i!=selectedCategory;
                 tabLabels[i].color=i==selectedCategory?GameUI.Accent:Color.white;
+            }
+            for (int i = 0; i < presetButtons.Count; i++)
+            {
+                presetButtons[i].interactable = selectedPreset != i;
+                presetButtonLabels[i].color = selectedPreset == i ? GameUI.Accent : Color.white;
             }
             sealButton.interactable=home.CanSeal;
             if(!sealArmed) sealText.text="SEAL THE BUNKER";
@@ -317,6 +433,8 @@ namespace SheltreSim.Core
             closeRequested=false;
             if(!open)return;
             open=false;
+            sealArmed=false;
+            if (sealReadiness != null) sealReadiness.gameObject.SetActive(false);
             if(canvas!=null)canvas.gameObject.SetActive(false);
             ModalUI.Close(this);
         }

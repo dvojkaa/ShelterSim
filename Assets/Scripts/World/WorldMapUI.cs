@@ -3,6 +3,7 @@ using SheltreSim.Building;
 using SheltreSim.Objectives;
 using SheltreSim.Player;
 using SheltreSim.Survival;
+using SheltreSim.Items;
 using SheltreSim.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -56,6 +57,12 @@ namespace SheltreSim.World
             player = FindFirstObjectByType<FirstPersonController>();
             if (player == null || (player.GetComponent<SurvivalStats>()?.IsDead ?? false) ||
                 (player.GetComponentInChildren<BuildModeController>()?.IsBuildModeActive ?? false)) return;
+            Inventory inventory = player.GetComponent<Inventory>();
+            if (inventory == null || inventory.GetCount("paper_map") <= 0)
+            {
+                GameMessageBus.Post("You need the paper map from the bunker contract to open the atlas.");
+                return;
+            }
             if (!ModalUI.TryOpen(this, Close)) return;
             if (canvas == null) BuildUI();
             open = true;
@@ -143,7 +150,7 @@ namespace SheltreSim.World
                 }
                 goal=tracker.GoalText().Split('\n')[0];
             }
-            position.text=$"NORTH ↑  /  YELLOW + YOU  /  GREEN B BUNKER  /  [ ] VISITED  /  ? REVEALED  /  ! CAMP, BOSS  /  X WAYPOINT\nSeed {world.Seed}   |   X {p.x:0}   Z {p.z:0}   |   {homeText}\n{waypointText}\n{goal}\nLocal view 1.5 km. Pale districts: towns. Dark lines: roads. Undiscovered loot is not shown.";
+            position.text=$"NORTH ↑  /  YELLOW + YOU  /  GREEN B BUNKER  /  [ ] VISITED  /  ? REVEALED  /  ! CAMP, BOSS  /  ✓ CLEARED BUILDING  /  X WAYPOINT\nSeed {world.Seed}   |   X {p.x:0}   Z {p.z:0}   |   {homeText}\n{waypointText}\n{goal}\nLocal view 1.5 km. Pale districts: towns. Dark lines: roads. Undiscovered loot is not shown.";
         }
 
         /// <summary>Where a world position falls on the map, relative to its centre (the viewer).</summary>
@@ -164,6 +171,7 @@ namespace SheltreSim.World
                 foreach(string id in tracker.RevealedLandmarks) PlaceSite(id,"? ","",GameUI.Warning,p,seed,shown,ref used);
                 PlaceSite(tracker.RelayLocatedId,"? ","",GameUI.Warning,p,seed,shown,ref used);
             }
+            PlaceClearedBuildings(p,seed,ref used);
             PlaceEncounters(p,seed,ref used);
             for(int i=used;i<markers.Count;i++) markers[i].gameObject.SetActive(false);
             bool hasWaypoint=tracker!=null&&tracker.HasWaypoint;
@@ -179,6 +187,15 @@ namespace SheltreSim.World
             }
             waypointMarker.rectTransform.anchoredPosition=offset;
             waypointMarker.text=inside?"X "+tracker.WaypointTitle:"X WAYPOINT";
+        }
+
+        private void PlaceClearedBuildings(Vector3 p, int seed, ref int used)
+        {
+            foreach (BuildingClearanceTracker.ClearedBuilding building in BuildingClearanceTracker.Cleared)
+            {
+                if (building == null || building.seed != seed) continue;
+                PlaceLabel(new Vector3(building.x, 0f, building.z), "✓ CLEARED", GameUI.Accent, p, ref used);
+            }
         }
 
         // Camps and boss lairs the player has seen, and the one camp every world has near home as "?" until then.

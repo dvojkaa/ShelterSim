@@ -13,6 +13,20 @@ namespace SheltreSim.World
         public string WeatherName { get; private set; } = "Clear";
         public float WeatherIntensity { get; private set; }
         public bool IsSheltered { get; private set; }
+        public string ExposureStatus
+        {
+            get
+            {
+                if (player == null) return string.Empty;
+                if (IsSheltered) return "SHELTERED — weather drain blocked";
+                int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 20261108;
+                ExposureRates(WorldLayout.BiomeIndexAt(player.position.x, player.position.z, seed), out float heat, out float cold);
+                if (heat > 0f && cold > 0f) return "EXPOSED — heat drains water; cold drains food";
+                if (heat > 0f) return "EXPOSED — heat drains water faster";
+                if (cold > 0f) return "EXPOSED — cold drains food faster";
+                return "EXPOSED — no extra weather drain";
+            }
+        }
         public event Action<string> OnWeatherChanged;
         public const float WeatherPeriod = 150f, WeatherFade = 20f;
         /// <summary>A load jumps the clock: presentation shouldn't announce that as the weather changing.</summary>
@@ -29,6 +43,7 @@ namespace SheltreSim.World
             {
                 player = controller.transform;
                 stats = controller.GetComponent<SurvivalStats>();
+                IsSheltered = HasRoof();
             }
             UpdateWeather();
         }
@@ -122,15 +137,22 @@ namespace SheltreSim.World
         private void ApplyExposure(int biome, float seconds)
         {
             if (IsSheltered || stats == null || stats.decayPaused || stats.IsDead || seconds <= 0f) return;
+            ExposureRates(biome, out float heat, out float cold);
+            stats.thirst = Mathf.Clamp(stats.thirst - heat * seconds, 0f, stats.maxThirst);
+            stats.hunger = Mathf.Clamp(stats.hunger - cold * seconds, 0f, stats.maxHunger);
+        }
+
+        private void ExposureRates(int biome, out float heat, out float cold)
+        {
             float protection = ExpeditionProgression.Active != null ? Mathf.Clamp01(ExpeditionProgression.Active.ExposureProtection) : 1f;
-            var gear = stats.GetComponent<SheltreSim.Crafting.PlayerGear>();
+            var gear = player != null ? player.GetComponent<SheltreSim.Crafting.PlayerGear>() : null;
             if (gear != null) protection *= Mathf.Clamp01(gear.ExposureMultiplier);
-            float heat = biome == 2 && Hour > 10f && Hour < 17f ? .055f : 0f;
-            float cold = biome == 3 ? .04f : 0f;
+            heat = biome == 2 && Hour > 10f && Hour < 17f ? .055f : 0f;
+            cold = biome == 3 ? .04f : 0f;
             if (Hour < 6f || Hour > 20f) cold += .025f;
             if (WeatherName == "Rain" || WeatherName == "Snow") cold += .035f * WeatherIntensity;
-            stats.thirst = Mathf.Clamp(stats.thirst - heat * protection * seconds, 0f, stats.maxThirst);
-            stats.hunger = Mathf.Clamp(stats.hunger - cold * protection * seconds, 0f, stats.maxHunger);
+            heat *= protection;
+            cold *= protection;
         }
     }
 }

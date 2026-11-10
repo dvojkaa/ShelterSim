@@ -16,6 +16,14 @@ namespace SheltreSim.Bestiary
     {
         public const string RootName = "Encounters";
 
+        /// <summary>Distance bands deliberately use the bunker as the player's expedition origin.</summary>
+        public static int DistanceRing(Vector3 point)
+        {
+            float distance = Vector2.Distance(new Vector2(point.x, point.z),
+                new Vector2(WorldLayout.BunkerCenter.x, WorldLayout.BunkerCenter.z));
+            return distance < 600f ? 0 : distance < 1500f ? 1 : 2;
+        }
+
         static System.Random ChunkRandom(Vector2Int c, int seed) => new System.Random(WorldLayout.Hash(c.x, c.y, seed + 5521));
 
         /// <summary>Which habitat a point is, from the seed alone.</summary>
@@ -84,6 +92,29 @@ namespace SheltreSim.Bestiary
             }
         }
 
+        public static SpeciesId[] RingPool(Habitat h, int ring)
+        {
+            SpeciesId[] habitat = Pool(h);
+            if (ring <= 0) return habitat;
+            // The inner ring stays readable and forgiving. Farther out, habitat groups gain
+            // a compatible support species; the far ring can include a tougher variant.
+            SpeciesId support = h == Habitat.WetlandsWater ? SpeciesId.Runner
+                : h == Habitat.Forest || h == Habitat.Farm ? SpeciesId.Wanderer
+                : h == Habitat.RedDesert || h == Habitat.Highlands ? SpeciesId.Runner
+                : h == Habitat.Hospital ? SpeciesId.Wanderer
+                : h == Habitat.Frozen ? SpeciesId.Scavenger
+                : SpeciesId.Runner;
+            SpeciesId advanced = h == Habitat.WetlandsWater ? SpeciesId.Plated
+                : h == Habitat.Forest || h == Habitat.Farm ? SpeciesId.Screamer
+                : h == Habitat.Town || h == Habitat.Suburb ? SpeciesId.Plated
+                : h == Habitat.Fuel || h == Habitat.Road ? SpeciesId.Scavenger
+                : SpeciesId.Plated;
+            var result = new List<SpeciesId>(habitat);
+            if (!result.Contains(support)) result.Add(support);
+            if (ring >= 2 && !result.Contains(advanced)) result.Add(advanced);
+            return result.ToArray();
+        }
+
         static int GroupSize(SpeciesId s, System.Random r)
         {
             switch (s)
@@ -129,7 +160,8 @@ namespace SheltreSim.Bestiary
                     if (EncounterPlacement.NearBunker(center, EncounterPlacement.SafeRadius + 6f) || WorldLayout.IsHomePlot(spot.x, spot.y)) continue;
                     if (landmark && Mathf.Abs(spot.x - (ox + 64f)) < 28f && spot.y - (oz + 64f) < 24f && spot.y - (oz + 64f) > -60f) continue;
                     Habitat h = HabitatAt(c, seed, spot.x, spot.y);
-                    SpeciesId[] pool = Pool(h);
+                    int ring = DistanceRing(center);
+                    SpeciesId[] pool = RingPool(h, ring);
                     SpeciesId species = pool[(int)(pick * pool.Length) % pool.Length];
                     bool aquatic = species == SpeciesId.Mirelurker;
                     if (WorldLayout.IsWater(spot.x, spot.y, seed, aquatic ? 1.5f : 3f)) continue;
@@ -138,29 +170,35 @@ namespace SheltreSim.Bestiary
                         root = new GameObject(RootName).transform;
                         root.SetParent(chunk, false);
                     }
-                    if (TryGroup(root, chunk, c, seed, g, h, species, center, memberRandom, placed)) break;
+                    if (TryGroup(root, chunk, c, seed, g, h, species, pool, ring, center, memberRandom, placed)) break;
                 }
             }
         }
 
-        static bool TryGroup(Transform root, Transform chunk, Vector2Int c, int seed, int g, Habitat h, SpeciesId species, Vector3 center,
+        static bool TryGroup(Transform root, Transform chunk, Vector2Int c, int seed, int g, Habitat h, SpeciesId species, SpeciesId[] pool, int ring, Vector3 center,
             System.Random r, List<Vector3> placed)
         {
-            SpeciesSpec spec = SpeciesSpec.Of(species);
             int size = GroupSize(species, r);
+            if (ring >= 1 && pool.Length > 1 && size < 2) size = 2;
+            if (ring >= 2 && pool.Length > 1) size = Mathf.Clamp(size, 2, 3);
             float yaw0 = (float)r.NextDouble() * 360f;
             var feetList = new List<Vector3>();
+            var memberSpecies = new List<SpeciesId>();
             for (int m = 0; m < size; m++)
             {
+                SpeciesId member = m == 0 || pool.Length <= 1 ? species : pool[r.Next(pool.Length)];
+                if (m > 0 && member == species) member = pool[(System.Array.IndexOf(pool, species) + m) % pool.Length];
+                SpeciesSpec memberSpec = SpeciesSpec.Of(member);
                 float a = (yaw0 + m * 137f) * Mathf.Deg2Rad;
                 float d = m == 0 ? 0f : 3.2f;
                 for (int attempt = 0; attempt < 4; attempt++)
                 {
                     float x = center.x + Mathf.Cos(a) * (d + attempt * 1.5f), z = center.z + Mathf.Sin(a) * (d + attempt * 1.5f);
-                    if (!EncounterPlacement.TryStand(x, z, spec.Radius, spec.Height, seed, out Vector3 feet)) continue;
+                    if (!EncounterPlacement.TryStand(x, z, memberSpec.Radius, memberSpec.Height, seed, out Vector3 feet)) continue;
                     if (EncounterPlacement.NearBunker(feet) || WorldLayout.Coordinate(feet) != c) continue;
-                    if (TooClose(feet, placed, spec.Radius + 1.4f) || TooClose(feet, feetList, spec.Radius + 1.4f)) continue;
+                    if (TooClose(feet, placed, memberSpec.Radius + 1.4f) || TooClose(feet, feetList, memberSpec.Radius + 1.4f)) continue;
                     feetList.Add(feet);
+                    memberSpecies.Add(member);
                     break;
                 }
                 if (m == 0 && feetList.Count == 0) return false; // the leader's spot is blocked: try the next spot
@@ -168,11 +206,11 @@ namespace SheltreSim.Bestiary
             var group = new GameObject("Group_" + g).transform;
             group.SetParent(root, false);
             group.position = feetList[0];
-            group.gameObject.AddComponent<EncounterGroupInfo>().Set(h, Pool(h));
+            group.gameObject.AddComponent<EncounterGroupInfo>().Set(h, pool, ring);
             for (int m = 0; m < feetList.Count; m++)
             {
                 placed.Add(feetList[m]);
-                EncounterPlacement.SpawnSlot(group, chunk, "Slot_" + g + "_" + m, species, feetList[m], yaw0 + m * 40f, c, seed, feetList[0], 0f);
+                EncounterPlacement.SpawnSlot(group, chunk, "Slot_" + g + "_" + m, memberSpecies[m], feetList[m], yaw0 + m * 40f, c, seed, feetList[0], 0f);
             }
             return true;
         }
@@ -193,6 +231,7 @@ namespace SheltreSim.Bestiary
     {
         public Habitat habitat;
         public SpeciesId[] pool;
-        public void Set(Habitat h, SpeciesId[] p) { habitat = h; pool = p; }
+        public int distanceRing;
+        public void Set(Habitat h, SpeciesId[] p, int ring) { habitat = h; pool = p; distanceRing = ring; }
     }
 }

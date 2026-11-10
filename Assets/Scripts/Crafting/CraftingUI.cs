@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using System;
 using SheltreSim.Building;
 using SheltreSim.Items;
 using SheltreSim.UI;
@@ -32,7 +33,7 @@ namespace SheltreSim.Crafting
             public Recipe recipe;
             public GameObject root;
             public Text inputs;
-            public Button craft, craftFive;
+            public Button craft, craftFive, pin;
         }
 
         private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
@@ -40,10 +41,14 @@ namespace SheltreSim.Crafting
 
         private GameObject panel;
         private Text title, status, subtitle;
+        private InputField search;
+        private Button craftableFilter, pinnedFilter;
         private RectTransform content;
         private readonly List<Row> rows = new List<Row>();
         private readonly StringBuilder text = new StringBuilder(256);
+        private static readonly HashSet<string> pinnedRecipes = new HashSet<string>(StringComparer.Ordinal);
         private Filter filter = Filter.All;
+        private bool craftableOnly, pinnedOnly;
         private InputAction toggle, cancel;
         private bool closeRequested;
         private bool built;
@@ -78,6 +83,9 @@ namespace SheltreSim.Crafting
 
         private void OnToggle(InputAction.CallbackContext _)
         {
+            GameObject selected = UnityEngine.EventSystems.EventSystem.current != null
+                ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+            if (selected != null && search != null && selected.GetComponentInParent<InputField>() == search) return;
             if (IsOpen) closeRequested = true; else OpenHand();
         }
 
@@ -112,6 +120,9 @@ namespace SheltreSim.Crafting
             IsOpen = true;
             closeRequested = false;
             filter = Filter.All;
+            craftableOnly = false;
+            pinnedOnly = false;
+            search.text = string.Empty;
             BuildRows(kind);
             panel.SetActive(true);
             title.text = RecipeBook.StationName(kind).ToUpperInvariant();
@@ -151,11 +162,50 @@ namespace SheltreSim.Crafting
                 GameUI.Button(card, "Filter_" + FilterNames[i], FilterNames[i], TopLeft, TopLeft,
                     new Vector2(28f + i * 154f, -104f), new Vector2(146f, 38f), () => { filter = f; Refresh(); });
             }
-            content = GameUI.ScrollContent(card, "RecipeScroll", new Vector2(28f, -154f), new Vector2(1084f, 580f));
+            BuildSearchControls(card);
+            content = GameUI.ScrollContent(card, "RecipeScroll", new Vector2(28f, -194f), new Vector2(1084f, 540f));
             status = GameUI.Label(card, "Status", string.Empty, TopLeft, TopLeft, new Vector2(28f, -748f), new Vector2(1084f, 28f), 18, GameUI.Accent);
             GameUI.Label(card, "Help", "Craft x5 makes five batches at once  /  Scroll the list for more", TopLeft, TopLeft,
                 new Vector2(28f, -784f), new Vector2(1084f, 24f), 16, GameUI.Muted);
             panel.SetActive(false);
+        }
+
+        private void BuildSearchControls(Transform card)
+        {
+            Image background = GameUI.Panel(card, "RecipeSearch", TopLeft, TopLeft,
+                new Vector2(28f, -151f), new Vector2(340f, 34f), new Color(0.025f, 0.04f, 0.045f, 1f), true);
+            search = background.gameObject.AddComponent<InputField>();
+            search.lineType = InputField.LineType.SingleLine;
+            Text value = GameUI.Label(background.transform, "Value", string.Empty, Vector2.zero, Vector2.zero,
+                new Vector2(10f, 0f), new Vector2(316f, 30f), 17, Color.white, TextAnchor.MiddleLeft);
+            value.rectTransform.anchorMin = Vector2.zero;
+            value.rectTransform.anchorMax = Vector2.one;
+            value.rectTransform.offsetMin = new Vector2(10f, 0f);
+            value.rectTransform.offsetMax = new Vector2(-10f, 0f);
+            Text placeholder = GameUI.Label(background.transform, "Placeholder", "Search recipes...", Vector2.zero, Vector2.zero,
+                new Vector2(10f, 0f), new Vector2(316f, 30f), 17, GameUI.Muted, TextAnchor.MiddleLeft);
+            placeholder.fontStyle = FontStyle.Italic;
+            placeholder.rectTransform.anchorMin = Vector2.zero;
+            placeholder.rectTransform.anchorMax = Vector2.one;
+            placeholder.rectTransform.offsetMin = new Vector2(10f, 0f);
+            placeholder.rectTransform.offsetMax = new Vector2(-10f, 0f);
+            search.textComponent = value;
+            search.placeholder = placeholder;
+            search.targetGraphic = background;
+            search.onValueChanged.AddListener(_ => Refresh());
+
+            craftableFilter = GameUI.Button(card, "CraftableOnly", "Can Craft: Off", TopLeft, TopLeft,
+                new Vector2(386f, -151f), new Vector2(184f, 34f), () =>
+                {
+                    craftableOnly = !craftableOnly;
+                    Refresh();
+                });
+            pinnedFilter = GameUI.Button(card, "PinnedOnly", "Pinned: Off", TopLeft, TopLeft,
+                new Vector2(578f, -151f), new Vector2(150f, 34f), () =>
+                {
+                    pinnedOnly = !pinnedOnly;
+                    Refresh();
+                });
         }
 
         private void BuildRows(StationKind kind)
@@ -174,6 +224,8 @@ namespace SheltreSim.Crafting
                 GameUI.Label(row, "Desc", outDef != null ? outDef.description : string.Empty, TopLeft, TopLeft, new Vector2(14f, -34f), new Vector2(760f, 24f), 16, GameUI.Muted);
                 Row r = new Row { recipe = recipe, root = row.gameObject };
                 r.inputs = GameUI.Label(row, "Inputs", string.Empty, TopLeft, TopLeft, new Vector2(14f, -60f), new Vector2(760f, 52f), 17);
+                r.pin = GameUI.Button(row, "Pin", "☆", TopLeft, TopLeft, new Vector2(790f, -4f), new Vector2(52f, 32f),
+                    () => TogglePin(captured));
                 r.craft = GameUI.Button(row, "Craft", "Craft", Vector2.one, Vector2.one, new Vector2(-136f, -34f), new Vector2(120f, 48f), () => DoCraft(captured, 1), true);
                 r.craftFive = GameUI.Button(row, "CraftFive", "Craft x5", Vector2.one, Vector2.one, new Vector2(-12f, -34f), new Vector2(116f, 48f), () => DoCraft(captured, 5));
                 rows.Add(r);
@@ -197,11 +249,21 @@ namespace SheltreSim.Crafting
         private void Refresh()
         {
             float y = 0f;
+            string query = search != null ? search.text.Trim() : string.Empty;
             foreach (Row r in rows)
             {
                 var spec = ItemCatalog.Spec(r.recipe.output);
-                bool visible = spec != null && Matches(filter, spec.category);
+                bool canCraft = RecipeBook.CanCraft(inventory, r.recipe, 1);
+                bool matchesSearch = string.IsNullOrEmpty(query) ||
+                    ItemCatalog.NameOf(r.recipe.output).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    (spec != null && !string.IsNullOrEmpty(spec.description) && spec.description.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    r.recipe.id.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+                bool isPinned = pinnedRecipes.Contains(r.recipe.id);
+                bool visible = spec != null && Matches(filter, spec.category) && matchesSearch &&
+                    (!craftableOnly || canCraft) && (!pinnedOnly || isPinned);
                 r.root.SetActive(visible);
+                Text pinText = r.pin.GetComponentInChildren<Text>();
+                if (pinText != null) pinText.text = isPinned ? "★" : "☆";
                 if (!visible) continue;
                 RectTransform rect = (RectTransform)r.root.transform;
                 rect.anchoredPosition = new Vector2(0f, -y);
@@ -221,10 +283,25 @@ namespace SheltreSim.Crafting
                     if (!ok) text.Append("</color>");
                 }
                 r.inputs.text = text.ToString();
-                r.craft.interactable = RecipeBook.CanCraft(inventory, r.recipe, 1);
+                r.craft.interactable = canCraft;
                 r.craftFive.interactable = RecipeBook.CanCraft(inventory, r.recipe, 5);
             }
             content.sizeDelta = new Vector2(0f, y);
+            SetButtonLabel(craftableFilter, craftableOnly ? "Can Craft: On" : "Can Craft: Off");
+            SetButtonLabel(pinnedFilter, pinnedOnly ? "Pinned: On" : "Pinned: Off");
+        }
+
+        private void TogglePin(Recipe recipe)
+        {
+            if (!pinnedRecipes.Add(recipe.id)) pinnedRecipes.Remove(recipe.id);
+            Refresh();
+        }
+
+        private static void SetButtonLabel(Button button, string value)
+        {
+            if (button == null) return;
+            Text label = button.GetComponentInChildren<Text>();
+            if (label != null) label.text = value;
         }
 
         private void DoCraft(Recipe recipe, int times)
@@ -252,6 +329,29 @@ namespace SheltreSim.Crafting
             return null;
         }
 
+        public Button PinButton(string recipeId)
+        {
+            foreach (Row r in rows) if (r.recipe.id == recipeId) return r.pin;
+            return null;
+        }
+
         public int VisibleRowCount { get { int n = 0; foreach (Row r in rows) if (r.root.activeSelf) n++; return n; } }
+        public int CraftableVisibleRowCount
+        {
+            get { int n = 0; foreach (Row r in rows) if (r.root.activeSelf && RecipeBook.CanCraft(inventory, r.recipe, 1)) n++; return n; }
+        }
+        public bool HasVisibleRecipe(string recipeId)
+        {
+            foreach (Row r in rows) if (r.recipe.id == recipeId) return r.root.activeSelf;
+            return false;
+        }
+        public void SetSearchForProbe(string value) { search.text = value ?? string.Empty; }
+        public void SetCraftableOnlyForProbe(bool enabled) { craftableOnly = enabled; Refresh(); }
+        public void SetPinnedOnlyForProbe(bool enabled) { pinnedOnly = enabled; Refresh(); }
+        public void SetPinnedForProbe(string recipeId, bool pinned)
+        {
+            if (pinned) pinnedRecipes.Add(recipeId); else pinnedRecipes.Remove(recipeId);
+            Refresh();
+        }
     }
 }

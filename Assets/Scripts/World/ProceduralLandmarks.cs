@@ -141,7 +141,7 @@ namespace SheltreSim.World
             {
                 case 0: Hospital(t, wall, dark); break;
                 case 1: Factory(t, wall, dark); break;
-                case 2: Fuel(t, wall, dark); break;
+                case 2: Fuel(t, wall, dark, assets); break;
                 case 3: Farm(t, wall, dark); break;
                 case 4: Military(t, wall, dark); break;
                 default: Bunker(t, wall, dark); break;
@@ -245,6 +245,22 @@ namespace SheltreSim.World
             Box(t, "MedicalCrossVertical", new Vector3(0, 6, -2.3f), new Vector3(1, 4, .5f), d, false);
             Box(t, "MedicalCrossHorizontal", new Vector3(0, 6, -2.3f), new Vector3(3.4f, 1, .5f), d, false);
             Box(t, "AmbulanceCanopy", new Vector3(0, 3, -8), new Vector3(12, .3f, 8), w);
+            // Dress the existing front wall and named blockout props; keep every box collider.
+            HideNamedRenderers(t, "EntranceWing");
+            HideNamedRenderers(t, "EntranceLintel");
+            HideNamedRenderers(t, "Window");
+            HideNamedRenderers(t, "MedicalCrossVertical");
+            HideNamedRenderers(t, "MedicalCrossHorizontal");
+            PlaceLandmark(t, "lmk_hospital_facade", new Vector3(0, 0, 7));
+            for (int side = -1; side <= 1; side += 2)
+                for (int i = 0; i < 3; i++)
+                    DressNamed(t, "Bed", "lmk_hospital_ward_bed", new Vector3(side * 5.6f, 0, i * 3.5f + 1));
+            HideNamedRenderers(t, "AmbulanceCanopy");
+            PlaceLandmark(t, "lmk_hospital_ambulance", new Vector3(0, 0, -8));
+            PlaceLandmark(t, "lmk_sign_hospital", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-18, 0, 12));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(18, 0, 12));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(17, 0, -12));
         }
 
         static void Factory(Transform t, Material w, Material d)
@@ -262,9 +278,23 @@ namespace SheltreSim.World
             }
             Box(t, "LoadingAwning", new Vector3(13, 4, -6), new Vector3(10, .4f, 10), d);
             for (int i = 0; i < 3; i++) Box(t, "Pallet", new Vector3(13, .4f + i * .8f, -6), new Vector3(4, .7f, 3), w);
+            HideNamedRenderers(t, "Smokestack");
+            HideNamedRenderers(t, "StackRim");
+            for (int i = 0; i < 2; i++)
+                PlaceLandmark(t, "lmk_factory_stack", new Vector3(-15 + i * 5, 0, 10));
+            HideNamedRenderers(t, "MachineBase");
+            HideNamedRenderers(t, "MachineColumn");
+            for (int i = 0; i < 4; i++)
+                PlaceLandmark(t, "lmk_factory_press", new Vector3(i % 2 == 0 ? -7 : 7, 0, -3 + i * 3));
+            HideNamedRenderers(t, "LoadingAwning");
+            PlaceLandmark(t, "lmk_factory_crane", new Vector3(13, 0, -6));
+            PlaceLandmark(t, "lmk_sign_factory", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-18, 0, -10));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(18, 0, -10));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(18, 0, 14));
         }
 
-        static void Fuel(Transform t, Material w, Material d)
+        static void Fuel(Transform t, Material w, Material d, ProceduralWorldAssets assets)
         {
             Room(t, new Vector3(0, 0, 8), 16, 16, 3.6f, w, d);
             Box(t, "ForecourtCanopy", new Vector3(0, 4.5f, -8), new Vector3(32, .5f, 12), w);
@@ -274,13 +304,38 @@ namespace SheltreSim.World
                 for (int i = 0; i < 2; i++)
                 {
                     Box(t, "PumpIsland", new Vector3(x * 7, .15f, -11 + i * 5), new Vector3(3, .3f, 2.5f), w);
-                    Box(t, "FuelPump", new Vector3(x * 7, 1.1f, -11 + i * 5), new Vector3(.9f, 1.6f, .7f), d);
-                    Box(t, "PumpDisplay", new Vector3(x * 7, 1.5f, -11.4f + i * 5), new Vector3(.7f, .4f, .06f), w, false);
+                    GameObject pump = Box(t, "FuelPump", new Vector3(x * 7, 1.1f, -11 + i * 5), new Vector3(.9f, 1.6f, .7f), d);
+                    if (assets.landmarkFuelPump != null)
+                    {
+                        pump.GetComponent<Renderer>().enabled = false; // retain the simple blocking collider
+                        GameObject visual = UnityEngine.Object.Instantiate(assets.landmarkFuelPump, t, false);
+                        visual.name = "FuelPumpVisual_" + (x < 0 ? "L" : "R") + i;
+                        visual.transform.localPosition = new Vector3(x * 7, .3f, -11 + i * 5);
+                    }
+                    GameObject display = Box(t, "PumpDisplay", new Vector3(x * 7, 1.5f, -11.4f + i * 5), new Vector3(.7f, .4f, .06f), w, false);
+                    if (assets.landmarkFuelPump != null) display.GetComponent<Renderer>().enabled = false;
                 }
             }
             Box(t, "RoadSignPole", new Vector3(18, 5, 8), new Vector3(.5f, 10, .5f), w);
             Box(t, "RoadSign", new Vector3(18, 9, 8), new Vector3(4, 3, .4f), d);
             Cylinder(t, "StorageTank", new Vector3(-15, 2, 10), new Vector3(5, 2, 5), d);
+            HideNamedRenderers(t, "ForecourtCanopy");
+            HideNamedRenderers(t, "CanopyPost");
+            PlaceLandmark(t, "lmk_fuel_canopy", new Vector3(0, 0, -8));
+            HideNamedRenderers(t, "StorageTank");
+            PlaceLandmark(t, "lmk_fuel_tank", new Vector3(-15, 0, 10));
+            HideNamedRenderers(t, "RoadSignPole");
+            HideNamedRenderers(t, "RoadSign");
+            PlaceLandmark(t, "lmk_fuel_pylon", new Vector3(18, 0, 8));
+            // The shop front carries its own open doorway; retain side/back gameplay walls.
+            HideNamedRenderers(t, "EntranceWing");
+            HideNamedRenderers(t, "EntranceLintel");
+            HideNamedRenderers(t, "Window");
+            PlaceLandmark(t, "lmk_fuel_shop", new Vector3(0, 0, 8));
+            PlaceLandmark(t, "lmk_sign_fuel", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-19, 0, -14));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(19, 0, 14));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(-18, 0, 14));
         }
 
         static void Farm(Transform t, Material w, Material d)
@@ -299,6 +354,29 @@ namespace SheltreSim.World
             }
             Cylinder(t, "Silo", new Vector3(-15, 4, 12), new Vector3(5, 4, 5), w);
             Cylinder(t, "SiloCap", new Vector3(-15, 8.2f, 12), new Vector3(5.4f, .25f, 5.4f), d);
+            // The authored barn shell includes the open -Z doorway, so retain the original collision boxes only.
+            HideNamedRenderers(t, "BackWall");
+            HideNamedRenderers(t, "WestWall");
+            HideNamedRenderers(t, "EastWall");
+            HideNamedRenderers(t, "EntranceWing");
+            HideNamedRenderers(t, "EntranceLintel");
+            HideNamedRenderers(t, "Roof");
+            HideNamedRenderers(t, "Window");
+            HideNamedRenderers(t, "BarnRoof");
+            PlaceLandmark(t, "lmk_farm_barn", new Vector3(0, 0, 8));
+            HideNamedRenderers(t, "RaisedGrowingBed");
+            HideNamedRenderers(t, "Crop");
+            for (int side = -1; side <= 1; side += 2)
+                for (int row = 0; row < 4; row++)
+                    PlaceLandmark(t, "lmk_farm_bed", new Vector3(side * 13.5f, 0, -10 + row * 6));
+            HideNamedRenderers(t, "Silo");
+            HideNamedRenderers(t, "SiloCap");
+            PlaceLandmark(t, "lmk_farm_silo", new Vector3(-15, 0, 12));
+            PlaceLandmark(t, "lmk_farm_windmill", new Vector3(15, 0, 12));
+            PlaceLandmark(t, "lmk_sign_farm", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-18, 0, -12));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(18, 0, -12));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(18, 0, 15));
         }
 
         static void Military(Transform t, Material w, Material d)
@@ -317,6 +395,29 @@ namespace SheltreSim.World
             Box(t, "RelayPlatform", new Vector3(14, 8, 10), new Vector3(6, .5f, 6), w);
             Cylinder(t, "RelayMast", new Vector3(14, 12, 10), new Vector3(.5f, 4, .5f), d);
             Box(t, "RelayAerial", new Vector3(14, 14, 10), new Vector3(7, .3f, .3f), w, false);
+            // Hangar replaces the generic front dressing while leaving the route and collision shell intact.
+            HideNamedRenderers(t, "EntranceWing");
+            HideNamedRenderers(t, "EntranceLintel");
+            HideNamedRenderers(t, "Window");
+            PlaceLandmark(t, "lmk_mil_hangar", new Vector3(0, 0, 8));
+            HideNamedRenderers(t, "FencePost");
+            HideNamedRenderers(t, "FenceRail");
+            for (int side = -1; side <= 1; side += 2)
+                for (int segment = 0; segment < 8; segment++)
+                    PlaceLandmark(t, "lmk_fence_segment", new Vector3(side * 19, 0, -14 + segment * 4), new Vector3(0, 90, 0));
+            HideNamedRenderers(t, "Barricade");
+            for (int side = -1; side <= 1; side += 2)
+                PlaceLandmark(t, "lmk_mil_barricade", new Vector3(side * 10, 0, -12));
+            HideNamedRenderers(t, "RelayLeg");
+            HideNamedRenderers(t, "RelayPlatform");
+            HideNamedRenderers(t, "RelayMast");
+            HideNamedRenderers(t, "RelayAerial");
+            PlaceLandmark(t, "lmk_mil_tower", new Vector3(14, 0, 10));
+            PlaceLandmark(t, "lmk_mil_tent", new Vector3(-15, 0, 10));
+            PlaceLandmark(t, "lmk_sign_military", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(18, 0, 14));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(-18, 0, 14));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(18, 0, -14));
         }
 
         static void Bunker(Transform t, Material w, Material d)
@@ -332,6 +433,20 @@ namespace SheltreSim.World
             }
             Box(t, "EntranceHeader", new Vector3(0, 3.2f, -9), new Vector3(12, .5f, 2), d);
             for (int i = 0; i < 3; i++) Box(t, "SupplyShelf", new Vector3(-6, .6f + i * .9f, 5), new Vector3(1, .15f, 6), d);
+            HideNamedRenderers(t, "ArmouredRoof");
+            PlaceLandmark(t, "lmk_bunker_roof", new Vector3(0, 3.35f, 7));
+            HideNamedRenderers(t, "AirIntake");
+            HideNamedRenderers(t, "AirIntakeCap");
+            for (int side = -1; side <= 1; side += 2)
+                PlaceLandmark(t, "lmk_bunker_intake", new Vector3(side * 6, 5f, 11));
+            HideNamedRenderers(t, "EntranceHeader");
+            PlaceLandmark(t, "lmk_bunker_door", new Vector3(0, 0, -9));
+            HideNamedRenderers(t, "SupplyShelf");
+            PlaceLandmark(t, "lmk_bunker_shelf", new Vector3(-6, 0, 5));
+            PlaceLandmark(t, "lmk_sign_bunker", new Vector3(0, 3.4f, -2));
+            PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-18, 0, 13));
+            PlaceLandmark(t, "lmk_crate_stack", new Vector3(18, 0, 13));
+            PlaceLandmark(t, "lmk_rubble_pile", new Vector3(18, 0, -13));
         }
 
         static void Cache(Transform parent, string name, Vector3 position, int kind, int slot, ProceduralWorldAssets assets, System.Random random)
@@ -345,7 +460,7 @@ namespace SheltreSim.World
             collider.center = Vector3.up * .45f;
             collider.size = new Vector3(1.2f, .9f, .9f);
             var loot = root.AddComponent<LootContainer>();
-            SheltreSim.Crafting.LootTables.Fill(loot, Tables[kind], random);
+            SheltreSim.Crafting.LootTables.FillAtWorldPosition(loot, Tables[kind], random, root.transform.position);
             // One guaranteed component in industrial/bunker caches; others occasionally have a salvageable part.
             if ((slot == 3 && (kind == 1 || kind == 5)) || random.NextDouble() < .12)
                 Add(loot, assets.expeditionParts, 1);
@@ -376,20 +491,67 @@ namespace SheltreSim.World
             var root = new GameObject("RelayRepairPoint");
             root.transform.SetParent(parent, false);
             root.transform.localPosition = new Vector3(14f, 0f, 6.4f);
-            Box(root.transform, "RelayCabinet", Vector3.up * .75f, new Vector3(1.3f, 1.5f, .7f), assets.structureMaterial, false);
-            Box(root.transform, "RelayPanel", new Vector3(0f, .95f, -.37f), new Vector3(.9f, .6f, .05f), assets.roadMaterial, false);
+            GameObject cabinet = Box(root.transform, "RelayCabinet", Vector3.up * .75f, new Vector3(1.3f, 1.5f, .7f), assets.structureMaterial, false);
+            GameObject panel = Box(root.transform, "RelayPanel", new Vector3(0f, .95f, -.37f), new Vector3(.9f, .6f, .05f), assets.roadMaterial, false);
             GameObject lamp = Box(root.transform, "RelayLamp", Vector3.up * 1.58f, Vector3.one * .16f, assets.roadMaterial, false);
+            Renderer lampRenderer = lamp.GetComponent<Renderer>();
+            if (assets.landmarkRelayCabinet != null)
+            {
+                cabinet.GetComponent<Renderer>().enabled = false;
+                panel.GetComponent<Renderer>().enabled = false;
+                lamp.GetComponent<Renderer>().enabled = false;
+                GameObject visual = UnityEngine.Object.Instantiate(assets.landmarkRelayCabinet, root.transform, false);
+                visual.name = "Visual_RelayCabinet";
+                Transform modelLamp = FindPart(visual.transform, "Lamp");
+                Renderer authoredLamp = modelLamp != null ? modelLamp.GetComponentInChildren<Renderer>(true) : null;
+                if (authoredLamp != null) lampRenderer = authoredLamp;
+            }
             var collider = root.AddComponent<BoxCollider>();
             collider.center = Vector3.up * .8f;
             collider.size = new Vector3(1.4f, 1.6f, .8f);
             var point = root.AddComponent<RelayRepairPoint>();
             point.landmarkId = landmarkId;
-            point.lamp = lamp.GetComponent<Renderer>();
+            point.lamp = lampRenderer;
+        }
+
+        static Transform FindPart(Transform root, string name)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+                if (child.name == name) return child;
+            return null;
         }
 
         static void Add(LootContainer loot, ResourceDefinition resource, int amount)
         {
             if (resource != null) loot.entries.Add(new LootEntry { resource = resource, amount = amount });
+        }
+
+        static GameObject PlaceLandmark(Transform parent, string id, Vector3 localPosition, Vector3 localEuler = default)
+        {
+            GameObject prefab = Resources.Load<GameObject>("Props/" + id);
+            if (prefab == null) return null;
+            GameObject visual = UnityEngine.Object.Instantiate(prefab, parent, false);
+            visual.name = "Visual_" + id;
+            visual.transform.localPosition = localPosition;
+            visual.transform.localRotation = Quaternion.Euler(localEuler);
+            return visual;
+        }
+
+        // Keep the box and its collider as the gameplay footprint; only remove its blockout rendering.
+        static void HideNamedRenderers(Transform parent, string objectName)
+        {
+            foreach (Transform child in parent.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name != objectName) continue;
+                Renderer renderer = child.GetComponent<Renderer>();
+                if (renderer != null) renderer.enabled = false;
+            }
+        }
+
+        static void DressNamed(Transform parent, string boxName, string prefabId, Vector3 localPosition)
+        {
+            HideNamedRenderers(parent, boxName);
+            PlaceLandmark(parent, prefabId, localPosition);
         }
 
         static GameObject Box(Transform t, string name, Vector3 p, Vector3 size, Material material, bool solid = true)

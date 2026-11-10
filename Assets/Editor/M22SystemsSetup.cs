@@ -36,7 +36,7 @@ namespace SheltreSim.EditorTools
             ("piece_fence", "piece_fence"), ("piece_gate", "piece_gate"),
             ("piece_barricade", "piece_barricade"), ("piece_palisade", "piece_palisade"),
         };
-        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell", "fx_acid_glob", "fx_chem_flask", "melee_makeshift_blade", "melee_spiked_club", "melee_machete", "melee_fire_axe", "melee_steel_sword", "melee_hammer", "melee_iron_axe", "melee_iron_pickaxe" };
+        private static readonly string[] PropIds = { "loot_bag", "loot_boss_cache", "item_fuel_can", "item_canned_food", "item_bottle", "item_medkit", "item_scrap_bundle", "ammo_box_pistol", "ammo_box_rifle", "ammo_box_shell", "energy_cell", "fx_acid_glob", "fx_chem_flask", "melee_makeshift_blade", "melee_spiked_club", "melee_machete", "melee_fire_axe", "melee_steel_sword", "melee_hammer", "melee_iron_axe", "melee_iron_pickaxe" };
 
         private sealed class Row
         {
@@ -100,12 +100,13 @@ namespace SheltreSim.EditorTools
             BuildWeaponPrefabs(atlas);
             Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
             foreach (string id in PropIds) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
-            // Furniture and building parts for the procedural interiors (ProceduralContent.Prop loads Resources/Props/<id>): every
-            // furn_* and bld_* model gets a prefab, so a new model only needs its FBX.
+            ModelPrefab(WeaponModels + "bunker_lamp.fbx", PropPrefabs + "bunker_lamp.prefab", "bunker_lamp", atlas);
+            // Furniture, building parts, landmark dressing, and item visuals get Resources prefabs by id.
             foreach (string fbx in Directory.GetFiles(WeaponModels.TrimEnd('/'), "*.fbx"))
             {
                 string id = Path.GetFileNameWithoutExtension(fbx);
-                if (id.StartsWith("furn_") || id.StartsWith("bld_")) ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
+                if ((id.StartsWith("furn_") || id.StartsWith("bld_") || id.StartsWith("lmk_") || id.StartsWith("item_")) && !PropIds.Contains(id))
+                    ModelPrefab(WeaponModels + id + ".fbx", PropPrefabs + id + ".prefab", id, atlas);
             }
             Directory.CreateDirectory(EnemyPrefabs.TrimEnd('/'));
             foreach (var species in SheltreSim.Bestiary.SpeciesSpec.All)
@@ -130,6 +131,8 @@ namespace SheltreSim.EditorTools
             const string scenePath = "Assets/Scenes/M1_BunkerShell.unity";
             EditorSceneManager.OpenScene(scenePath);
             Material atlas = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/SS_Atlas.mat");
+            Directory.CreateDirectory(PropPrefabs.TrimEnd('/'));
+            ModelPrefab(WeaponModels + "bunker_lamp.fbx", PropPrefabs + "bunker_lamp.prefab", "bunker_lamp", atlas);
             var backlogIds = new HashSet<string>
             {
                 "piece_foundation_brick", "piece_wall_brick",

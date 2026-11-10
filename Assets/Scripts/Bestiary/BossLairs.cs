@@ -1,6 +1,8 @@
 using SheltreSim.Player;
+using SheltreSim.Items;
 using SheltreSim.UI;
 using SheltreSim.World;
+using System.Linq;
 using UnityEngine;
 
 namespace SheltreSim.Bestiary
@@ -88,7 +90,8 @@ namespace SheltreSim.Bestiary
                 case ProceduralLandmarks.KindFarm: store = Greenhouse(root, layout.storeLocal, wall, dark); break;
                 default: store = Locker(root, layout.storeLocal, wall, dark); break;
             }
-            Warning(root, layout.storeLocal, dark);
+            DressStore(kind, store.transform);
+            Warning(root, layout.storeLocal, dark, assets);
             Physics.SyncTransforms();
 
             SpeciesSpec spec = SpeciesSpec.Of(layout.boss);
@@ -109,13 +112,94 @@ namespace SheltreSim.Bestiary
             chest.hasLoot = chest.entries.Count > 0;
 
             var lair = root.gameObject.AddComponent<BossLair>();
-            lair.boss = boss;
-            lair.bossName = layout.bossName;
-            lair.arenaCenter = (feet + root.TransformPoint(layout.storeLocal)) * .5f;
-            lair.arenaRadius = layout.arenaRadius;
+            Vector3 arenaCenter = (feet + root.TransformPoint(layout.storeLocal)) * .5f;
+            CreatePhaseAdds(root, chunk, layout, boss, arenaCenter, seed, c);
+            // Configure gathers the phase slots from the hierarchy, including the inactive ones.
+            lair.Configure(boss, layout.bossName, arenaCenter, layout.arenaRadius, layout.boss, c, seed, root, chunk);
             var site = root.gameObject.AddComponent<EncounterSite>();
             site.siteId = EncounterAtlas.LairId(c, seed);
             site.title = layout.bossName + "'s lair";
+        }
+
+        private static void CreatePhaseAdds(Transform root, Transform chunk, Layout layout, ChunkEncounterSlot boss,
+            Vector3 arenaCenter, int seed, Vector2Int coordinate)
+        {
+            SpeciesId[] species = layout.boss == SpeciesId.RootColossus
+                ? new[] { SpeciesId.Rootwalker, SpeciesId.Wanderer }
+                : layout.boss == SpeciesId.Gatekeeper
+                    ? new[] { SpeciesId.Plated, SpeciesId.Runner }
+                    : new[] { SpeciesId.Scavenger, SpeciesId.Wanderer };
+            SpeciesSpec leadSpec = SpeciesSpec.Of(layout.boss);
+            Vector3 bossPosition = boss != null ? boss.transform.position : arenaCenter;
+            for (int i = 0; i < species.Length; i++)
+            {
+                SpeciesSpec addSpec = SpeciesSpec.Of(species[i]);
+                Vector3 feet = default;
+                bool found = false;
+                for (int attempt = 0; attempt < 8 && !found; attempt++)
+                {
+                    float angle = (i * 180f + attempt * 45f) * Mathf.Deg2Rad;
+                    float distance = Mathf.Min(layout.arenaRadius - 1.2f, leadSpec.Radius + addSpec.Radius + 1.7f + attempt * .15f);
+                    float x = bossPosition.x + Mathf.Cos(angle) * distance;
+                    float z = bossPosition.z + Mathf.Sin(angle) * distance;
+                    float lift = root.position.y - WorldLayout.HeightAt(x, z, seed) + .6f;
+                    if (EncounterPlacement.TryStand(x, z, addSpec.Radius, addSpec.Height, seed, out feet, lift)) found = true;
+                }
+                if (!found) continue;
+                ChunkEncounterSlot slot = EncounterPlacement.SpawnSlot(root, chunk, "PhaseAdd_" + i, species[i], feet,
+                    (float)(WorldLayout.Hash(coordinate.x, coordinate.y, seed + 1193 + i) % 360), coordinate, seed,
+                    bossPosition, layout.arenaRadius + 3f);
+                // The deterministic slots exist before any damage, so their health/death state can
+                // be restored if the landmark chunk unloads after the phase has started.
+                if (slot != null) slot.gameObject.SetActive(false);
+            }
+        }
+
+        static void DressStore(int kind, Transform store)
+        {
+            switch (kind)
+            {
+                case ProceduralLandmarks.KindFactory:
+                    // The sealed store and aggregate blocker stay intact; gate art follows the existing +X doorway.
+                    HideRenderers(store, "ShutterDoor");
+                    HideRenderers(store, "Stripe");
+                    GameObject gate = PlaceVisual(store, "lmk_boss_gate", new Vector3(1.62f, 0f, 0f), new Vector3(0f, 90f, 0f));
+                    if (gate != null) gate.transform.localScale = Vector3.one * .8f;
+                    break;
+                case ProceduralLandmarks.KindFarm:
+                    // Root mass dresses the planter footprint; the store's loot and collider remain on the root.
+                    HideRenderers(store, "Planter");
+                    HideRenderers(store, "Sprout");
+                    PlaceVisual(store, "lmk_boss_roots", Vector3.zero);
+                    break;
+                case ProceduralLandmarks.KindMilitary:
+                    HideRenderers(store, "Cabinet");
+                    HideRenderers(store, "Doors");
+                    HideRenderers(store, "Stencil");
+                    PlaceVisual(store, "lmk_boss_vault", Vector3.zero);
+                    break;
+            }
+        }
+
+        static GameObject PlaceVisual(Transform parent, string id, Vector3 position, Vector3 euler = default)
+        {
+            GameObject prefab = Resources.Load<GameObject>("Props/" + id);
+            if (prefab == null) return null;
+            GameObject visual = Object.Instantiate(prefab, parent, false);
+            visual.name = "Visual_" + id;
+            visual.transform.localPosition = position;
+            visual.transform.localRotation = Quaternion.Euler(euler);
+            return visual;
+        }
+
+        static void HideRenderers(Transform parent, string objectName)
+        {
+            foreach (Transform child in parent.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name != objectName) continue;
+                Renderer renderer = child.GetComponent<Renderer>();
+                if (renderer != null) renderer.enabled = false;
+            }
         }
 
         // ---- the marked stores. The store object carries the collider and the loot. ----
@@ -174,9 +258,28 @@ namespace SheltreSim.Bestiary
         }
 
         // A red lamp on a post: the store reads as "the thing" from across the deck.
-        static void Warning(Transform root, Vector3 storeLocal, Material dark)
+        static void Warning(Transform root, Vector3 storeLocal, Material dark, ProceduralWorldAssets assets)
         {
             Vector3 local = storeLocal + new Vector3(storeLocal.x < 0f ? 2.6f : -2.6f, 0f, -1.4f);
+            if (assets.lairWarningPost != null)
+            {
+                GameObject visual = Object.Instantiate(assets.lairWarningPost, root, false);
+                visual.name = "Visual_WarningPost";
+                visual.transform.localPosition = local;
+                Transform lampPart = null;
+                foreach (Transform child in visual.GetComponentsInChildren<Transform>(true))
+                    if (child.name == "Lamp") { lampPart = child; break; }
+                if (lampPart != null)
+                {
+                    var warningLight = lampPart.gameObject.AddComponent<Light>();
+                    warningLight.type = LightType.Point;
+                    warningLight.color = new Color(1f, .25f, .15f);
+                    warningLight.range = 9f;
+                    warningLight.intensity = 1.6f;
+                    warningLight.shadows = LightShadows.None;
+                }
+                return;
+            }
             EncounterPlacement.Prop(root, "WarningPost", PrimitiveType.Cylinder, local + Vector3.up * 1.5f, new Vector3(.12f, 1.5f, .12f), Quaternion.identity, dark, false);
             var lamp = EncounterPlacement.Prop(root, "WarningLamp", PrimitiveType.Sphere, local + Vector3.up * 3.1f, Vector3.one * .3f, Quaternion.identity, null, false, new Color(1f, .2f, .1f));
             var light = lamp.AddComponent<Light>();
@@ -196,20 +299,85 @@ namespace SheltreSim.Bestiary
         public Vector3 arenaCenter;
         public float arenaRadius;
         public bool Woken { get; private set; }
+        public bool ArenaLocked { get; private set; }
+        public bool PhaseTriggered => phaseMarker != null && phaseMarker.Searched;
+        public int PhaseAddCount => phaseSlots != null ? phaseSlots.Length : 0;
         private Transform player;
+        private Transform lairRoot, chunkRoot, gate;
+        private Vector2Int coordinate;
+        private int seed;
+        private SpeciesId bossSpecies;
+        private LootContainer wakeMarker, phaseMarker;
+        private ChunkEncounterSlot[] phaseSlots = System.Array.Empty<ChunkEncounterSlot>();
+        private bool phaseSlotsActivated, gateOpened;
+        private float phaseAddsAt = -1f;
+        private Vector3 gateClosedPosition, gateOpenPosition;
+
+        public void Configure(ChunkEncounterSlot bossSlot, string displayName, Vector3 center, float radius,
+            SpeciesId species, Vector2Int chunkCoordinate, int worldSeed, Transform root, Transform chunk)
+        {
+            boss = bossSlot;
+            bossName = displayName;
+            arenaCenter = center;
+            arenaRadius = radius;
+            bossSpecies = species;
+            coordinate = chunkCoordinate;
+            seed = worldSeed;
+            lairRoot = root;
+            chunkRoot = chunk;
+            wakeMarker = CreateMarker("BossWakeMarker");
+            phaseMarker = CreateMarker("BossPhaseMarker");
+            phaseSlots = lairRoot.GetComponentsInChildren<ChunkEncounterSlot>(true)
+                .Where(slot => slot.name.StartsWith("PhaseAdd_", System.StringComparison.Ordinal)).ToArray();
+        }
+
+        private LootContainer CreateMarker(string markerName)
+        {
+            GameObject markerObject = new GameObject(markerName);
+            markerObject.transform.SetParent(transform, false);
+            LootContainer marker = markerObject.AddComponent<LootContainer>();
+            marker.entries.Clear();
+            marker.hasLoot = false;
+            return marker;
+        }
 
         public void Wake()
         {
             if (Woken || boss == null || boss.Defeated || boss.Actor == null) return;
             Woken = true;
+            if (wakeMarker != null && !wakeMarker.Searched) wakeMarker.RestoreSearchedState(true);
+            LockArena();
             var actor = boss.Actor.GetComponent<SpeciesActor>();
             if (actor != null) SpeciesBehaviours.Wake(actor);
-            GameMessageBus.Post($"The {bossName} wakes.");
+            GameMessageBus.Post($"The {bossName} wakes. The arena gates lock behind you.");
         }
 
         private void Update()
         {
-            if (Woken || boss == null || boss.Defeated || Time.timeScale <= 0f) return;
+            if (boss == null || Time.timeScale <= 0f) return;
+            if (boss.Defeated || boss.Actor == null)
+            {
+                if (ArenaLocked) OpenArena();
+                return;
+            }
+            if (wakeMarker != null && wakeMarker.Searched && !Woken) Wake();
+            SpeciesBrain bossBrain = boss.Actor.GetComponent<SpeciesBrain>();
+            if (!Woken && (boss.Actor.health < boss.Actor.maxHealth - .01f || (bossBrain != null && !bossBrain.IsDormant))) Wake();
+            if (PhaseTriggered && !phaseSlotsActivated && phaseAddsAt < 0f) phaseAddsAt = Time.time + 1.35f;
+            if (PhaseTriggered && !phaseSlotsActivated && phaseAddsAt >= 0f && Time.time >= phaseAddsAt) ActivatePhaseAdds();
+            if (Woken && !PhaseTriggered && boss.Actor.health <= boss.Actor.maxHealth * .5f)
+                TriggerPhase();
+            if (gateOpened && gate != null)
+            {
+                gate.localPosition = Vector3.MoveTowards(gate.localPosition, gateOpenPosition,
+                    5f * Time.deltaTime);
+                if (Vector3.Distance(gate.localPosition, gateOpenPosition) < .02f)
+                {
+                    Collider collider = gate.GetComponent<Collider>();
+                    if (collider != null) collider.enabled = false;
+                }
+            }
+            if (Woken || boss.Defeated) return;
             if (player == null)
             {
                 var controller = FindFirstObjectByType<FirstPersonController>();
@@ -218,6 +386,81 @@ namespace SheltreSim.Bestiary
             }
             Vector3 d = player.position - arenaCenter;
             if (Mathf.Abs(d.y) < 4f && new Vector2(d.x, d.z).sqrMagnitude < arenaRadius * arenaRadius) Wake();
+        }
+
+        private void TriggerPhase()
+        {
+            if (phaseMarker == null) return;
+            phaseMarker.RestoreSearchedState(true);
+            phaseAddsAt = Time.time + 1.35f;
+            GameMessageBus.Post($"The {bossName} roars and braces for a second assault! Reinforcements are approaching.");
+        }
+
+        private void ActivatePhaseAdds()
+        {
+            phaseSlotsActivated = true;
+            int awakened = 0;
+            foreach (ChunkEncounterSlot slot in phaseSlots)
+            {
+                if (slot == null || slot.Defeated || slot.Actor == null) continue;
+                slot.gameObject.SetActive(true);
+                SpeciesActor actor = slot.Actor.GetComponent<SpeciesActor>();
+                if (actor != null) SpeciesBehaviours.Wake(actor);
+                awakened++;
+            }
+            if (awakened > 0) GameMessageBus.Post($"{awakened} reinforcements joined the fight.");
+        }
+
+        private void LockArena()
+        {
+            if (ArenaLocked || lairRoot == null) return;
+            ArenaLocked = true;
+            float half = arenaRadius + 1.25f;
+            float y = 1.35f;
+            Color gateColor = new Color(.38f, .16f, .12f);
+            // Fixed perimeter pieces leave no path through the lockdown; the south shutter is the
+            // single animated exit and only rises after the guardian falls.
+            Barrier("NorthBarrier", arenaCenter + Vector3.forward * half, new Vector3(half * 2f, 2.7f, .28f), gateColor);
+            Barrier("EastBarrier", arenaCenter + Vector3.right * half, new Vector3(.28f, 2.7f, half * 2f), gateColor);
+            Barrier("WestBarrier", arenaCenter - Vector3.right * half, new Vector3(.28f, 2.7f, half * 2f), gateColor);
+            float sideWidth = Mathf.Max(.5f, (half * 2f - 2.8f) * .5f);
+            Vector3 south = arenaCenter - Vector3.forward * half;
+            Barrier("SouthBarrierLeft", south - Vector3.right * (1.4f + sideWidth * .5f), new Vector3(sideWidth, 2.7f, .28f), gateColor);
+            Barrier("SouthBarrierRight", south + Vector3.right * (1.4f + sideWidth * .5f), new Vector3(sideWidth, 2.7f, .28f), gateColor);
+            GameObject shutter = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            shutter.name = "ArenaShutter";
+            shutter.transform.SetParent(lairRoot, true);
+            shutter.transform.position = arenaCenter - Vector3.forward * half + Vector3.up * y;
+            shutter.transform.localScale = new Vector3(2.4f, 2.7f, .4f);
+            Renderer renderer = shutter.GetComponent<Renderer>();
+            if (renderer != null) renderer.sharedMaterial = ProceduralWorld.Active != null ? ProceduralWorld.Active.assets.roadMaterial : null;
+            gate = shutter.transform;
+            gateClosedPosition = gate.localPosition;
+            gateOpenPosition = gateClosedPosition + Vector3.up * 3.2f;
+        }
+
+        private void Barrier(string barrierName, Vector3 position, Vector3 scale, Color tint)
+        {
+            GameObject barrier = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            barrier.name = barrierName;
+            barrier.transform.SetParent(lairRoot, true);
+            barrier.transform.position = position + Vector3.up * 1.35f;
+            barrier.transform.localScale = scale;
+            Renderer renderer = barrier.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = ProceduralWorld.Active != null ? ProceduralWorld.Active.assets.roadMaterial : null;
+                Material material = renderer.material;
+                if (material.HasProperty("_Color")) material.color = tint;
+            }
+        }
+
+        private void OpenArena()
+        {
+            ArenaLocked = false;
+            if (gate == null) return;
+            gateOpened = true;
+            GameMessageBus.Post($"The {bossName}'s arena gate opens. The guarded cache is clear.");
         }
     }
 }

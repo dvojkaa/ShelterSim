@@ -196,8 +196,9 @@ namespace SheltreSim.Diagnostics
             Check(home.Money == 50000 && home.HasContract && home.IsBuilding, "Contract deducts $20,000 and starts automatic construction");
             Inventory inventory = player.GetComponent<Inventory>();
             Check(inventory.GetCount("hammer") == 1 && inventory.GetCount("canned_food") == 4 &&
-                  inventory.GetCount("bottled_water") == 4 && inventory.GetCount("bandage") == 2,
-                "Contract delivers the fixed starter pack");
+                  inventory.GetCount("bottled_water") == 4 && inventory.GetCount("bandage") == 2 &&
+                  inventory.GetCount("paper_map") == 1,
+                "Contract delivers the fixed starter pack and local paper map");
             ModalUI.DismissCurrent();
             yield return null;
             Check(!ModalUI.IsOpen && Time.timeScale == 1f && (Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked), "Closing the terminal gives the game back");
@@ -236,6 +237,8 @@ namespace SheltreSim.Diagnostics
                 "The selected hydro wing shell is visible");
             Check(RaiderCapsuleClear(new Vector3(68f, 0f, -211.65f)),
                 "The north-wing opening fits a raider capsule with skin width");
+            yield return CheckRaiderPath(new Vector3(68f, 0f, -213.5f), new Vector3(68f, 0f, -206.5f),
+                "North wing opening");
 
             int savedMoney = home.Money;
             int savedFuel = home.supplyCage.GetCount("fuel");
@@ -263,6 +266,8 @@ namespace SheltreSim.Diagnostics
             Physics.SyncTransforms();
             Check(RaiderCapsuleClear(new Vector3(83f, 0f, -213.35f)),
                 "The open vault doorway fits a raider capsule with skin width");
+            yield return CheckRaiderPath(new Vector3(83f, 0f, -215.5f), new Vector3(83f, 0f, -210.5f),
+                "Open vault doorway");
             Check(home.TryBuyOffer(BunkerShop.Get("door_reinforced"), out _) &&
                   Mathf.Approximately(home.mainBlastDoor.maxRaidHealth, 750f),
                 "Reinforced main blast door gets 2.5 times the break-in health");
@@ -367,6 +372,53 @@ namespace SheltreSim.Diagnostics
                 return false;
             }
             return true;
+        }
+
+        private IEnumerator CheckRaiderPath(Vector3 startFeet, Vector3 targetFeet, string label)
+        {
+            if (world == null || world.assets == null || world.assets.raiderPrefab == null)
+            {
+                Check(false, label + " has a raider prefab to test");
+                yield break;
+            }
+
+            GameObject raider = Instantiate(world.assets.raiderPrefab);
+            raider.name = "HomeProbeRaider_" + label.Replace(' ', '_');
+            EnemyAI ai = raider.GetComponent<EnemyAI>();
+            if (ai != null) ai.enabled = false;
+            CharacterController controller = raider.GetComponent<CharacterController>();
+            if (controller == null)
+            {
+                Check(false, label + " raider prefab has a CharacterController");
+                Destroy(raider);
+                yield break;
+            }
+
+            controller.enabled = false;
+            float scaleY = Mathf.Abs(raider.transform.lossyScale.y);
+            float halfHeight = controller.height * scaleY * 0.5f;
+            raider.transform.SetPositionAndRotation(
+                startFeet + Vector3.up * (halfHeight - controller.center.y * scaleY + controller.skinWidth + 0.02f),
+                Quaternion.identity);
+            controller.minMoveDistance = 0f;
+            controller.enabled = true;
+            Physics.SyncTransforms();
+
+            Vector3 direction = Vector3.ProjectOnPlane(targetFeet - startFeet, Vector3.up).normalized;
+            float deadline = Time.realtimeSinceStartup + 8f;
+            while (Time.realtimeSinceStartup < deadline &&
+                   Vector3.ProjectOnPlane(targetFeet - raider.transform.position, Vector3.up).sqrMagnitude > 0.35f * 0.35f)
+            {
+                controller.Move((direction * 3f + Vector3.down * 2f) * Time.deltaTime);
+                yield return null;
+            }
+
+            float remaining = Vector3.ProjectOnPlane(targetFeet - raider.transform.position, Vector3.up).magnitude;
+            bool passed = remaining <= 0.65f;
+            Debug.Log($"[HomeProbe] {(passed ? "PASS" : "FAIL")}: {label} raider capsule path end={raider.transform.position:F2}, remaining={remaining:F2}m");
+            if (!passed) failures++;
+            Destroy(raider);
+            yield return null;
         }
 
         private IEnumerator CheckBombs()

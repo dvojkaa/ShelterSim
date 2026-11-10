@@ -198,7 +198,7 @@ GameObject:
   - component: {fileID: 6637702734647336389}
   - component: {fileID: 448541136370252479}
   - component: {fileID: 5623703267572834658}
-  - component: {fileID: 5158231720505266939}
+  - component: {fileID: 5763662941718063133}
   m_Layer: 0
   m_Name: LampPiece
   m_TagString: Untagged
@@ -258,7 +258,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_lamp
   wasPlacedFromKit: 0
---- !u!114 &5158231720505266939
+--- !u!114 &5763662941718063133
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

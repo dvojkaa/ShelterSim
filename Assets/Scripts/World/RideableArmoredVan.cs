@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SheltreSim.Audio;
 using SheltreSim.Bestiary;
 using SheltreSim.Building;
 using SheltreSim.Enemies;
@@ -19,14 +20,15 @@ namespace SheltreSim.World
     public sealed class RideableArmoredVan : MonoBehaviour, IInteractable, IItemStore, IPieceState
     {
         public const float CargoCapacityKg = 300f;
-        public const float FuelRangePerCan = 700f;
-        public const float BatteryRangePerCell = 500f;
-        public const float TankRange = FuelRangePerCan * 8f;
+        public const float FuelRangePerCan = 4000f;
+        public const float BatteryRangePerCell = 1500f;
+        public const float TankRange = 12000f;
         public const float TurretRange = 70f;
         public const float TurretDamage = 45f;
         public const float TurretShotInterval = 0.75f;
-        public float walkSpeed = 14f;
-        public float sprintSpeed = 18f;
+        // Heavy, but still much quicker than walking; sprint gives a clear highway-speed burst.
+        public float walkSpeed = 20f;
+        public float sprintSpeed = 27f;
         public float ramRadius = 1f;
         public float minimumRamSpeed = 6f;
         public string InteractPrompt => "Press E to drive armored van";
@@ -50,7 +52,7 @@ namespace SheltreSim.World
         private VehicleMountView mountView;
         private float oldWalk, oldSprint, fuelMeters, nextNoise, nextCooldownCleanup, nextTurretShot, nextDryTurretMessage, driveScale, currentSpeed;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
-        private InputAction dismount, cargoAction, refuelAction, batteryAction, lightAction, turretAction;
+        private InputAction dismount, cargoAction, refuelAction, batteryAction, lightAction, turretAction, hornAction;
         private Collider[] vehicleColliders;
         private bool[] colliderStates;
         private Transform[] wheels;
@@ -83,27 +85,28 @@ namespace SheltreSim.World
             batteryAction = new InputAction("ChargeVan", InputActionType.Button, "<Keyboard>/j");
             lightAction = new InputAction("ToggleVanLights", InputActionType.Button, "<Keyboard>/l");
             turretAction = new InputAction("FireVanTurret", InputActionType.Button, "<Keyboard>/t");
+            hornAction = new InputAction("ArmoredVanHorn", InputActionType.Button, "<Keyboard>/k");
             CreateHeadlights();
             ApplyHeadlights();
         }
 
         private void OnEnable()
         {
-            dismount?.Enable(); cargoAction?.Enable(); refuelAction?.Enable(); batteryAction?.Enable(); lightAction?.Enable(); turretAction?.Enable();
+            dismount?.Enable(); cargoAction?.Enable(); refuelAction?.Enable(); batteryAction?.Enable(); lightAction?.Enable(); turretAction?.Enable(); hornAction?.Enable();
             StorageRegistry.Register(this);
         }
 
         private void OnDisable()
         {
             StorageRegistry.Unregister(this);
-            dismount?.Disable(); cargoAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable(); turretAction?.Disable();
+            dismount?.Disable(); cargoAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable(); turretAction?.Disable(); hornAction?.Disable();
             if (mounted) ForceDismount();
             else if (mountView != null && mountView.IsAttachedTo(transform) && mountView.IsTransitioning) mountView.ForceDismount(transform);
         }
 
         private void OnDestroy()
         {
-            dismount?.Dispose(); cargoAction?.Dispose(); refuelAction?.Dispose(); batteryAction?.Dispose(); lightAction?.Dispose(); turretAction?.Dispose();
+            dismount?.Dispose(); cargoAction?.Dispose(); refuelAction?.Dispose(); batteryAction?.Dispose(); lightAction?.Dispose(); turretAction?.Dispose(); hornAction?.Dispose();
         }
 
         private void Update()
@@ -124,6 +127,11 @@ namespace SheltreSim.World
             if (batteryAction.WasPressedThisFrame()) ChargeBattery();
             if (lightAction.WasPressedThisFrame()) { lightsOn = !lightsOn; ApplyHeadlights(); GameMessageBus.Post(lightsOn ? "Van headlights on." : "Van headlights off."); }
             if (turretAction.WasPressedThisFrame()) FireTurret();
+            if (hornAction.WasPressedThisFrame())
+            {
+                GameAudio.PlayAt(Sfx.VehicleHorn, transform.position + Vector3.up, 1f, 65f, 0.02f);
+                AlertNearby();
+            }
 
             Vector3 previousRiderPosition = lastRiderPosition;
             Vector3 position = rider.transform.position;
@@ -154,7 +162,7 @@ namespace SheltreSim.World
             VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .72f, Time.deltaTime);
             float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, rider.MoveInput.y);
             float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
-            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 1.3f);
+            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.2f);
             rider.walkSpeed = walkSpeed * driveScale;
             rider.sprintSpeed = sprintSpeed * driveScale;
 
@@ -182,19 +190,15 @@ namespace SheltreSim.World
             if (rider == null) return;
             mountView = VehicleMountView.For(rider);
             if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
-            Vector3 parkedPosition = transform.position;
-            Quaternion parkedRotation = transform.rotation;
-            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            Vector3 followPosition = FollowPosition(rider.transform.position, yaw, out Quaternion groundRotation, out _);
-            if (!RotationHasClearance(transform.position, groundRotation)) groundRotation = transform.rotation;
-            transform.rotation = groundRotation;
-            Vector3 resolvedPosition = ResolveVehicleMotion(followPosition, 0f, groundRotation);
-            transform.position = resolvedPosition;
-            if (!mountView.BeginMount(transform))
+            Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (flatForward.sqrMagnitude < 0.001f) flatForward = Vector3.forward;
+            Vector3 riderSeatPosition = transform.position - Vector3.up * RootHeight + flatForward * 3f;
+            Quaternion riderSeatRotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            if (!mountView.BeginMount(transform, riderSeatPosition, riderSeatRotation))
             {
-                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
                 rider = null;
                 mountView = null;
+                GameMessageBus.Post("No clear driver space in the van.");
                 return;
             }
             mounted = true;
@@ -206,7 +210,7 @@ namespace SheltreSim.World
             rider.SetBicycleMounted(true);
             foreach (Collider collider in vehicleColliders) if (collider != null) collider.enabled = false;
             lastBumperPosition = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
-            GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan:0} m), J energy cell (+{BatteryRangePerCell:0} m), L lights, T turret (1 rifle round), Space dismount. Range: {fuelMeters:0} m. Ram at speed to damage enemies and structures.");
+            GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan / 1000f:0.#} km), J energy cell (+{BatteryRangePerCell / 1000f:0.#} km), L lights, K horn, T turret (1 rifle round), Space dismount. Range: {fuelMeters / 1000f:0.#} km. Ram at speed to damage enemies and structures.");
         }
 
         private Vector3 FollowPosition(Vector3 riderPosition, Quaternion yaw, out Quaternion groundRotation, out float grade)
@@ -264,12 +268,14 @@ namespace SheltreSim.World
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = vehicleBlockHits[i];
+                if (IsUpwardSupportContact(hit)) continue;
                 if (!IsVehicleBlocker(hit.collider)) continue;
                 if (hit.distance < nearest) nearest = hit.distance;
             }
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = vehicleBlockHits[i];
+                if (IsUpwardSupportContact(hit)) continue;
                 if (hit.distance <= nearest + .02f && IsVehicleBlocker(hit.collider)) ApplyImpact(hit, direction, speed);
             }
             Array.Clear(vehicleBlockHits, 0, count);
@@ -301,6 +307,10 @@ namespace SheltreSim.World
             if (rider != null && (collider.transform == rider.transform || collider.transform.IsChildOf(rider.transform))) return false;
             return true;
         }
+
+        // The terrain-follow solver places the chassis over the sampled slope. Do not treat
+        // an upward-facing, driveable hill as a vertical obstacle during the horizontal sweep.
+        private static bool IsUpwardSupportContact(RaycastHit hit) => VehicleTerrain.IsDriveSurface(hit);
 
         private void ApplyImpact(RaycastHit hit, Vector3 direction, float speed)
         {
@@ -449,12 +459,12 @@ namespace SheltreSim.World
             }
             if (TankRange - fuelMeters + 0.001f < FuelRangePerCan)
             {
-                GameMessageBus.Post($"Need at least {FuelRangePerCan:0} m tank space before using another fuel can.");
+                GameMessageBus.Post($"Need at least {FuelRangePerCan / 1000f:0.#} km tank space before using another fuel can.");
                 return;
             }
             if (!pack.TryConsume("fuel", 1)) { GameMessageBus.Post("Need a fuel can to refuel the van."); return; }
             fuelMeters += FuelRangePerCan;
-            GameMessageBus.Post($"Van refuelled. Range: {fuelMeters:0} m.");
+            GameMessageBus.Post($"Van refuelled. Range: {fuelMeters / 1000f:0.#} km.");
         }
 
         private void ChargeBattery()
@@ -463,12 +473,12 @@ namespace SheltreSim.World
             if (pack == null) { GameMessageBus.Post("Cannot access the player's inventory."); return; }
             if (TankRange - fuelMeters + 0.001f < BatteryRangePerCell)
             {
-                GameMessageBus.Post($"Need at least {BatteryRangePerCell:0} m tank space before using an energy cell.");
+                GameMessageBus.Post($"Need at least {BatteryRangePerCell / 1000f:0.#} km tank space before using an energy cell.");
                 return;
             }
             if (!pack.TryConsume("energy_cell", 1)) { GameMessageBus.Post("Need an energy cell to recharge the van."); return; }
             fuelMeters += BatteryRangePerCell;
-            GameMessageBus.Post($"Van battery charged. Range: {fuelMeters:0} m.");
+            GameMessageBus.Post($"Van battery charged. Range: {fuelMeters / 1000f:0.#} km.");
         }
 
         private void AlertNearby()

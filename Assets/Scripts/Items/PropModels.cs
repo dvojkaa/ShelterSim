@@ -4,7 +4,7 @@ using UnityEngine;
 namespace SheltreSim.Items
 {
     /// <summary>
-    /// Small item models made by M22SystemsSetup into Resources/Props (loot bags, fuel can, ammo boxes, energy cell).
+    /// Small item models made by M22SystemsSetup into Resources/Props (loot bags, fuel can, ammo boxes, energy cell and cache rewards).
     /// Visual only: colliders are stripped. Returns null if a model isn't there, so callers keep their fallback.
     /// </summary>
     public static class PropModels
@@ -42,6 +42,10 @@ namespace SheltreSim.Items
                 case "ammo_rifle": return "ammo_box_rifle";
                 case "ammo_shell": return "ammo_box_shell";
                 case "energy_cell": return "energy_cell";
+                case "canned_food": return "item_canned_food";
+                case "bottled_water": return "item_bottle";
+                case "first_aid": return "item_medkit";
+                case "expedition_parts": return "item_scrap_bundle";
                 default: return null;
             }
         }

@@ -6,13 +6,14 @@ namespace SheltreSim.Saving
     [System.Serializable]
     public class SaveData
     {
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
         /// <summary>Version 5 has the same world, just no state for the M22 systems, so it stays readable.</summary>
         public const int MinimumVersion = 5;
 
         // Zero identifies the unversioned M3-M15 format. Missing required values remain
         // invalid because SaveManager deserializes by overwriting a constructed instance.
         public int version;
+        public int difficulty = (int)SheltreSim.Core.GameDifficulty.Normal;
         public string sceneName;
         public Vector3 playerPosition = new Vector3(float.NaN, float.NaN, float.NaN);
         public float playerYaw = float.NaN;

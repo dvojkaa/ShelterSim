@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5020626021545926524}
-  - component: {fileID: 3976183204769901872}
+  - component: {fileID: 8478575114739223948}
   m_Layer: 0
   m_Name: enemy_runner
   m_TagString: Untagged
@@ -39,7 +39,7 @@ Transform:
   - {fileID: 3530140833983521170}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &3976183204769901872
+--- !u!95 &8478575114739223948
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

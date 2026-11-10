@@ -99,7 +99,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5336272875452281048}
-  - component: {fileID: 37370610266518473}
+  - component: {fileID: 9088339006908461820}
   m_Layer: 0
   m_Name: boss_gatekeeper
   m_TagString: Untagged
@@ -129,7 +129,7 @@ Transform:
   - {fileID: 5763919592677918037}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &37370610266518473
+--- !u!95 &9088339006908461820
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

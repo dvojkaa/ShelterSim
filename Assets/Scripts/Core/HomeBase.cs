@@ -33,7 +33,7 @@ namespace SheltreSim.Core
             new Stage { name = "Life support", description = "Air, power, water. FINISHING THIS COMPLETES THE BUNKER AND THE APOCALYPSE BEGINS.", price = 4000, seconds = 20f },
         };
 
-        public const int StartingMoney = EconomyTuning.NormalBudget;
+        public static int StartingMoney => GameDifficultySettings.StartingBudget;
         public const int ContractPrice = 20000;
 
         public static class EconomyTuning
@@ -76,6 +76,7 @@ namespace SheltreSim.Core
         public bool CanShop => (gameState == null || gameState.CurrentPhase == GamePhase.Building) && !IsSealing;
 
         private readonly Dictionary<string, int> purchaseCounts = new Dictionary<string, int>();
+        private RadioNewsCountdown radioNews;
         public int PurchaseCount(string offerId) => offerId != null && purchaseCounts.TryGetValue(offerId, out int n) ? n : 0;
 
         public int NextStageIndex => IsBuilding ? CompletedStages + 1 : CompletedStages;
@@ -87,6 +88,8 @@ namespace SheltreSim.Core
         {
             Active = this;
             if (gameState == null) gameState = FindFirstObjectByType<GameStateManager>();
+            radioNews = GetComponent<RadioNewsCountdown>();
+            if (radioNews == null) radioNews = gameObject.AddComponent<RadioNewsCountdown>();
         }
 
         private void Start()
@@ -164,11 +167,14 @@ namespace SheltreSim.Core
             inventory.Add("canned_food", 4);
             inventory.Add("bottled_water", 4);
             inventory.Add("bandage", 2);
+            inventory.Add("paper_map", 1);
             CompletedStages = 0;
             IsBuilding = true;
             BuildElapsed = 0f;
             result = "Bunker contract signed. Excavation, concrete shell and stairs are now scheduled.";
             GameMessageBus.Post(result);
+            if (radioNews == null) radioNews = GetComponent<RadioNewsCountdown>();
+            radioNews?.StartAfterContract();
             return true;
         }
 
@@ -226,6 +232,7 @@ namespace SheltreSim.Core
         public void DebugStartSurvival()
         {
             HasContract = true;
+            if (inventory != null && inventory.GetCount("paper_map") <= 0) inventory.Add("paper_map", 1);
             CompletedStages = Stages.Length;
             IsBuilding = false;
             if (gameState != null) gameState.RestorePhase(GamePhase.Survival);

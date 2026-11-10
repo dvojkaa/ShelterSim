@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &5878771623300029644
+--- !u!1 &738371732127498661
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 5442158823199244967}
-  - component: {fileID: 5861725416639838574}
-  - component: {fileID: 6176784486121468265}
+  - component: {fileID: 7482024729937726024}
+  - component: {fileID: 5126780416788341128}
+  - component: {fileID: 2084786089790950968}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -18,13 +18,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &5442158823199244967
+--- !u!4 &7482024729937726024
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5878771623300029644}
+  m_GameObject: {fileID: 738371732127498661}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0.5, z: 0}
@@ -33,21 +33,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 5484716891023942678}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &5861725416639838574
+--- !u!33 &5126780416788341128
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5878771623300029644}
+  m_GameObject: {fileID: 738371732127498661}
   m_Mesh: {fileID: -7511959542072008628, guid: fbac34d641932b349a05ea896dde6874, type: 3}
---- !u!23 &6176784486121468265
+--- !u!23 &2084786089790950968
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5878771623300029644}
+  m_GameObject: {fileID: 738371732127498661}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -101,8 +101,8 @@ GameObject:
   - component: {fileID: 5484716891023942678}
   - component: {fileID: 1595115125518719879}
   - component: {fileID: 2639137927842744198}
-  - component: {fileID: -4208169368255384341}
-  - component: {fileID: 7717829883344448412}
+  - component: {fileID: 9008511822851643074}
+  - component: {fileID: 761024300245314837}
   m_Layer: 0
   m_Name: BedPiece
   m_TagString: Untagged
@@ -123,7 +123,7 @@ Transform:
   m_LocalScale: {x: 1, y: 0.5, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 5442158823199244967}
+  - {fileID: 7482024729937726024}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &1595115125518719879
@@ -161,7 +161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: bed
   wasPlacedFromKit: 0
---- !u!114 &-4208169368255384341
+--- !u!114 &9008511822851643074
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -176,7 +176,7 @@ MonoBehaviour:
   dangerCheckRadius: 15
   healAmount: 40
   simulatedRestSeconds: 60
---- !u!114 &7717829883344448412
+--- !u!114 &761024300245314837
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

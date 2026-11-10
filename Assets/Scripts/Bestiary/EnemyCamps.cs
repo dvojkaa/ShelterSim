@@ -94,7 +94,7 @@ namespace SheltreSim.Bestiary
 
             int tents = 3 + random.Next(2);
             float tentOffset = (float)random.NextDouble() * 30f;
-            for (int i = 0; i < tents; i++) Tent(root, "Tent_" + i, tentOffset + i * 360f / tents, 9.5f, wall, seed);
+            for (int i = 0; i < tents; i++) Tent(root, "Tent_" + i, tentOffset + i * 360f / tents, 9.5f, wall, seed, assets);
             for (int i = 0; i < 8; i++)
             {
                 if (i == 0 || i == 4) continue; // two entrances
@@ -106,13 +106,13 @@ namespace SheltreSim.Bestiary
             for (int side = -1; side <= 1; side += 2)
                 Grounded(root, "Barricade_" + (side < 0 ? "S" : "N"), PrimitiveType.Cube, new Vector3(2.6f, 0f, side * (Radius + 1.2f)), .5f,
                     new Vector3(2.4f, 1.0f, .25f), Quaternion.Euler(0f, 0f, 12f), dark, true, null, seed);
-            Fire(root, new Vector3(0f, 0f, -4f), seed);
+            Fire(root, new Vector3(0f, 0f, -4f), seed, assets);
             FlagPole(root, new Vector3(2.6f, 0f, 2.6f), wall, dark, seed);
             for (int i = 0; i < 2; i++)
             {
                 var crate = CrateAt(root, "Crate_" + i, new Vector3(i == 0 ? -5.5f : 5.5f, 0f, 1f), assets, seed);
                 var loot = crate.AddComponent<LootContainer>();
-                SheltreSim.Crafting.LootTables.Fill(loot, i == 0 ? "military" : "town", random);
+                SheltreSim.Crafting.LootTables.FillAtWorldPosition(loot, i == 0 ? "military" : "town", random, crate.transform.position);
                 loot.hasLoot = loot.entries.Count > 0;
             }
             int weapon = random.Next(Weapons.Length);
@@ -128,7 +128,7 @@ namespace SheltreSim.Bestiary
 
             Physics.SyncTransforms();
             // The boss and its chest, in the middle.
-            GameObject chestObject = ChestAt(root, "BossChest", Vector3.zero, wall, dark, seed);
+            GameObject chestObject = ChestAt(root, "BossChest", Vector3.zero, wall, dark, seed, assets);
             Physics.SyncTransforms();
             Vector3 bossLocal = new Vector3(0f, 0f, 2.4f);
             Vector3 bossFeet = Stand(root, bossLocal, SpeciesSpec.Of(SpeciesId.ShiftCommander), seed, null);
@@ -200,7 +200,7 @@ namespace SheltreSim.Bestiary
             return go;
         }
 
-        static void Tent(Transform root, string name, float angle, float radius, Material canvas, int seed)
+        static void Tent(Transform root, string name, float angle, float radius, Material canvas, int seed, ProceduralWorldAssets assets)
         {
             float a = angle * Mathf.Deg2Rad;
             Vector3 local = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * radius;
@@ -209,6 +209,24 @@ namespace SheltreSim.Bestiary
             tent.SetParent(root, false);
             tent.position = new Vector3(world.x, WorldLayout.HeightAt(world.x, world.z, seed), world.z);
             tent.localRotation = Quaternion.Euler(0f, angle, 0f); // long axis points at the fire
+            if (assets.campTent != null)
+            {
+                GameObject visual = Object.Instantiate(assets.campTent, tent, false);
+                visual.name = "Visual_CampTent";
+                // Keep the authored tent footprint solid without drawing primitive placeholder panels.
+                Color collisionCloth = new Color(.42f, .45f, .3f);
+                float collisionHalf = 1.35f, collisionHeight = 2.0f;
+                float collisionSlant = Mathf.Atan2(collisionHalf, collisionHeight) * Mathf.Rad2Deg;
+                float collisionPanel = Mathf.Sqrt(collisionHalf * collisionHalf + collisionHeight * collisionHeight);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    GameObject blocker = EncounterPlacement.Prop(tent, "CollisionPanel", PrimitiveType.Cube,
+                        new Vector3(side * collisionHalf * .5f, collisionHeight * .5f, 0f), new Vector3(.08f, collisionPanel, 3.6f),
+                        Quaternion.Euler(0f, 0f, side * collisionSlant), canvas, true, collisionCloth);
+                    blocker.GetComponent<Renderer>().enabled = false;
+                }
+                return;
+            }
             Color cloth = new Color(.42f, .45f, .3f);
             float half = 1.35f, height = 2.0f, slant = Mathf.Atan2(half, height) * Mathf.Rad2Deg;
             float panel = Mathf.Sqrt(half * half + height * height);
@@ -223,22 +241,30 @@ namespace SheltreSim.Bestiary
                 new Vector3(.8f, .12f, 2f), Quaternion.identity, canvas, false, new Color(.35f, .2f, .15f));
         }
 
-        static void Fire(Transform root, Vector3 local, int seed)
+        static void Fire(Transform root, Vector3 local, int seed, ProceduralWorldAssets assets)
         {
             Vector3 world = root.TransformPoint(local);
             world.y = WorldLayout.HeightAt(world.x, world.z, seed);
             var fire = new GameObject("Campfire").transform;
             fire.SetParent(root, false);
             fire.position = world;
-            for (int i = 0; i < 7; i++)
+            if (assets.campFire != null)
             {
-                float a = i * Mathf.PI * 2f / 7f;
-                EncounterPlacement.Prop(fire, "Stone", PrimitiveType.Sphere, new Vector3(Mathf.Cos(a) * .75f, .08f, Mathf.Sin(a) * .75f),
-                    new Vector3(.35f, .25f, .3f), Quaternion.identity, null, false, new Color(.35f, .34f, .33f));
+                GameObject visual = Object.Instantiate(assets.campFire, fire, false);
+                visual.name = "Visual_CampFire";
             }
-            for (int i = 0; i < 3; i++)
-                EncounterPlacement.Prop(fire, "Log", PrimitiveType.Cylinder, new Vector3(0f, .15f, 0f), new Vector3(.14f, .5f, .14f),
-                    Quaternion.Euler(70f, i * 60f, 0f), null, false, new Color(.25f, .15f, .08f));
+            else
+            {
+                for (int i = 0; i < 7; i++)
+                {
+                    float a = i * Mathf.PI * 2f / 7f;
+                    EncounterPlacement.Prop(fire, "Stone", PrimitiveType.Sphere, new Vector3(Mathf.Cos(a) * .75f, .08f, Mathf.Sin(a) * .75f),
+                        new Vector3(.35f, .25f, .3f), Quaternion.identity, null, false, new Color(.35f, .34f, .33f));
+                }
+                for (int i = 0; i < 3; i++)
+                    EncounterPlacement.Prop(fire, "Log", PrimitiveType.Cylinder, new Vector3(0f, .15f, 0f), new Vector3(.14f, .5f, .14f),
+                        Quaternion.Euler(70f, i * 60f, 0f), null, false, new Color(.25f, .15f, .08f));
+            }
             var lightObject = new GameObject("FireLight");
             lightObject.transform.SetParent(fire, false);
             lightObject.transform.localPosition = Vector3.up * 1.1f;
@@ -282,18 +308,27 @@ namespace SheltreSim.Bestiary
         }
 
         /// <summary>A banded strongbox. Shared by camps and the military lair.</summary>
-        public static GameObject ChestAt(Transform root, string name, Vector3 local, Material wall, Material dark, int seed)
+        public static GameObject ChestAt(Transform root, string name, Vector3 local, Material wall, Material dark, int seed,
+            ProceduralWorldAssets assets = null)
         {
             Vector3 world = root.TransformPoint(local);
             var chest = new GameObject(name);
             chest.transform.SetParent(root, false);
             chest.transform.position = new Vector3(world.x, WorldLayout.HeightAt(world.x, world.z, seed), world.z);
             chest.transform.localRotation = Quaternion.identity;
-            EncounterPlacement.Prop(chest.transform, "Case", PrimitiveType.Cube, Vector3.up * .4f, new Vector3(1.3f, .8f, .85f), Quaternion.identity, wall, false, new Color(.33f, .36f, .28f));
-            EncounterPlacement.Prop(chest.transform, "Lid", PrimitiveType.Cube, Vector3.up * .86f, new Vector3(1.38f, .14f, .92f), Quaternion.identity, dark, false);
-            for (int i = -1; i <= 1; i += 2)
-                EncounterPlacement.Prop(chest.transform, "Band", PrimitiveType.Cube, new Vector3(i * .42f, .45f, 0f), new Vector3(.08f, .86f, .9f), Quaternion.identity, dark, false);
-            EncounterPlacement.Prop(chest.transform, "Padlock", PrimitiveType.Cube, new Vector3(0f, .62f, -.46f), new Vector3(.16f, .2f, .06f), Quaternion.identity, null, false, new Color(.8f, .65f, .2f));
+            if (assets != null && assets.campLockedChest != null)
+            {
+                GameObject visual = Object.Instantiate(assets.campLockedChest, chest.transform, false);
+                visual.name = "Visual_LockedChest";
+            }
+            else
+            {
+                EncounterPlacement.Prop(chest.transform, "Case", PrimitiveType.Cube, Vector3.up * .4f, new Vector3(1.3f, .8f, .85f), Quaternion.identity, wall, false, new Color(.33f, .36f, .28f));
+                EncounterPlacement.Prop(chest.transform, "Lid", PrimitiveType.Cube, Vector3.up * .86f, new Vector3(1.38f, .14f, .92f), Quaternion.identity, dark, false);
+                for (int i = -1; i <= 1; i += 2)
+                    EncounterPlacement.Prop(chest.transform, "Band", PrimitiveType.Cube, new Vector3(i * .42f, .45f, 0f), new Vector3(.08f, .86f, .9f), Quaternion.identity, dark, false);
+                EncounterPlacement.Prop(chest.transform, "Padlock", PrimitiveType.Cube, new Vector3(0f, .62f, -.46f), new Vector3(.16f, .2f, .06f), Quaternion.identity, null, false, new Color(.8f, .65f, .2f));
+            }
             var box = chest.AddComponent<BoxCollider>();
             box.size = new Vector3(1.38f, .95f, .92f);
             box.center = Vector3.up * .47f;

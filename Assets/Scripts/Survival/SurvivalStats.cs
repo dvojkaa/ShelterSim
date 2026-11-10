@@ -1,3 +1,4 @@
+using SheltreSim.Core;
 using UnityEngine;
 
 namespace SheltreSim.Survival
@@ -12,18 +13,24 @@ namespace SheltreSim.Survival
         public float thirst;
         public float health;
 
-        // Rebalanced per an Opus-model review's top balance flag: the previous rates (1.1/1.7,
-        // 5 for starvation) killed a do-nothing player in ~79s after the apocalypse trigger —
-        // thirst always hit zero before hunger ever mattered, and there was no time to make a
-        // real "push deeper or head home" decision before dying. Target is now roughly 5-8
-        // minutes of do-nothing survival: thirst empties in ~4 min (still the binding
-        // constraint, same ordering as before), hunger in ~5.5 min, then starvation drains
-        // health over another ~2 min — about 6 min total. See WaterCollectorPiece.secondsPerUnit
-        // for the matching Water Collector retune (its old rate would now cover ~280% of thirst
-        // drain instead of the intended ~70-90%).
-        public float hungerDecayPerSecond = 0.3f;
-        public float thirstDecayPerSecond = 0.42f;
-        public float healthDecayWhenStarving = 0.8f;
+        // A game day is 1,200 game-clock seconds (20 real minutes). At these rates
+        // thirst reaches zero after about 12 minutes and hunger after about 17; the
+        // slower starvation damage brings a do-nothing death to about one full day.
+        public float hungerDecayPerSecond = 0.10f;
+        public float thirstDecayPerSecond = 0.14f;
+        public float healthDecayWhenStarving = 0.20f;
+
+        private float nextBedRestAt;
+
+        public float BedRestCooldownRemaining => Mathf.Max(0f, nextBedRestAt - Time.time);
+
+        /// <summary>Shared by all beds so moving between beds cannot bypass the rest cooldown.</summary>
+        public bool TryStartBedRest(float cooldownSeconds)
+        {
+            if (Time.time < nextBedRestAt) return false;
+            nextBedRestAt = Time.time + Mathf.Max(0f, cooldownSeconds);
+            return true;
+        }
 
         /// <summary>
         /// M7 — while true, Update does nothing (no decay at all). Lets the Building phase
@@ -80,7 +87,9 @@ namespace SheltreSim.Survival
                 return;
             }
 
-            float needsMultiplier = SheltreSim.World.ExpeditionProgression.Active != null ? SheltreSim.World.ExpeditionProgression.Active.NeedsMultiplier : 1f;
+            float needsMultiplier = GameDifficultySettings.NeedsMultiplier;
+            if (SheltreSim.World.ExpeditionProgression.Active != null)
+                needsMultiplier *= SheltreSim.World.ExpeditionProgression.Active.NeedsMultiplier;
             float hungerRate = Mathf.Max(0f, hungerDecayPerSecond) * needsMultiplier;
             float thirstRate = Mathf.Max(0f, thirstDecayPerSecond) * needsMultiplier;
             float untilHungry = hunger <= 0f ? 0f

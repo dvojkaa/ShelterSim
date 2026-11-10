@@ -70,15 +70,11 @@ namespace SheltreSim.Combat
         public HitKind ApplyDamage(Collider target, float damage, Vector3 from)
         {
             PlacedPiece piece = target.GetComponentInParent<PlacedPiece>();
-            StructureHealth structure = piece != null ? piece.GetComponent<StructureHealth>() : null;
+            StructureHealth structure = target.GetComponentInParent<StructureHealth>();
             if (structure != null)
             {
-                float materialFactor = HomesteadCatalog.MaterialFor(piece.pieceId) switch
-                {
-                    HomesteadMaterial.Wood => 0.18f,
-                    HomesteadMaterial.Stone => 0.08f,
-                    _ => 0.04f,
-                };
+                HomesteadMaterial material = piece != null ? HomesteadCatalog.MaterialFor(piece.pieceId) : structure.material;
+                float materialFactor = StructureDamageRules.FirearmMultiplier(material);
                 structure.TakeDamage(Mathf.Max(0f, damage) * materialFactor);
                 return HitKind.World;
             }
@@ -89,7 +85,7 @@ namespace SheltreSim.Combat
                 if (enemy.IsDead) return HitKind.World;
                 enemy.TakeDamage(damage, from);
                 if (!enemy.IsDead) return HitKind.Target;
-                GameMessageBus.Post("Raider defeated.");
+                GameMessageBus.Post(EnemyDisplayName(enemy) + " defeated.");
                 return HitKind.Kill;
             }
             WorldWildlife animal = target.GetComponentInParent<WorldWildlife>();
@@ -98,6 +94,16 @@ namespace SheltreSim.Combat
             if (!animal.IsDead) return HitKind.Target;
             GameMessageBus.Post(message);
             return HitKind.Kill;
+        }
+
+        public static string EnemyDisplayName(EnemyAI enemy)
+        {
+            if (enemy == null) return "Enemy";
+            SheltreSim.Raids.RaidAgent raider = enemy.GetComponent<SheltreSim.Raids.RaidAgent>();
+            if (raider != null && raider.Spec != null) return raider.Spec.DisplayName;
+            SheltreSim.Bestiary.SpeciesActor species = enemy.GetComponent<SheltreSim.Bestiary.SpeciesActor>();
+            if (species != null && species.Spec != null) return species.Spec.Name;
+            return "Enemy";
         }
 
         // ---------- Plasma ----------

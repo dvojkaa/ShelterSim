@@ -38,6 +38,8 @@ namespace SheltreSim.Diagnostics
 
         private IEnumerator Start()
         {
+            // The main menu and opening modal pause the real scene before probes start.
+            Time.timeScale = 1f;
             started = Time.realtimeSinceStartup;
             var routines = new Stack<IEnumerator>();
             routines.Push(Run());
@@ -95,7 +97,19 @@ namespace SheltreSim.Diagnostics
             stats = player.GetComponent<SurvivalStats>();
             inventory = player.GetComponent<Inventory>();
             stats.decayPaused = true;
+            // Other scene Start methods can re-pause after the probe object's Start runs.
+            Time.timeScale = 1f;
             int seed = world.Seed;
+            Vector3 origin = WorldLayout.BunkerCenter;
+            Check(EncounterHabitats.DistanceRing(origin + Vector3.right * 599f) == 0 &&
+                EncounterHabitats.DistanceRing(origin + Vector3.right * 600f) == 1 &&
+                EncounterHabitats.DistanceRing(origin + Vector3.right * 1499f) == 1 &&
+                EncounterHabitats.DistanceRing(origin + Vector3.right * 1500f) == 2,
+                "Expedition distance rings switch at 600 m and 1.5 km");
+            Check(EncounterHabitats.RingPool(Habitat.Hospital, 0).Length == 1 &&
+                EncounterHabitats.RingPool(Habitat.Hospital, 1).Length > 1 &&
+                EncounterHabitats.RingPool(Habitat.Hospital, 2).Length > EncounterHabitats.RingPool(Habitat.Hospital, 1).Length,
+                "Further rings add mixed support and advanced habitat species");
 
             // ---- the normal world has none of it ----
             Vector2Int? guaranteed = EnemyCamps.Guaranteed(seed);
@@ -132,7 +146,7 @@ namespace SheltreSim.Diagnostics
             CampParts(camp, out EncounterChest chest, out ChunkEncounterSlot boss, out List<ChunkEncounterSlot> members);
             CheckActorsStand(camp, "camp");
             CheckReachable(camp.GetComponentsInChildren<LootContainer>(), camp.Find("Campfire").position, "camp");
-            yield return new WaitForSeconds(1.2f);
+            yield return new WaitForSecondsRealtime(1.2f);
             Check(EncounterAtlas.IsDiscovered(EncounterAtlas.CampId(campChunk, seed)), "Camp discovered for the atlas from 28 m");
 
             // Determinism: the save path rebuilds the chunk from the seed; the same slots, species and places come back.
@@ -269,7 +283,7 @@ namespace SheltreSim.Diagnostics
             CheckReachable(new LootContainer[] { store }, slot.transform.position, "lair");
             Vector3 start = slot.Actor.transform.position;
             var brain = slot.Actor.GetComponent<SpeciesBrain>();
-            yield return new WaitForSeconds(1.5f);
+            yield return new WaitForSecondsRealtime(1.5f);
             Check(brain != null && brain.IsDormant && !slot.Actor.IsChasing && (slot.Actor.transform.position - start).magnitude < 1.0f,
                 "The lair boss is dormant while the player keeps away");
             Check(EncounterAtlas.IsDiscovered(EncounterAtlas.LairId(site.Value, seed)), "Lair discovered for the atlas");
@@ -278,10 +292,25 @@ namespace SheltreSim.Diagnostics
             for (int i = 0; i < 6; i++) yield return null;
             Check(!store.Searched, "The sealed store gives nothing");
             Check(brain != null && !brain.IsDormant, "Touching the store wakes the boss");
+            BossLair lairState = lair.GetComponent<BossLair>();
+            Check(lairState != null && lairState.ArenaLocked, "The boss wake locks the arena gate");
+            Check(lairState != null && lairState.PhaseAddCount >= 1, "The lair prebuilds persistent phase reinforcements");
             BossLairs.TryLayout(KindOf(site.Value, seed), out BossLairs.Layout layout);
             int count = inventory.GetCount(layout.contents[0].id);
+            if (slot.Actor != null) slot.Actor.TakeDamage(slot.Actor.maxHealth * .51f);
+            for (int i = 0; i < 3; i++) yield return null;
+            Check(lairState != null && lairState.PhaseTriggered, "Crossing half health triggers the boss phase once");
+            // The design deliberately gives the phase a short warning before reinforcements appear.
+            yield return new WaitForSecondsRealtime(1.5f);
+            if (lairState != null)
+            {
+                var activeAdds = lairState.GetComponentsInChildren<ChunkEncounterSlot>(true)
+                    .Where(add => add.name.StartsWith("PhaseAdd_", System.StringComparison.Ordinal) && add.gameObject.activeSelf);
+                Check(activeAdds.Any(), "The phase activates its add wave");
+            }
             if (slot.Actor != null) slot.Actor.TakeDamage(100000f);
-            yield return null;
+            for (int i = 0; i < 3; i++) yield return null;
+            Check(lairState != null && !lairState.ArenaLocked, "Defeating the boss releases the arena gate");
             store.Interact(player.gameObject);
             Check(store.Searched && inventory.GetCount(layout.contents[0].id) == count + layout.contents[0].amount,
                 $"After the {layout.bossName} falls the store gives {layout.contents[0].amount} {layout.contents[0].id}");
@@ -328,10 +357,13 @@ namespace SheltreSim.Diagnostics
                 foreach (var g in groups)
                 {
                     var species = g.GetComponentsInChildren<SpeciesActor>().Select(a => a.Species).ToArray();
+                    int distanceRing = g.distanceRing;
+                    SpeciesId[] expectedPool = EncounterHabitats.RingPool(g.habitat, distanceRing);
                     line.Append($"{g.habitat}:{string.Join(",", species)} ");
-                    Check(species.Length >= 1 && species.Length <= 3 && species.All(s => g.pool.Contains(s)) && species.Distinct().Count() == 1,
-                        $"{target.label}: one species from the {g.habitat} pool, 1-3 of them");
-                    Check(EncounterHabitats.Pool(g.habitat).SequenceEqual(g.pool), "Pool matches the habitat table");
+                    Check(species.Length >= 1 && species.Length <= 3 && species.All(s => g.pool.Contains(s)) &&
+                        (distanceRing == 0 || g.pool.Length <= 1 || species.Distinct().Count() > 1),
+                        $"{target.label}: ring {distanceRing} group matches the single/mixed roster rules");
+                    Check(expectedPool.SequenceEqual(g.pool), "Pool matches habitat and distance ring");
                 }
                 Debug.Log($"[EncountersProbe] {target.label} chunk {chunk}: {line}");
                 CheckActorsStand(root, target.label);

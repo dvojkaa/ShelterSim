@@ -279,7 +279,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2359737732329866489}
-  - component: {fileID: 1507112553733869807}
+  - component: {fileID: 8486683083169054423}
   m_Layer: 0
   m_Name: enemy_rootwalker
   m_TagString: Untagged
@@ -308,7 +308,7 @@ Transform:
   - {fileID: 6612079247544706998}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &1507112553733869807
+--- !u!95 &8486683083169054423
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

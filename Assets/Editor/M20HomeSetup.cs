@@ -250,6 +250,9 @@ namespace SheltreSim.EditorTools
             Box(room, "Wall_N_East", new Vector3((RoomMaxX + wingDoorX + wingDoorWidth * 0.5f) * 0.5f,
                 RoomHeight * 0.5f, northWallZ), new Vector3(RoomMaxX - wingDoorX - wingDoorWidth * 0.5f, RoomHeight, 0.4f), concrete);
             Box(room, "Wall_N_Lintel", new Vector3(wingDoorX, 2.65f, northWallZ), new Vector3(wingDoorWidth, 0.7f, 0.4f), concrete);
+            // Decorative bulkhead dresses the optional wing opening; the plug remains the only
+            // collider and HomeBase continues to control whether the opening is blocked.
+            Visual(room, "prop_room_bulkhead", new Vector3(wingDoorX, 0f, northWallZ), 0f);
             home.northWingPlug = Box(room, "NorthWingPlug", new Vector3(wingDoorX, 1.15f, northWallZ),
                 new Vector3(wingDoorWidth, 2.3f, 0.4f), concrete);
             Box(room, "Wall_W", new Vector3(RoomMinX - 0.2f, RoomHeight * 0.5f, cz), new Vector3(0.4f, RoomHeight, d), concrete);
@@ -360,6 +363,7 @@ namespace SheltreSim.EditorTools
             // Workshop: a tool wall on the north wall and a bench; Hydroponics: tanks and grow lights over the beds.
             Visual(workshop, "prop_tool_wall", new Vector3(71f, 0f, z1), 0f);
             Visual(workshop, "prop_tool_wall", new Vector3(68.2f, 0f, z1), 0f);
+            Visual(workshop, "prop_kit_crate", new Vector3(74f, 0f, z1 - 1.2f), 90f);
             Prop(hydro, "prop_hydro_tank", "HydroTank_A", new Vector3(67.8f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
             Prop(hydro, "prop_hydro_tank", "HydroTank_B", new Vector3(70.2f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));
             Prop(hydro, "prop_hydro_tank", "HydroTank_C", new Vector3(72.6f, 0f, z1 - .8f), 0f, new Vector3(1f, 1.6f, 1f));

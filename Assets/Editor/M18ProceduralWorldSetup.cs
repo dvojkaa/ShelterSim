@@ -52,7 +52,11 @@ namespace SheltreSim.EditorTools
                 lootModel = Models("loot_crate")[0],
                 wood = Resource("Wood"), stone = Resource("Stone"), iron = Resource("IronOre"),
                 berries = Resource("Berries"), water = Resource("Water"), scrap = Resource("ScrapMetal"),
-                medicine = Resource("FirstAidKit"), plantFiber = Resource("PlantFiber")
+                medicine = Resource("FirstAidKit"), plantFiber = Resource("PlantFiber"),
+                wildlifeDeer = Models("animal_deer")[0], wildlifeBoar = Models("animal_boar")[0], wildlifeCrow = Models("animal_crow")[0],
+                campTent = Models("camp_tent")[0], campFire = Models("camp_fire")[0], campLockedChest = Models("camp_locked_chest")[0],
+                landmarkRelayCabinet = Models("lm_relay_cabinet")[0], landmarkFuelPump = Models("lm_fuel_pump")[0],
+                lairWarningPost = Models("lair_warning_post")[0]
             };
             if (root.GetComponent<WorldMapUI>() == null) root.AddComponent<WorldMapUI>();
             // Preserve hierarchy indices used by older saves; disable the old tiny-map fences.

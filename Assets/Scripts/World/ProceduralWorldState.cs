@@ -16,6 +16,7 @@ namespace SheltreSim.World
             public List<NodeState> nodes = new List<NodeState>();
             public List<CrateState> crates = new List<CrateState>();
             public List<EncounterState> encounters = new List<EncounterState>();
+            public List<string> destroyedStructures = new List<string>();
         }
 
         [Serializable]
@@ -44,6 +45,8 @@ namespace SheltreSim.World
 
         private static readonly ConditionalWeakTable<GameObject, Dictionary<string, int>> Baselines
             = new ConditionalWeakTable<GameObject, Dictionary<string, int>>();
+        private static readonly ConditionalWeakTable<GameObject, HashSet<string>> DestroyedStructures
+            = new ConditionalWeakTable<GameObject, HashSet<string>>();
 
         // Weak keys do not retain unloaded chunks. Values contain no Unity object references.
         // Keep the generator's initial charge count before applying saved state.
@@ -55,6 +58,27 @@ namespace SheltreSim.World
             foreach (ResourceNode node in chunk.GetComponentsInChildren<ResourceNode>(true))
                 baseline.Add(RelativeId(chunk.transform, node.transform), node.remainingCharges);
             Baselines.Add(chunk, baseline);
+            if (!DestroyedStructures.TryGetValue(chunk, out _))
+                DestroyedStructures.Add(chunk, new HashSet<string>());
+        }
+
+        /// <summary>Records a destroyed generated structure so it stays gone after its chunk streams out.</summary>
+        public static void RecordDestroyedStructure(Transform target)
+        {
+            if (target == null) return;
+            ProceduralWorld world = target.GetComponentInParent<ProceduralWorld>();
+            if (world == null) return;
+            Transform root = target;
+            while (root.parent != null && root.parent != world.transform) root = root.parent;
+            RecordDestroyedStructure(root.gameObject, target);
+        }
+
+        public static void RecordDestroyedStructure(GameObject chunk, Transform target)
+        {
+            if (chunk == null || target == null || (target != chunk.transform && !target.IsChildOf(chunk.transform))) return;
+            Initialize(chunk);
+            DestroyedStructures.GetValue(chunk, _ => new HashSet<string>())
+                .Add(RelativeId(chunk.transform, target));
         }
 
         public static ChunkState Capture(GameObject chunk, int x, int z)
@@ -81,8 +105,11 @@ namespace SheltreSim.World
             foreach (var slot in chunk.GetComponentsInChildren<ChunkEncounterSlot>(true))
                 if(slot.Defeated || (slot.Actor!=null && slot.Health < slot.Actor.maxHealth))
                 state.encounters.Add(new EncounterState { id = RelativeId(chunk.transform,slot.transform), defeated=slot.Defeated, health=slot.Health });
+            if (DestroyedStructures.TryGetValue(chunk, out HashSet<string> destroyed))
+                state.destroyedStructures.AddRange(destroyed);
             state.nodes.Sort((a, b) => string.CompareOrdinal(a.id, b.id));
             state.crates.Sort((a, b) => string.CompareOrdinal(a.id, b.id));
+            state.destroyedStructures.Sort(StringComparer.Ordinal);
             return state;
         }
 
@@ -110,6 +137,19 @@ namespace SheltreSim.World
                 foreach (CrateState saved in state.crates)
                     if (saved != null && crates.TryGetValue(saved.id, out LootContainer crate))
                         crate.RestoreSearchedState(saved.searched);
+            if (state.destroyedStructures != null && state.destroyedStructures.Count > 0)
+            {
+                Dictionary<string, GameObject> objects = new Dictionary<string, GameObject>();
+                foreach (Transform item in chunk.GetComponentsInChildren<Transform>(true))
+                    objects[RelativeId(chunk.transform, item)] = item.gameObject;
+                HashSet<string> destroyed = DestroyedStructures.GetValue(chunk, _ => new HashSet<string>());
+                foreach (string id in state.destroyedStructures)
+                {
+                    if (string.IsNullOrEmpty(id)) continue;
+                    destroyed.Add(id);
+                    if (objects.TryGetValue(id, out GameObject value)) value.SetActive(false);
+                }
+            }
         }
 
         private static string RelativeId(Transform root, Transform target)

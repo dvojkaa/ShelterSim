@@ -63,7 +63,7 @@ namespace SheltreSim.Raids
                 GameAudio.PlayAt(Sfx.AlarmKlaxon, alarm.transform.position, 1f, 80f);
             }
             if (!sounded) return;
-            foreach (InteractableDoor door in Object.FindObjectsByType<InteractableDoor>(FindObjectsSortMode.None))
+            foreach (InteractableDoor door in InteractableDoor.Registry)
                 if (door.TryAutoClose()) GameMessageBus.Post("The alarm shut the bunker door.");
         }
     }

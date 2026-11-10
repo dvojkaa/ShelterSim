@@ -14,8 +14,10 @@ namespace SheltreSim.Bestiary
         public int Pairs { get; private set; }
         public bool Buried => State == BrainState.Recover && CurrentAttack == right && burying;
         private Attack left, right;
+        private Attack lunge;
         private bool nextIsRight;
         private bool burying;
+        private float nextLunge;
 
         protected override void OnStart()
         {
@@ -24,10 +26,29 @@ namespace SheltreSim.Bestiary
             left.TurnRate = right.TurnRate = 60f;
             left.WindVolume = right.WindVolume = 1f;
             right.RecoverPose = PoseKind.Buried;
+            lunge = Melee("root charge", 1.05f, 7.5f, 35f, 1.25f, 1.8f, PoseKind.WindRight, PoseKind.Lunge, Sfx.RaiderGrowl);
+            lunge.StartRange = 9f;
+            lunge.Reach = 7.5f;
+            lunge.TurnRate = 90f;
             chaseTurnRate = 120f;
         }
 
-        protected override Attack ChooseAttack(float distance) => nextIsRight ? right : left;
+        protected override Attack ChooseAttack(float distance)
+        {
+            if (distance >= 5.5f && Time.time >= nextLunge) return lunge;
+            return nextIsRight ? right : left;
+        }
+
+        protected override void Resolve(Attack attack)
+        {
+            if (attack != lunge)
+            {
+                base.Resolve(attack);
+                return;
+            }
+            nextLunge = Time.time + 7f;
+            BeginDash(6.5f, 8f, 1.05f, .8f, 1.25f, 1.8f, false, PoseKind.Lunge);
+        }
 
         protected override void OnStruck(Attack attack, bool hit)
         {

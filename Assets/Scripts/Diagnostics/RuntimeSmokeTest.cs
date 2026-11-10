@@ -107,7 +107,8 @@ namespace SheltreSim.Diagnostics
                 .GetComponent<WaterCollectorPiece>();
             collector.RestoreState(2, 12f);
 
-            Require(world != null && world.LoadedChunkCount >= 9, "Runtime world starts with nearby ground loaded");
+            Require(world != null && world.HasGroundAt(save.player.transform.position), "Runtime world loads ground under the player immediately");
+            Require(world.PendingChunkCount > 0, "Surrounding world streams in after startup instead of generating nine chunks synchronously");
             var biomes = new HashSet<int>();
             for (int z = -16; z <= 16; z++) for (int x = -16; x <= 16; x++)
                 biomes.Add(WorldLayout.BiomeIndexAt(x * 512f, z * 512f, world.Seed));

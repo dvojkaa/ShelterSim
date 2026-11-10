@@ -15,16 +15,20 @@ namespace SheltreSim.Building
     {
         public ResourceDefinition waterResource;
 
-        // Retuned alongside SurvivalStats' M12 decay-rate rebalance: thirst now drains at
-        // 0.42/s instead of 1.7/s, so the old 30s-per-unit rate would have one collector
-        // covering ~280% of thirst drain instead of the intended "roughly covers it alone,
-        // two is comfortable" — 90s/unit puts one collector's 35-thirst-per-90s at ~93% of the
-        // new drain rate, keeping the same relative balance as before the rebalance.
-        [Min(0.1f)] public float secondsPerUnit = 90f;
+        // Clean water restores 35 thirst. At 250 game-clock seconds per unit, one
+        // collector supplies 0.14 thirst/s, about one player's baseline drain.
+        [Min(0.1f)] public float secondsPerUnit = 250f;
         [Min(0)] public int maxStored = 5;
 
         private float timer;
         private int stored;
+
+        private void Awake()
+        {
+            // Existing prefab assets and saves serialize the previous 90 second value.
+            // Migrate that known default while preserving custom rates.
+            if (Mathf.Approximately(secondsPerUnit, 90f)) secondsPerUnit = 250f;
+        }
 
         public string InteractPrompt => stored > 0
             ? $"Press E to collect {stored} Water"

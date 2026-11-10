@@ -101,7 +101,7 @@ GameObject:
   - component: {fileID: 5476460457579476940}
   - component: {fileID: 8682380062239577390}
   - component: {fileID: 1741030891844249473}
-  - component: {fileID: 1877095107822750055}
+  - component: {fileID: 2710119630005173353}
   m_Layer: 0
   m_Name: ShelfPiece
   m_TagString: Untagged
@@ -160,7 +160,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_shelf
   wasPlacedFromKit: 0
---- !u!114 &1877095107822750055
+--- !u!114 &2710119630005173353
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -101,8 +101,8 @@ GameObject:
   - component: {fileID: 392434999428857735}
   - component: {fileID: 4519402772273698592}
   - component: {fileID: 8214733092666220281}
-  - component: {fileID: 3121307998851469548}
-  - component: {fileID: 2045417914883478794}
+  - component: {fileID: 6562400442270041604}
+  - component: {fileID: 4065088007351710321}
   m_Layer: 0
   m_Name: SteelWallPiece
   m_TagString: Untagged
@@ -161,7 +161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Saving.PlacedPiece
   pieceId: piece_wall_steel
   wasPlacedFromKit: 0
---- !u!114 &3121307998851469548
+--- !u!114 &6562400442270041604
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -175,7 +175,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 500
   targetPriority: 5
---- !u!114 &2045417914883478794
+--- !u!114 &4065088007351710321
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

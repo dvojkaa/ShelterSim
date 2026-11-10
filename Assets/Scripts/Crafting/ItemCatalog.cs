@@ -67,6 +67,8 @@ namespace SheltreSim.Crafting
             "plant_fiber", "herbs", "coal", "raw_meat", "leather",
             "vegetables", "seeds", "grain", "dirty_water",
         };
+        // Non-crafted guarantees delivered by progression (e.g. the paper map in the bunker contract).
+        private static readonly string[] nonCraftedSources = { "paper_map" };
         private static Dictionary<string, ResourceDefinition> defs;
 
         public static IReadOnlyList<ItemSpec> All => all;
@@ -137,6 +139,7 @@ namespace SheltreSim.Crafting
             I("ammo_rifle", "Rifle Rounds", Ref, "For rifles and machine gun turrets.");
             I("ammo_shell", "Shotgun Shells", Ref, "Short range, hits hard.");
             I("energy_cell", "Energy Cell", Ref, "One cell refills an energy weapon. Make them at a bench or charge them at a Cell Charger.");
+            I("paper_map", "Paper Map", ItemCategory.Endgame, "Folded map of the local region. Open it with M to mark nearby places and saved waypoints.");
 
             // ---- Food and drink ----
             I("food_berries", "Blueberries", Food, "Sweet wild berries.").Food(30f).Asset("Berries");
@@ -233,6 +236,7 @@ namespace SheltreSim.Crafting
         /// RecipeBook.Validate unions this with every LootTables entry to get the raw set.
         /// </summary>
         public static IReadOnlyList<string> GatheredSources => gatheredSources;
+        public static IReadOnlyList<string> NonCraftedSources => nonCraftedSources;
 
         // ---------- Runtime asset lookup ----------
 

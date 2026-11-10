@@ -40,7 +40,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6260043654489709663}
-  - component: {fileID: 7793714155864702796}
+  - component: {fileID: 8666098136166232133}
   m_Layer: 0
   m_Name: enemy_wanderer
   m_TagString: Untagged
@@ -70,7 +70,7 @@ Transform:
   - {fileID: 4097336723891449376}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &7793714155864702796
+--- !u!95 &8666098136166232133
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

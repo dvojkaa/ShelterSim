@@ -3,6 +3,7 @@ using SheltreSim.Interaction;
 using SheltreSim.Player;
 using SheltreSim.Survival;
 using SheltreSim.UI;
+using SheltreSim.World;
 using UnityEngine;
 
 namespace SheltreSim.Enemies
@@ -67,6 +68,7 @@ namespace SheltreSim.Enemies
         public IEnemyBrain Brain => brain;
         public bool IsStunned => Time.time < stunnedUntil;
         public float SpeedFactor => Time.time < slowedUntil ? slowFactor : 1f;
+        public float BlockedSecondsForPathfinding => blockedSeconds;
         public CharacterController Body { get { Initialize(); return controller; } }
         public Vector3 CenterPosition { get { Initialize(); return BodyCenter; } }
         public Vector3 FeetPosition { get { Initialize(); return BodyCenter - Vector3.up * (controller.height * Mathf.Abs(transform.lossyScale.y) * 0.5f); } }
@@ -90,7 +92,9 @@ namespace SheltreSim.Enemies
         private float attackStartedAt;
         private float nextDoorCheckTime;
         private Vector3 steeringDirection;
+        private bool followingBuildingStairs;
         private float nextSteerTime;
+        private float blockedSeconds;
         private InteractableDoor navigationDoor;
         private float doorEntrySide;
         private bool doorApproached;
@@ -125,7 +129,11 @@ namespace SheltreSim.Enemies
             if (!IsDead && !live.Contains(this)) live.Add(this);
         }
 
-        private void OnDestroy() => live.Remove(this);
+        private void OnDestroy()
+        {
+            live.Remove(this);
+            EnemyPathfinding.Forget(GetEntityId());
+        }
 
         /// <summary>Puts this enemy in raid mode. Null returns it to patrol behaviour.</summary>
         public void SetBrain(IEnemyBrain value)
@@ -201,6 +209,9 @@ namespace SheltreSim.Enemies
         // ---------- What a brain may do. All of it goes through the same movement and attack code as a patrol. ----------
 
         public CollisionFlags BrainMove(Vector3 horizontal) => Move(horizontal * SpeedFactor);
+        /// <summary>Gets an occasional cached A* detour after collisions stop actual movement.</summary>
+        public bool TryGetPathDirection(Vector3 destination, out Vector3 direction) =>
+            EnemyPathfinding.TryGetDirection(this, destination, blockedSeconds, out direction);
         public void BrainFace(Vector3 direction) => FaceDirection(direction);
         public void BrainMeleePlayer() => TryAttack();
         public void BrainCancelAttack() => CancelAttack();
@@ -240,7 +251,7 @@ namespace SheltreSim.Enemies
 
         private void FindPlayer()
         {
-            FirstPersonController player = Object.FindFirstObjectByType<FirstPersonController>(FindObjectsInactive.Include);
+            FirstPersonController player = FirstPersonController.Active;
             if (player == null)
             {
                 return;
@@ -382,6 +393,7 @@ namespace SheltreSim.Enemies
         private void OnDisable()
         {
             live.Remove(this);
+            EnemyPathfinding.Forget(GetEntityId());
             ResetDamageFlash();
             CancelAttack();
         }
@@ -433,6 +445,8 @@ namespace SheltreSim.Enemies
             {
                 chasing = false;
                 navigationDoor = null;
+                blockedSeconds = 0f;
+                EnemyPathfinding.Forget(GetEntityId());
             }
 
             Vector3 motion = Vector3.zero;
@@ -452,7 +466,9 @@ namespace SheltreSim.Enemies
                     if (Time.time >= nextSteerTime)
                     {
                         nextSteerTime = Time.time + SteeringInterval;
-                        steeringDirection = ChooseDirection(direction.normalized);
+                        steeringDirection = followingBuildingStairs ? direction.normalized
+                            : TryGetPathDirection(destination, out Vector3 pathDirection) ? pathDirection
+                            : ChooseDirection(direction.normalized);
                     }
                     motion = steeringDirection * Mathf.Max(0f, moveSpeed) * SpeedFactor;
                     // Avoid overshooting a doorway approach point on a long frame.
@@ -485,7 +501,14 @@ namespace SheltreSim.Enemies
                 verticalSpeed = -2f;
             }
             verticalSpeed += gravity * Time.deltaTime;
+            Vector3 before = transform.position;
             CollisionFlags flags = controller.Move((horizontal + Vector3.up * verticalSpeed) * Time.deltaTime);
+            Vector3 requested = Vector3.ProjectOnPlane(horizontal, Vector3.up);
+            Vector3 actual = Vector3.ProjectOnPlane(transform.position - before, Vector3.up);
+            if (requested.sqrMagnitude > .04f && Vector3.Dot(actual, requested.normalized) < requested.magnitude * Time.deltaTime * .2f)
+                blockedSeconds = Mathf.Min(5f, blockedSeconds + Time.deltaTime);
+            else
+                blockedSeconds = Mathf.Max(0f, blockedSeconds - Time.deltaTime * 1.5f);
             if ((flags & CollisionFlags.Below) != 0 && verticalSpeed < 0f)
             {
                 verticalSpeed = -2f;
@@ -542,6 +565,15 @@ namespace SheltreSim.Enemies
 
         private Vector3 GetChaseDestination(bool playerVisible)
         {
+            followingBuildingStairs = false;
+            if (BuildingStairNavigation.TryGetNextWaypoint(GetEntityId(), FeetPosition, playerTransform.position, out Vector3 stairWaypoint))
+            {
+                followingBuildingStairs = true;
+                navigationDoor = null;
+                doorApproached = false;
+                return stairWaypoint;
+            }
+
             if (navigationDoor != null)
             {
                 float targetSide = Vector3.Dot(playerTransform.position - navigationDoor.PassageCenter, navigationDoor.PassageNormal);
@@ -552,6 +584,7 @@ namespace SheltreSim.Enemies
                 }
             }
 
+            RefreshDoors();
             if (navigationDoor == null && doors != null && doors.Length > 0)
             {
                 // A door's plane extends across the whole map. Opposite sides of that
@@ -643,8 +676,19 @@ namespace SheltreSim.Enemies
             return distance;
         }
 
+        private int doorRegistryVersion = -1;
+
+        /// <summary>Doors of buildings streamed in after this raider started are in the registry too.</summary>
+        private void RefreshDoors()
+        {
+            if (doorRegistryVersion == InteractableDoor.RegistryVersion) return;
+            doorRegistryVersion = InteractableDoor.RegistryVersion;
+            doors = InteractableDoor.Registry.ToArray();
+        }
+
         private void TryBreakNearbyDoors()
         {
+            RefreshDoors();
             if (doors == null || Time.time < nextDoorCheckTime) return;
             nextDoorCheckTime = Time.time + 0.4f;
             foreach (InteractableDoor door in doors)

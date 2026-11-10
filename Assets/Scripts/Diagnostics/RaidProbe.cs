@@ -14,6 +14,7 @@ using SheltreSim.Power;
 using SheltreSim.Raids;
 using SheltreSim.Storage;
 using SheltreSim.Survival;
+using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
 
@@ -54,6 +55,11 @@ namespace SheltreSim.Diagnostics
             StartCoroutine(Watchdog());
             yield return null;
             yield return null;
+            // Wait until all scene Start methods have installed the menu modal, then dismiss it for this isolated drive.
+            yield return new WaitForSecondsRealtime(0.1f);
+            ModalUI.DismissCurrent();
+            Time.timeScale = 1f;
+            Debug.Log($"[RaidProbe] startup timeScale={Time.timeScale:F1}, modalOpen={ModalUI.IsOpen}");
             player = FindFirstObjectByType<FirstPersonController>();
             body = player.GetComponent<CharacterController>();
             stats = player.GetComponent<SurvivalStats>();
@@ -79,6 +85,7 @@ namespace SheltreSim.Diagnostics
             yield return Run(CheckVariantsThroughDoor());
             yield return Run(CheckClosedDoor());
             yield return Run(CheckDoorSaveAndRepair());
+            yield return Run(CheckSurfaceAssetTarget());
             yield return Run(CheckWallAtStairFoot());
             yield return Run(CheckGunner());
             yield return Run(CheckScavenger());
@@ -250,6 +257,20 @@ namespace SheltreSim.Diagnostics
 
         private IEnumerator CheckNothingBeforeSurvival()
         {
+            Check(RaidDirector.FirstRaidSeconds == 540f && RaidDirector.RosterFor(1, 17).Count == 4,
+                $"First raid is scheduled at 9 minutes with four attackers ({RaidDirector.FirstRaidSeconds:0}s, {RaidDirector.RosterFor(1, 17).Count})");
+            Check(RaidDirector.StatMultiplierFor(1) == 1f && RaidDirector.StatMultiplierFor(5) > 1f
+                && RaidDirector.StatMultiplierFor(100) == 2.25f && RaidDirector.DamageMultiplierFor(100) == 1.75f,
+                "Raid health and damage scale by raid number with bounded caps");
+            Check(RaidDirector.RosterFor(12, 17).Count == RaidDirector.MaxRaiders,
+                $"Raid 12 exercises the full {RaidDirector.MaxRaiders}-attacker roster");
+            Check(RaidDirector.DestroyedStructureSalvageFraction == 0.25f
+                && RaidDirector.DestroyedStructureSalvageAmount(10) == 2
+                && RaidDirector.DestroyedStructureSalvageAmount(4) == 1
+                && RaidDirector.DestroyedStructureSalvageAmount(3) == 0,
+                "Raid-destroyed structure salvage is floored at 25% of recipe costs");
+            int side = RaidDirector.SideFor(7, 1234);
+            Check(side >= 0 && side < 4 && side == RaidDirector.SideFor(7, 1234), "Attack side is deterministic per world seed and raid number");
             Check(state.CurrentPhase == GamePhase.Building, "Starts in the Building phase");
             director.DebugSetCountdown(0.2f);
             director.DebugStartRaid(1);
@@ -260,6 +281,18 @@ namespace SheltreSim.Diagnostics
             yield return new WaitForSeconds(0.5f);
             Check(!home.BunkerComplete && director.RaidersLeft == 0, "No raid in Survival while the bunker is unfinished");
             state.RestorePhase(GamePhase.Building);
+        }
+
+        private IEnumerator CheckSurfaceAssetTarget()
+        {
+            Teleport(RoomSpot);
+            Vector3 spot = YardSpot + new Vector3(0f, -0.1f, -8f);
+            GeneratorPiece generator = Piece<GeneratorPiece>("ProbeSurfaceGenerator", spot, new Vector3(1.2f, 1.6f, 1.2f));
+            StructureHealth health = generator.GetComponent<StructureHealth>();
+            RaidAgent agent = director.DebugSpawn(RaidVariant.Raider, spot + new Vector3(0f, 0f, -3f));
+            yield return WaitUntil(() => health.Health < health.maxHealth, 16f, "surface-generator");
+            Check(health.Health < health.maxHealth && agent.TargetStructure == health,
+                $"A nearby raider attacks and retains the surface generator before the bunker route (hp {health.Health:F0}, state '{agent.State}')");
         }
 
         // ---------- Measuring, before anyone walks ----------
@@ -813,7 +846,9 @@ namespace SheltreSim.Diagnostics
             director.DebugSetCountdown(62f);
             yield return WaitUntil(() => director.WarningActive, 6f, "warning");
             yield return null;
-            Check(director.WarningActive && director.BannerText.StartsWith("RAID INBOUND "), $"Warning at 60 s: '{director.BannerText}'");
+            Check(director.WarningActive && director.BannerText.StartsWith("RAID INBOUND ")
+                && (director.BannerText.Contains("NORTH") || director.BannerText.Contains("SOUTH") || director.BannerText.Contains("EAST") || director.BannerText.Contains("WEST")),
+                $"Warning at 60 s names the attack side: '{director.BannerText}'");
             Check(GameAudio.PlayLog.Contains(Sfx.RaidHorn), "With the horn");
 
             Clean();
@@ -890,12 +925,16 @@ namespace SheltreSim.Diagnostics
             Vector3 position = hurt.transform.position;
             RaidVariant variant = director.Actors[0].Variant;
             string save = director.CaptureState();
+            int savedSide = director.AttackSide;
+            Vector3 savedBreach = director.BreachInside;
             Check(Live() == count, $"Live raid actors before: {Live()}");
             yield return new WaitForSeconds(3f);
             director.RestoreState(save);
             director.RestoreState(save);
             Check(director.RaidersLeft == count && Live() == count, $"Restoring during a raid doesn't double it ({director.RaidersLeft}, {Live()} live, expected {count})");
             Check(director.CurrentPhase == RaidDirector.Phase.Active && director.RaidNumber == 4, "It is the same raid");
+            Check(director.AttackSide == savedSide && director.BreachInside == savedBreach
+                && director.Actors.All(a => a.AttackSide == savedSide), "Active raid side and breach survive restore on every actor");
             RaidAgent same = director.Actors.FirstOrDefault(a => a.Variant == variant && Vector3.Distance(a.transform.position, position) < 0.3f);
             Check(same != null && Mathf.Abs(same.GetComponent<EnemyAI>().health - hurtHealth) < 0.01f, $"With saved position and health ({(same != null ? same.GetComponent<EnemyAI>().health : -1f):F1}, expected {hurtHealth:F1})");
             yield return new WaitForSeconds(4f);

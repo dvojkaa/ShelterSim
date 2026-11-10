@@ -21,6 +21,7 @@ namespace SheltreSim.Core
         private Text statusLabel;
         private Button saveButton;
         private Button loadButton;
+        private SheltreSim.UI.DisplaySettingsPanel displaySettings;
         private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
 
         private void Awake()
@@ -81,6 +82,7 @@ namespace SheltreSim.Core
         public void CloseIfOpen()
         {
             if (!IsOpen) return;
+            displaySettings?.CancelAndClose();
             IsOpen = false;
             panel.SetActive(false);
             ModalUI.Close(this);
@@ -103,6 +105,8 @@ namespace SheltreSim.Core
         {
             Canvas canvas = GameUI.CreateCanvas(transform, "PauseCanvas", 100, true);
             panel = GameUI.Backdrop(canvas.transform, "PausePanel");
+            displaySettings = canvas.gameObject.AddComponent<SheltreSim.UI.DisplaySettingsPanel>();
+            displaySettings.Initialize(canvas.transform);
             Transform card = GameUI.Panel(panel.transform, "Card", new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 780f), GameUI.PanelColor, true).transform;
             GameUI.Label(card, "Title", "PAUSED", TopLeft, TopLeft, new Vector2(32f, -28f),
@@ -118,6 +122,10 @@ namespace SheltreSim.Core
                 new Vector2(32f, -286f), new Vector2(270f, 54f), () => { saveManager?.TryLoad(); });
             GameUI.Button(card, "QuitButton", "Quit", TopLeft, TopLeft,
                 new Vector2(32f, -354f), new Vector2(270f, 54f), QuitGame);
+            GameUI.Button(card, "MainMenuButton", "Main menu", TopLeft, TopLeft,
+                new Vector2(32f, -420f), new Vector2(270f, 54f), ReturnToMainMenu);
+            GameUI.Button(card, "DisplaySettingsButton", "Display settings", TopLeft, TopLeft,
+                new Vector2(32f, -480f), new Vector2(270f, 40f), () => displaySettings?.Open());
 
             GameUI.Label(card, "ControlsHeading", "FIELD CONTROLS", TopLeft, TopLeft,
                 new Vector2(350f, -150f), new Vector2(560f, 30f), 21, GameUI.Accent, bold: true);
@@ -138,12 +146,12 @@ namespace SheltreSim.Core
                 "F5   Quick save     /     F9   Quick load",
                 TopLeft, TopLeft, new Vector2(350f, -186f), new Vector2(590f, 310f), 17);
             statusLabel = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
-                new Vector2(32f, -500f), new Vector2(896f, 50f), 19, GameUI.Accent);
+                new Vector2(32f, -528f), new Vector2(896f, 40f), 19, GameUI.Accent);
             GameUI.Label(card, "Advice",
                 "Prepare supplies and a Water Collector before using the red bunker console.\nFood and water stay full during preparation; raiders can still hurt you.\nAfter the alarm, scavenge, return home, eat, drink and rest. Save regularly.",
-                TopLeft, TopLeft, new Vector2(32f, -556f), new Vector2(896f, 80f), 18, GameUI.Muted);
-            SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -648f));
-            GameplaySettingsPanel.Build(card, new Vector2(32f, -708f));
+                TopLeft, TopLeft, new Vector2(32f, -574f), new Vector2(896f, 80f), 18, GameUI.Muted);
+            SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -662f));
+            GameplaySettingsPanel.Build(card, new Vector2(32f, -716f));
             panel.SetActive(false);
         }
 
@@ -155,6 +163,12 @@ namespace SheltreSim.Core
 #else
             Application.Quit();
 #endif
+        }
+
+        private void ReturnToMainMenu()
+        {
+            CloseIfOpen();
+            MainMenuController.ReturnToMenu();
         }
     }
 }

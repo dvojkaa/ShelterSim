@@ -43,11 +43,25 @@ namespace SheltreSim.Interaction
         public Vector3 PassageCenter { get { Initialize(); return passageCenter; } }
         public Vector3 PassageNormal { get { Initialize(); return passageNormal; } }
 
+        /// <summary>Every active door, for raiders: doors created after startup (streamed buildings) are found too.</summary>
+        public static readonly List<InteractableDoor> Registry = new List<InteractableDoor>();
+        /// <summary>Bumped whenever the registry changes, so a cached array can be refreshed cheaply.</summary>
+        public static int RegistryVersion { get; private set; }
+
+        private void OnEnable()
+        {
+            if (!Registry.Contains(this)) { Registry.Add(this); RegistryVersion++; }
+        }
+
         private void Awake() => Initialize();
 
         private void Update() => visualTween?.Tick(Time.deltaTime);
 
-        private void OnDisable() => visualTween?.Finish();
+        private void OnDisable()
+        {
+            visualTween?.Finish();
+            if (Registry.Remove(this)) RegistryVersion++;
+        }
 
         private void Initialize()
         {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SheltreSim.Crafting;
 using SheltreSim.Items;
+using SheltreSim.Objectives;
 using SheltreSim.Player;
 using SheltreSim.UI;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace SheltreSim.World
         public static ExpeditionProgression Active { get; private set; }
         public ResourceDefinition expeditionParts, wood, scrap, iron;
         public int UpgradeMask { get; private set; }
+        public const int ConvoyCachePartCost = 2;
         public int DiscoveryCount => discoveries.Count;
         public float ExposureProtection => HasUpgrade(0) ? .35f : 1f;
         public float NeedsMultiplier => HasUpgrade(1) ? .8f : 1f;
@@ -78,6 +80,37 @@ namespace SheltreSim.World
             UpgradeMask |= 1 << index;
             ApplyBenefits();
             result = "Installed " + UpgradeNames[index] + ": " + UpgradeBenefits[index] + ".";
+            GameMessageBus.Post(result);
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>After rescue and all three permanent upgrades, exchange excess expedition parts for repeatable supplies.</summary>
+        public bool TryRequestConvoyCache(out string result)
+        {
+            if (!ObjectiveTracker.Victory) { result = "The radio trader will answer after the rescue signal gets through."; return false; }
+            if ((UpgradeMask & 7) != 7) { result = "Install all three expedition upgrades before spending rare parts on supplies."; return false; }
+            var stats = GetComponent<SheltreSim.Survival.SurvivalStats>();
+            if (stats == null || stats.IsDead || stats.health <= 0f) { result = "Cannot request supplies now."; return false; }
+            Inventory inventory = GetComponent<Inventory>();
+            ResourceDefinition parts = expeditionParts != null ? expeditionParts : ItemCatalog.Def("expedition_parts");
+            ResourceDefinition ammo = ItemCatalog.Def("ammo_rifle");
+            ResourceDefinition medical = ItemCatalog.Def("first_aid");
+            ResourceDefinition cell = ItemCatalog.Def("energy_cell");
+            if (inventory == null || parts == null || ammo == null || medical == null || cell == null)
+            {
+                result = "The radio trader cannot prepare a cache right now.";
+                return false;
+            }
+            if (!inventory.TryConsume(parts.id, ConvoyCachePartCost))
+            {
+                result = $"Need {ConvoyCachePartCost} expedition parts for a convoy cache.";
+                return false;
+            }
+            inventory.Add(ammo.id, 18);
+            inventory.Add(medical.id, 1);
+            inventory.Add(cell.id, 1);
+            result = "Radio trader cache received: 18 rifle rounds, 1 first aid kit and 1 energy cell.";
             GameMessageBus.Post(result);
             Changed?.Invoke();
             return true;

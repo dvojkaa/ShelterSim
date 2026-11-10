@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 2292189559418701200}
   - component: {fileID: 8119546391150620647}
   - component: {fileID: 688823631035784085}
-  - component: {fileID: 849046661201222324}
+  - component: {fileID: 5443994976446424044}
   m_Layer: 0
   m_Name: BarricadePiece
   m_TagString: Untagged
@@ -85,7 +85,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 300
   targetPriority: 5
---- !u!114 &849046661201222324
+--- !u!114 &5443994976446424044
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

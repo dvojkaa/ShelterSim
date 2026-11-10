@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8166643850044572714}
   - component: {fileID: 2790152763332543187}
   - component: {fileID: 1977443405059859804}
-  - component: {fileID: 374578112725289208}
+  - component: {fileID: 6107897212827021333}
   m_Layer: 0
   m_Name: FencePiece
   m_TagString: Untagged
@@ -85,7 +85,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 70
   targetPriority: 5
---- !u!114 &374578112725289208
+--- !u!114 &6107897212827021333
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

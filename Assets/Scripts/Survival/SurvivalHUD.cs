@@ -4,6 +4,7 @@ using SheltreSim.Core;
 using SheltreSim.Items;
 using SheltreSim.Saving;
 using SheltreSim.UI;
+using SheltreSim.World;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -35,6 +36,7 @@ namespace SheltreSim.Survival
         private Inventory inventory;
         private BuildModeController buildController;
         private Transform homeAnchor;
+        private WorldAtmosphere atmosphere;
         private string interactPrompt = string.Empty;
         private string buildReadout = string.Empty;
         private float previousHealth = -1f;
@@ -86,7 +88,7 @@ namespace SheltreSim.Survival
                 new Vector2(18f, -108f), new Vector2(344f, 118f), 19);
 
             homeLabel = GameUI.Label(canvas.transform, "HomeBearing", string.Empty, new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(520f, 32f), 20,
+                new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(560f, 56f), 17,
                 GameUI.Accent, TextAnchor.MiddleCenter, true);
             AddShadow(homeLabel);
             buildReadoutLabel = GameUI.Label(canvas.transform, "BuildReadout", string.Empty, new Vector2(0.5f, 1f),
@@ -118,9 +120,9 @@ namespace SheltreSim.Survival
                 AddShadow(feedLabels[i]);
             }
             Transform controlsCard = GameUI.Panel(canvas.transform, "Controls", new Vector2(0.5f, 0f),
-                new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 64f), GameUI.PanelColor).transform;
+                new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1160f, 82f), GameUI.PanelColor).transform;
             controlsLabel = GameUI.Label(controlsCard, "ControlsLabel", string.Empty, Center, Center,
-                Vector2.zero, new Vector2(1124f, 56f), 17, GameUI.Muted, TextAnchor.MiddleCenter);
+                Vector2.zero, new Vector2(1124f, 74f), 16, GameUI.Muted, TextAnchor.MiddleCenter);
         }
 
         private void OnEnable() => GameMessageBus.OnMessage += ShowMessage;
@@ -132,6 +134,7 @@ namespace SheltreSim.Survival
             // are optional and no new scene rebuild is required for these readouts.
             if (stats == null) stats = Object.FindFirstObjectByType<SurvivalStats>();
             gameState = Object.FindFirstObjectByType<GameStateManager>();
+            atmosphere = Object.FindFirstObjectByType<WorldAtmosphere>();
             if (stats != null)
             {
                 inventory = stats.GetComponent<Inventory>();
@@ -187,7 +190,15 @@ namespace SheltreSim.Survival
             crosshair.SetActive(!building);
             foreach (Image bar in crosshairBars) bar.color = string.IsNullOrEmpty(interactPrompt) ? Color.white : GameUI.Accent;
             buildReadoutLabel.text = building ? buildReadout : string.Empty;
-            controlsLabel.text = building
+            Transform mountedVehicle = stats != null ? stats.GetComponent<VehicleMountView>()?.MountedVehicle : null;
+            RideableScoutBuggy buggy = mountedVehicle != null ? mountedVehicle.GetComponent<RideableScoutBuggy>() : null;
+            RideableArmoredVan van = mountedVehicle != null ? mountedVehicle.GetComponent<RideableArmoredVan>() : null;
+            string vehicleControls = buggy != null
+                ? $"VEHICLE   /   W/S: drive   /   A/D: steer   /   P: trunk   /   H: fuel   /   J: energy   /   K: horn   /   L: lights   /   Space: exit\nFUEL RANGE   /   {buggy.FuelRemainingMeters / 1000f:0.#} km"
+                : van != null
+                    ? $"VAN   /   W/S: drive   /   A/D: steer   /   P: cargo   /   H: fuel   /   J: energy   /   K: horn   /   T: turret   /   L: lights   /   Space: exit\nFUEL RANGE   /   {van.FuelRemainingMeters / 1000f:0.#} km"
+                    : string.Empty;
+            controlsLabel.text = !string.IsNullOrEmpty(vehicleControls) ? vehicleControls : building
                 ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   V: repair   /   X: dismantle   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
                 : "WASD: move  /  Shift: sprint  /  Ctrl: crouch  /  E: interact  /  Click: attack  /  1/2: melee/gun  /  R: reload  /  F: light\n3/4/5: quick use  /  I or Tab: inventory  /  C: craft  /  B: build  /  G: blueprints  /  M: map  /  F5/F9: save/load  /  Esc: menu";
 
@@ -292,23 +303,24 @@ namespace SheltreSim.Survival
 
         private void UpdateHomeBearing()
         {
-            if (homeAnchor == null || stats == null)
+            string navigation = string.Empty;
+            if (homeAnchor != null && stats != null)
             {
-                homeLabel.text = string.Empty;
-                return;
+                Vector3 direction = homeAnchor.position - stats.transform.position;
+                direction.y = 0f;
+                float distance = direction.magnitude;
+                if (distance >= 40f)
+                {
+                    float angle = Vector3.SignedAngle(stats.transform.forward, direction, Vector3.up);
+                    string bearing = Mathf.Abs(angle) < 25f ? "AHEAD"
+                        : Mathf.Abs(angle) > 150f ? "BEHIND" : angle > 0f ? "RIGHT" : "LEFT";
+                    navigation = $"   /   HOME {distance:0} m {bearing}";
+                }
             }
-            Vector3 direction = homeAnchor.position - stats.transform.position;
-            direction.y = 0f;
-            float distance = direction.magnitude;
-            if (distance < 40f)
-            {
-                homeLabel.text = SheltreSim.World.WeatherPresentation.ClockText;
-                return;
-            }
-            float angle = Vector3.SignedAngle(stats.transform.forward, direction, Vector3.up);
-            string bearing = Mathf.Abs(angle) < 25f ? "AHEAD"
-                : Mathf.Abs(angle) > 150f ? "BEHIND" : angle > 0f ? "RIGHT" : "LEFT";
-            homeLabel.text = $"{SheltreSim.World.WeatherPresentation.ClockText}   /   HOME {distance:0} m {bearing}";
+            string exposure = atmosphere != null ? atmosphere.ExposureStatus : string.Empty;
+            string color = atmosphere != null && atmosphere.IsSheltered ? "#A9DEA8" : "#F2C16B";
+            homeLabel.text = SheltreSim.World.WeatherPresentation.ClockText + navigation +
+                (string.IsNullOrEmpty(exposure) ? string.Empty : $"\n<color={color}>{exposure}</color>");
         }
 
         public void SetInteractPrompt(string text) => interactPrompt = text ?? string.Empty;

@@ -26,6 +26,7 @@ namespace SheltreSim.Storage
         private static readonly Dictionary<string, float> Overrides = new Dictionary<string, float>
         {
             { "ammo_9mm", 0.02f }, { "ammo_rifle", 0.02f }, { "ammo_shell", 0.02f },
+            { "paper_map", 0.05f },
             { "stone", 2f }, { "iron_ore", 2f }, { "metal_plate", 2f }, { "steel_bar", 2.5f }, { "coal", 1f },
         };
 

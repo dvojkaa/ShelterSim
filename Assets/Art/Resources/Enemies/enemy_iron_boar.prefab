@@ -279,7 +279,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2700166160449850320}
-  - component: {fileID: 6085314152050501911}
+  - component: {fileID: 5824876334991134505}
   m_Layer: 0
   m_Name: enemy_iron_boar
   m_TagString: Untagged
@@ -308,7 +308,7 @@ Transform:
   - {fileID: 1350860352966131561}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &6085314152050501911
+--- !u!95 &5824876334991134505
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

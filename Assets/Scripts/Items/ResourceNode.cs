@@ -46,18 +46,24 @@ namespace SheltreSim.Items
 
         public bool CanStrike(GameObject interactor)
         {
-            if (!cutOnHit || remainingCharges <= 0 || interactor == null) return false;
+            if (remainingCharges <= 0 || interactor == null || resourceType == null) return false;
             Inventory inv = interactor.GetComponent<Inventory>() ?? interactor.GetComponentInParent<Inventory>();
             if (inv == null) return false;
-            SheltreSim.Crafting.PlayerGear gear = inv.GetComponent<SheltreSim.Crafting.PlayerGear>();
-            return inv.GetCount("stone_axe") > 0 || inv.GetCount("iron_axe") > 0 || inv.GetCount("steel_axe") > 0 ||
-                (gear != null && (gear.WeaponId == "machete" || gear.WeaponId == "fire_axe"));
+            SheltreSim.Crafting.PlayerGear gear = SheltreSim.Crafting.PlayerGear.Ensure(inv.gameObject);
+            ToolKind needed = SheltreSim.Crafting.PlayerGear.ToolFor(resourceType.id);
+            bool matchingTool = gear != null && gear.BestOwnedToolId(needed) != null;
+            if (matchingTool) return true;
+
+            // Legacy cut-on-hit plants can still be cut by their explicitly supported blades.
+            // Trees and mineral nodes require their matching passive tool, so a wrong tool never
+            // gets shown as usable or produces a misleading blocked swing.
+            return cutOnHit && gear != null && (gear.WeaponId == "machete" || gear.WeaponId == "fire_axe");
         }
 
         public bool Strike(GameObject interactor)
         {
             if (!CanStrike(interactor)) return false;
-            remainingCharges = 1;
+            if (cutOnHit) remainingCharges = 1;
             Interact(interactor);
             return true;
         }

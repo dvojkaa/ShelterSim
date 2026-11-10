@@ -6,6 +6,11 @@ namespace SheltreSim.Player
     [RequireComponent(typeof(CharacterController))]
     public class FirstPersonController : MonoBehaviour
     {
+        public static FirstPersonController Active { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetActive() => Active = null;
+
         [Header("Movement")]
         public float walkSpeed = 4f;
         public float sprintSpeed = 7f;
@@ -44,6 +49,8 @@ namespace SheltreSim.Player
         private readonly Collider[] headroomHits = new Collider[16];
         private float jumpSuppressedUntil;
         private bool vehicleTransition;
+        private bool vehicleSlopeAssist;
+        private float preVehicleSlopeLimit, preVehicleStepOffset;
 
         public float CameraPitch => pitch;
         public bool IsCrouching => crouched;
@@ -53,6 +60,23 @@ namespace SheltreSim.Player
 
         public void SetBicycleMounted(bool mounted)
         {
+            if (mounted && !vehicleSlopeAssist && controller != null)
+            {
+                preVehicleSlopeLimit = controller.slopeLimit;
+                preVehicleStepOffset = controller.stepOffset;
+                // A mounted rider is moved by the vehicle, not by foot locomotion. The
+                // default 45° CharacterController limit otherwise pins the rider on
+                // terrain slopes even while VehicleTerrain has a valid grounded pose.
+                controller.slopeLimit = Mathf.Max(preVehicleSlopeLimit, SheltreSim.World.VehicleTerrain.MaximumDriveSlope);
+                controller.stepOffset = Mathf.Max(preVehicleStepOffset, SheltreSim.World.VehicleTerrain.MountedStepOffset);
+                vehicleSlopeAssist = true;
+            }
+            else if (!mounted && vehicleSlopeAssist && controller != null)
+            {
+                controller.slopeLimit = preVehicleSlopeLimit;
+                controller.stepOffset = preVehicleStepOffset;
+                vehicleSlopeAssist = false;
+            }
             bicycleMounted = mounted;
             // Dismount and jump share Space. Vehicle Update may dismount before this
             // controller processes the same frame, so guard briefly after unmount too.
@@ -110,6 +134,7 @@ namespace SheltreSim.Player
 
         private void OnEnable()
         {
+            Active = this;
             input.Enable();
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -117,6 +142,7 @@ namespace SheltreSim.Player
 
         private void OnDisable()
         {
+            if (Active == this) Active = null;
             if (crouched) SetCrouched(false);
             eyeY = standingEyeY;
             if (cameraPivot != null)
@@ -201,6 +227,21 @@ namespace SheltreSim.Player
 
             Vector3 motion = (horizontal + new Vector3(0f, verticalVelocity.y, 0f)) * Time.deltaTime;
             controller.Move(motion);
+            if (bicycleMounted)
+            {
+                // At vehicle speed, gravity alone cannot keep the rider attached to a
+                // descending grade. Sample the same walkable support used by the vehicle
+                // and close a bounded downward gap every frame; upward terrain remains
+                // governed by CharacterController's mounted slope/step limits.
+                float supportY = SheltreSim.World.VehicleTerrain.RiderSupportHeight(
+                    transform.position.x, transform.position.z, transform.position.y, SheltreSim.World.VehicleTerrain.CurrentSeed);
+                float supportDelta = supportY - transform.position.y;
+                if (supportDelta < -.02f && supportDelta >= -1.25f)
+                {
+                    controller.Move(Vector3.up * supportDelta);
+                    verticalVelocity.y = -2f;
+                }
+            }
         }
 
         /// <summary>

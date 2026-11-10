@@ -142,9 +142,10 @@ namespace SheltreSim.Combat
             {
                 enemy.TakeDamage(attackDamage, transform.position);
                 SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitFlesh, enemy.transform.position + Vector3.up, 0.9f, 25f);
+                string targetName = RangedCombat.EnemyDisplayName(enemy);
                 GameMessageBus.Post(enemy.IsDead
-                    ? "Raider defeated."
-                    : $"Hit raider for {attackDamage:0} damage ({enemy.health:0} HP left).");
+                    ? targetName + " defeated."
+                    : $"Hit {targetName} for {attackDamage:0} damage ({enemy.health:0} HP left).");
             }
             else if (target != null && target.GetComponentInParent<SheltreSim.World.WorldWildlife>() is SheltreSim.World.WorldWildlife animal)
             {
@@ -174,26 +175,26 @@ namespace SheltreSim.Combat
         private bool TryDamageStructure(Collider target)
         {
             PlacedPiece piece = target.GetComponentInParent<PlacedPiece>();
-            StructureHealth health = piece != null ? piece.GetComponent<StructureHealth>() : null;
+            StructureHealth health = target.GetComponentInParent<StructureHealth>();
             if (health == null) return false;
 
-            HomesteadMaterial material = HomesteadCatalog.MaterialFor(piece.pieceId);
+            HomesteadMaterial material = piece != null ? HomesteadCatalog.MaterialFor(piece.pieceId) : health.material;
             float damage = 0f;
             if (inventory != null)
             {
-                damage = Mathf.Max(damage, ToolDamage("hammer", 24f, material, .8f, .75f, .55f));
-                damage = Mathf.Max(damage, ToolDamage("stone_axe", 26f, material, 1f, .45f, .22f));
-                damage = Mathf.Max(damage, ToolDamage("iron_axe", 38f, material, 1f, .45f, .22f));
-                damage = Mathf.Max(damage, ToolDamage("steel_axe", 52f, material, 1f, .45f, .22f));
-                damage = Mathf.Max(damage, ToolDamage("stone_pickaxe", 24f, material, .3f, 1f, .9f));
-                damage = Mathf.Max(damage, ToolDamage("iron_pickaxe", 38f, material, .3f, 1f, .9f));
-                damage = Mathf.Max(damage, ToolDamage("steel_pickaxe", 52f, material, .3f, 1f, .9f));
+                damage = Mathf.Max(damage, OwnedToolDamage("hammer", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("stone_axe", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("iron_axe", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("steel_axe", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("stone_pickaxe", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("iron_pickaxe", material));
+                damage = Mathf.Max(damage, OwnedToolDamage("steel_pickaxe", material));
             }
 
             string weaponId = gear != null ? gear.WeaponId : string.Empty;
             if (!string.IsNullOrEmpty(weaponId) && attackDamage > MeleeAttacker.DefaultDamage)
             {
-                float factor = material == HomesteadMaterial.Wood ? .75f : material == HomesteadMaterial.Stone ? .55f : .35f;
+                float factor = StructureDamageRules.MeleeWeaponMultiplier(material);
                 damage = Mathf.Max(damage, attackDamage * factor);
             }
 
@@ -204,16 +205,13 @@ namespace SheltreSim.Combat
             }
 
             health.TakeDamage(damage);
-            if (health.Health > 0f) GameMessageBus.Post($"Damaged {piece.pieceId.Replace("piece_", "").Replace('_', ' ')} ({health.Health:0}/{health.maxHealth:0} HP).");
+            string label = piece != null ? piece.pieceId.Replace("piece_", "").Replace('_', ' ') : health.name.Replace('_', ' ');
+            if (health.Health > 0f) GameMessageBus.Post($"Damaged {label} ({health.Health:0}/{health.maxHealth:0} HP).");
             return true;
         }
 
-        private float ToolDamage(string id, float baseDamage, HomesteadMaterial material, float wood, float stone, float metal)
-        {
-            if (inventory.GetCount(id) <= 0) return 0f;
-            float factor = material == HomesteadMaterial.Wood ? wood : material == HomesteadMaterial.Stone ? stone : metal;
-            return baseDamage * factor;
-        }
+        private float OwnedToolDamage(string id, HomesteadMaterial material) =>
+            inventory.GetCount(id) > 0 ? StructureDamageRules.ToolDamage(id, material) : 0f;
 
         /// <summary>
         /// SphereCastAll preserves initial overlaps, which are essential at point-blank range.
@@ -372,6 +370,35 @@ namespace SheltreSim.Combat
                 case "fire_axe": return 1.3f;
                 default: return 1f;
             }
+        }
+
+        /// <summary>
+        /// Selects a passive tool to show while aiming at a harvest node or player-built structure.
+        /// Tool damage and harvest bonuses remain based on the best owned tool, so merely changing
+        /// the viewmodel cannot consume, equip, or alter the player's gear state.
+        /// </summary>
+        public string ContextualToolId()
+        {
+            if (gear == null) gear = GetComponentInParent<PlayerGear>();
+            if (inventory == null) inventory = GetComponentInParent<Inventory>();
+            if (gear == null || inventory == null || gear.WeaponId.Length > 0) return null;
+
+            Collider target = FindSwingTarget();
+            if (target == null) return null;
+
+            SheltreSim.Items.ResourceNode node = target.GetComponentInParent<SheltreSim.Items.ResourceNode>();
+            if (node != null && node.resourceType != null)
+                return gear.BestOwnedToolId(PlayerGear.ToolFor(node.resourceType.id));
+
+            PlacedPiece piece = target.GetComponentInParent<PlacedPiece>();
+            StructureHealth structure = target.GetComponentInParent<StructureHealth>();
+            if (structure == null) return null;
+
+            HomesteadMaterial material = piece != null ? HomesteadCatalog.MaterialFor(piece.pieceId) : structure.material;
+            ToolKind preferred = material == HomesteadMaterial.Wood ? ToolKind.Axe : ToolKind.Pickaxe;
+            string best = gear.BestOwnedToolId(preferred);
+            if (best != null) return best;
+            return inventory.GetCount("hammer") > 0 ? "hammer" : null;
         }
 
         private IEnumerator SwingWeapon(bool madeContact)

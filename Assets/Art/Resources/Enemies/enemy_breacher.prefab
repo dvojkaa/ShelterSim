@@ -99,7 +99,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4291017198745896096}
-  - component: {fileID: 2748208499276561507}
+  - component: {fileID: 7081222519529028813}
   m_Layer: 0
   m_Name: enemy_breacher
   m_TagString: Untagged
@@ -129,7 +129,7 @@ Transform:
   - {fileID: 64539730393295041}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2748208499276561507
+--- !u!95 &7081222519529028813
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0

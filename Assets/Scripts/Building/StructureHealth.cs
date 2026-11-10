@@ -15,8 +15,11 @@ namespace SheltreSim.Building
         public float maxHealth = 100f;
         /// <summary>Lower numbers are attacked first by raiders with no better target.</summary>
         public int targetPriority = 5;
+        /// <summary>Material response for destructible world structures that are not player build pieces.</summary>
+        public HomesteadMaterial material = HomesteadMaterial.Stone;
 
         private float health = -1f;
+        private bool destroyed;
         private static readonly List<StructureHealth> all = new List<StructureHealth>();
 
         public static IReadOnlyList<StructureHealth> All => all;
@@ -27,6 +30,7 @@ namespace SheltreSim.Building
         public float Health => health < 0f ? maxHealth : health;
         public float Fraction => maxHealth > 0f ? Mathf.Clamp01(Health / maxHealth) : 1f;
         public bool IsDamaged => Health < maxHealth;
+        public bool IsDestroyed => destroyed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() { all.Clear(); Destroyed = null; }
@@ -36,14 +40,20 @@ namespace SheltreSim.Building
 
         public void RestoreHealth(float value)
         {
+            if (destroyed) return;
             if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f) return;
             health = Mathf.Min(value, maxHealth);
+            if (health <= 0f)
+            {
+                DestroyPiece();
+                return;
+            }
             OnChanged?.Invoke();
         }
 
         public void TakeDamage(float amount)
         {
-            if (amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount) || Health <= 0f) return;
+            if (destroyed || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount) || Health <= 0f) return;
             health = Mathf.Max(0f, Health - amount);
             GameAudio.PlayAt(Sfx.StructureHit, transform.position, 0.7f, 30f, 0.08f);
             if (health > 0f)
@@ -51,8 +61,16 @@ namespace SheltreSim.Building
                 OnChanged?.Invoke();
                 return;
             }
+            DestroyPiece();
+        }
+
+        private void DestroyPiece()
+        {
+            if (destroyed) return;
+            destroyed = true;
             GameAudio.PlayAt(Sfx.StructureBreak, transform.position, 1f, 45f);
             var piece = GetComponent<SheltreSim.Saving.PlacedPiece>();
+            SheltreSim.World.ProceduralWorldState.RecordDestroyedStructure(transform);
             GameMessageBus.Post($"{Label(piece)} was destroyed!");
             Destroyed?.Invoke(this);
             gameObject.SetActive(false);
@@ -62,7 +80,7 @@ namespace SheltreSim.Building
         /// <summary>Returns the amount actually repaired.</summary>
         public float Repair(float amount)
         {
-            if (amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount)) return 0f;
+            if (destroyed || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount)) return 0f;
             float before = Health;
             health = Mathf.Min(maxHealth, before + amount);
             if (health != before) OnChanged?.Invoke();

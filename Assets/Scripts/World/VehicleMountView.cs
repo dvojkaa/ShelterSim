@@ -14,14 +14,19 @@ namespace SheltreSim.World
         private Collider[] vehicleColliders;
         private bool[] vehicleColliderStates;
         private FirstPersonController rider;
-        private Transform vehicle, seat, originalCameraParent, cameraPivot;
+        private Transform vehicle, seat, animatedDoor, originalCameraParent, cameraPivot;
         private Transform fallbackSeat;
         private Vector3 originalCameraLocalPosition;
+        private Vector3 mountStartCameraPosition;
+        private Quaternion mountStartCameraRotation;
+        private Quaternion doorClosedLocalRotation;
+        private float doorOpenAngle;
         private bool mounted;
         private Coroutine transition;
 
         public bool IsTransitioning { get; private set; }
         public bool IsBusy => mounted || IsTransitioning;
+        public Transform MountedVehicle => IsBusy ? vehicle : null;
         public bool IsAttachedTo(Transform vehicleRoot) => vehicleRoot != null && vehicle == vehicleRoot && (mounted || IsTransitioning);
 
         public static VehicleMountView For(FirstPersonController player)
@@ -31,17 +36,27 @@ namespace SheltreSim.World
             return view != null ? view : player.gameObject.AddComponent<VehicleMountView>();
         }
 
-        public bool BeginMount(Transform vehicleRoot)
+        public bool BeginMount(Transform vehicleRoot, Vector3 riderPosition, Quaternion riderRotation)
         {
             if (mounted || IsTransitioning || vehicleRoot == null || rider == null) return false;
+            cameraPivot = rider.cameraPivot;
+            CharacterController controller = rider.GetComponent<CharacterController>();
+            if (cameraPivot == null || controller == null || !controller.enabled) return false;
+
+            Vector3 oldRiderPosition = rider.transform.position;
+            Quaternion oldRiderRotation = rider.transform.rotation;
+            mountStartCameraPosition = cameraPivot.position;
+            mountStartCameraRotation = cameraPivot.rotation;
             vehicle = vehicleRoot;
             vehicleColliders = vehicle.GetComponentsInChildren<Collider>(true);
             vehicleColliderStates = new bool[vehicleColliders.Length];
             for (int i = 0; i < vehicleColliders.Length; i++) vehicleColliderStates[i] = vehicleColliders[i] != null && vehicleColliders[i].enabled;
-            cameraPivot = rider.cameraPivot;
-            if (cameraPivot == null) return false;
             originalCameraParent = cameraPivot.parent;
             originalCameraLocalPosition = cameraPivot.localPosition;
+            // CameraFeel and player motion can temporarily add an x/z offset. Keep the authored eye height,
+            // but always restore the pivot over the controller's centre when leaving the vehicle.
+            originalCameraLocalPosition.x = 0f;
+            originalCameraLocalPosition.z = 0f;
             seat = FindAnchor(vehicle, "Seat");
             if (seat == null)
             {
@@ -50,6 +65,40 @@ namespace SheltreSim.World
                 fallback.transform.localPosition = new Vector3(0f, cameraPivot.position.y - vehicle.position.y, 0f);
                 fallbackSeat = seat = fallback.transform;
             }
+
+            // Keep the parked vehicle pose. Put the player at the matching follow anchor instead, with
+            // vehicle colliders temporarily disabled so the controller can enter the cabin safely.
+            for (int i = 0; i < vehicleColliders.Length; i++)
+                if (vehicleColliders[i] != null) vehicleColliders[i].enabled = false;
+            controller.enabled = false;
+            rider.transform.SetPositionAndRotation(riderPosition, Yaw(riderRotation));
+            controller.enabled = true;
+            Physics.SyncTransforms();
+            if (!TryRaiseToClearPose(riderPosition, Yaw(riderRotation), out Vector3 clearRiderPosition))
+            {
+                controller.enabled = false;
+                rider.transform.SetPositionAndRotation(oldRiderPosition, oldRiderRotation);
+                controller.enabled = true;
+                for (int i = 0; i < vehicleColliders.Length; i++)
+                    if (vehicleColliders[i] != null) vehicleColliders[i].enabled = vehicleColliderStates[i];
+                if (fallbackSeat != null) Destroy(fallbackSeat.gameObject);
+                fallbackSeat = null;
+                seat = vehicle = originalCameraParent = null;
+                vehicleColliders = null;
+                vehicleColliderStates = null;
+                Physics.SyncTransforms();
+                return false;
+            }
+            if ((clearRiderPosition - riderPosition).sqrMagnitude > 0.000001f)
+            {
+                controller.enabled = false;
+                rider.transform.position = clearRiderPosition;
+                controller.enabled = true;
+                Physics.SyncTransforms();
+            }
+            PrepareDoor(false);
+            // Repositioning the body moves its child camera. Start the transition at the pre-mount view.
+            cameraPivot.SetPositionAndRotation(mountStartCameraPosition, mountStartCameraRotation);
             mounted = true;
             rider.SetVehicleTransition(true);
             IsTransitioning = true;
@@ -61,7 +110,8 @@ namespace SheltreSim.World
         {
             if (!mounted || IsTransitioning || rider == null || cameraPivot == null) return false;
             vehicle = vehicleRoot != null ? vehicleRoot : vehicle;
-            if (!TryChooseExit(vehicle, out Vector3 exitPosition, out Quaternion exitRotation)) return false;
+            if (!TryChooseExit(vehicle, out Vector3 exitPosition, out Quaternion exitRotation, out bool rightExit)) return false;
+            PrepareDoor(rightExit);
 
             Vector3 cameraWorldPosition = cameraPivot.position;
             Quaternion cameraWorldRotation = cameraPivot.rotation;
@@ -85,6 +135,8 @@ namespace SheltreSim.World
             if (vehicleOwner != null && vehicle != vehicleOwner) return;
             if (transition != null) StopCoroutine(transition);
             transition = null;
+            SetDoorOpen(0f);
+            animatedDoor = null;
             if (cameraPivot != null && originalCameraParent != null)
             {
                 cameraPivot.SetParent(originalCameraParent, false);
@@ -108,19 +160,22 @@ namespace SheltreSim.World
 
         private IEnumerator MoveCameraToSeat()
         {
-            Vector3 startPosition = cameraPivot.position;
-            Quaternion startRotation = cameraPivot.rotation;
+            Vector3 startPosition = mountStartCameraPosition;
+            Quaternion startRotation = mountStartCameraRotation;
             float pitch = rider.CameraPitch;
             float elapsed = 0f;
             while (elapsed < TransitionSeconds)
             {
                 elapsed += Time.deltaTime;
-                float t = Ease(elapsed / TransitionSeconds);
+                SetDoorOpen(DoorOpenAmount(elapsed));
+                float t = Ease((elapsed - 0.12f) / 0.36f);
                 cameraPivot.position = Vector3.Lerp(startPosition, seat.position, t);
                 cameraPivot.rotation = Quaternion.Slerp(startRotation, seat.rotation * Quaternion.Euler(pitch, 0f, 0f), t);
                 yield return null;
             }
+            SetDoorOpen(0f);
             cameraPivot.SetPositionAndRotation(seat.position, seat.rotation * Quaternion.Euler(pitch, 0f, 0f));
+            animatedDoor = null;
             IsTransitioning = false;
             rider.SetVehicleTransition(false);
             transition = null;
@@ -134,14 +189,17 @@ namespace SheltreSim.World
             while (elapsed < TransitionSeconds)
             {
                 elapsed += Time.deltaTime;
-                float t = Ease(elapsed / TransitionSeconds);
+                SetDoorOpen(DoorOpenAmount(elapsed));
+                float t = Ease((elapsed - 0.12f) / 0.36f);
                 cameraPivot.position = Vector3.Lerp(startPosition, rider.transform.TransformPoint(originalCameraLocalPosition), t);
                 cameraPivot.rotation = Quaternion.Slerp(startRotation,
                     rider.transform.rotation * Quaternion.Euler(rider.CameraPitch, 0f, 0f), t);
                 yield return null;
             }
+            SetDoorOpen(0f);
             cameraPivot.localPosition = originalCameraLocalPosition;
             cameraPivot.localRotation = Quaternion.Euler(rider.CameraPitch, 0f, 0f);
+            animatedDoor = null;
             if (fallbackSeat != null) Destroy(fallbackSeat.gameObject);
             fallbackSeat = null;
             seat = null;
@@ -157,10 +215,11 @@ namespace SheltreSim.World
             cameraPivot.SetPositionAndRotation(seat.position, seat.rotation * Quaternion.Euler(rider.CameraPitch, 0f, 0f));
         }
 
-        private bool TryChooseExit(Transform root, out Vector3 position, out Quaternion rotation)
+        private bool TryChooseExit(Transform root, out Vector3 position, out Quaternion rotation, out bool rightExit)
         {
             position = default;
             rotation = Quaternion.identity;
+            rightExit = false;
             if (root == null) return false;
             var statesBeforeCheck = new bool[vehicleColliders != null ? vehicleColliders.Length : 0];
             for (int i = 0; i < statesBeforeCheck.Length; i++)
@@ -179,6 +238,7 @@ namespace SheltreSim.World
                     {
                         position = clearMarker;
                         rotation = Yaw(marker.rotation);
+                        rightExit = name == "Exit_R";
                         return true;
                     }
                 }
@@ -223,6 +283,34 @@ namespace SheltreSim.World
             }
             clearPosition = default;
             return false;
+        }
+
+        private void PrepareDoor(bool rightSide)
+        {
+            animatedDoor = FindAnchor(vehicle, rightSide ? "Door_R" : "Door_L");
+            bool useRight = rightSide;
+            if (animatedDoor == null)
+            {
+                useRight = !rightSide;
+                animatedDoor = FindAnchor(vehicle, useRight ? "Door_R" : "Door_L");
+            }
+            doorClosedLocalRotation = animatedDoor != null ? animatedDoor.localRotation : Quaternion.identity;
+            doorOpenAngle = useRight ? 65f : -65f;
+        }
+
+        private void SetDoorOpen(float amount)
+        {
+            if (animatedDoor == null) return;
+            animatedDoor.localRotation = Quaternion.AngleAxis(doorOpenAngle * Mathf.Clamp01(amount), Vector3.up) * doorClosedLocalRotation;
+        }
+
+        private static float DoorOpenAmount(float elapsed)
+        {
+            const float openSeconds = 0.18f;
+            const float closeStart = TransitionSeconds - openSeconds;
+            if (elapsed <= openSeconds) return Ease(elapsed / openSeconds);
+            if (elapsed >= closeStart) return 1f - Ease((elapsed - closeStart) / openSeconds);
+            return 1f;
         }
 
         private bool TryProjectToSurface(Vector3 candidate, Transform vehicleRoot, out Vector3 groundPosition)

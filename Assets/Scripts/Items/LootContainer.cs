@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using SheltreSim.Interaction;
 using SheltreSim.UI;
+using SheltreSim.World;
 using UnityEngine;
 
 namespace SheltreSim.Items
@@ -159,6 +160,7 @@ namespace SheltreSim.Items
         public void RestoreSearchedState(bool isSearched)
         {
             searched = isSearched;
+            NotifyBuildingClearance();
             if (searched) BeginOpen(false);
             else
             {
@@ -183,6 +185,7 @@ namespace SheltreSim.Items
             if (!hasLoot || entries == null || entries.Count == 0)
             {
                 searched = true;
+                NotifyBuildingClearance();
                 BeginOpen(true);
                 SheltreSim.Audio.GameAudio.PlayAt(OpenSoundKey(), transform.position, 0.85f, 20f);
                 SheltreSim.Audio.GameAudio.Play2D(SheltreSim.Audio.Sfx.LootEmpty, 0.4f, 0f, 0.5f);
@@ -203,6 +206,7 @@ namespace SheltreSim.Items
             }
 
             searched = true;
+            NotifyBuildingClearance();
             BeginOpen(true);
             StringBuilder found = new StringBuilder();
             for (int i = 0; i < entries.Count; i++)
@@ -225,6 +229,12 @@ namespace SheltreSim.Items
             SheltreSim.Audio.GameAudio.PlayAt(OpenSoundKey(), transform.position, 0.85f, 20f);
             SheltreSim.Audio.GameAudio.Play2D(found.Length > 0 ? SheltreSim.Audio.Sfx.LootFound : SheltreSim.Audio.Sfx.LootEmpty, 0.55f, 0f, 0.5f);
             GameMessageBus.Post(found.Length > 0 ? $"Found {found}." : "Searched — found nothing.");
+        }
+
+        private void NotifyBuildingClearance()
+        {
+            BuildingInterior building = GetComponentInParent<BuildingInterior>();
+            if (building != null) building.RefreshClearanceState();
         }
     }
 }

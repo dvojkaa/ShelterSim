@@ -8,6 +8,7 @@ using SheltreSim.Items;
 using SheltreSim.Player;
 using SheltreSim.Power;
 using SheltreSim.Storage;
+using SheltreSim.Survival;
 using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
@@ -102,6 +103,7 @@ namespace SheltreSim.Diagnostics
             yield return Run(FabricatorJobs());
             yield return Run(RepairStation());
             yield return Run(FarmAndIrrigator());
+            yield return Run(NeedsAndBedCooldown());
             yield return Run(SaveRoundTrips());
             yield return Run(GhostLifecycle());
             yield return Run(ConsolePanel());
@@ -701,6 +703,13 @@ namespace SheltreSim.Diagnostics
 
         private IEnumerator FarmAndIrrigator()
         {
+            FarmPlot defaults = Make<FarmPlot>(NextSite());
+            Check(Near(defaults.growSeconds, 3600f) && defaults.vegetableYield == 2,
+                "A crop takes one in-game day before irrigation and yields two vegetables");
+            float fourPlotSupply = 4f * defaults.vegetableYield * 18f / (defaults.growSeconds / 2f);
+            Check(Near(fourPlotSupply, 0.08f), "Four irrigated plots supply about 80% of baseline hunger use");
+            Check(FarmPlot.IsDaylightHour(12f) && !FarmPlot.IsDaylightHour(2f), "Outdoor crops have a daylight growth window");
+
             Vector3 here = NextSite();
             FarmPlot plot = Make<FarmPlot>(here);
             plot.growSeconds = 100f;
@@ -761,6 +770,19 @@ namespace SheltreSim.Diagnostics
             Check(!old.Fertilized && old.SpeedMultiplier == 1f, "An older save's crop has no fertilizer");
             inventory.SetCount("seeds", 0);
             inventory.SetCount("fertilizer", 0);
+            yield break;
+        }
+
+        private IEnumerator NeedsAndBedCooldown()
+        {
+            GameObject testObject = new GameObject("NeedsTuningProbe");
+            spawned.Add(testObject);
+            SurvivalStats stats = testObject.AddComponent<SurvivalStats>();
+            Check(Near(stats.hungerDecayPerSecond, 0.10f) && Near(stats.thirstDecayPerSecond, 0.14f),
+                "Needs drain at the retuned one-day pacing rates");
+            Check(Near(stats.healthDecayWhenStarving, 0.20f), "Starvation damage keeps an idle death near one game day");
+            Check(stats.TryStartBedRest(600f) && !stats.TryStartBedRest(600f),
+                "A second bed rest is blocked during the shared ten-minute cooldown");
             yield break;
         }
 

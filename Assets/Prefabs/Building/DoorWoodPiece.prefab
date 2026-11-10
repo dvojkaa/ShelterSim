@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 392112533960713891}
   - component: {fileID: 1006544933931530957}
   - component: {fileID: 6380451814756028242}
-  - component: {fileID: 7151714097740662361}
+  - component: {fileID: 382885924290826967}
   m_Layer: 0
   m_Name: DoorWoodPiece
   m_TagString: Untagged
@@ -80,7 +80,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 120
   targetPriority: 5
---- !u!114 &7151714097740662361
+--- !u!114 &382885924290826967
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

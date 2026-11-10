@@ -218,6 +218,21 @@ namespace SheltreSim.Diagnostics
             Move(surfacePoint);
             atmosphere.RestoreTime((wet + 0.5f) * WorldAtmosphere.WeatherPeriod);
             yield return Settle(12f);
+            Check(!atmosphere.IsSheltered && atmosphere.ExposureStatus.StartsWith("EXPOSED"),
+                "open weather reports exposed state and names the needs drain");
+            GameObject testRoof = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            testRoof.name = "WeatherProbeRoof";
+            testRoof.GetComponent<Renderer>().enabled = false;
+            testRoof.transform.position = player.position + Vector3.up * 4f;
+            testRoof.transform.localScale = new Vector3(8f, .25f, 8f);
+            Physics.SyncTransforms();
+            yield return new WaitForSecondsRealtime(.65f);
+            Check(atmosphere.IsSheltered && atmosphere.ExposureStatus.StartsWith("SHELTERED"),
+                "a roof changes the status to sheltered and blocks weather drain");
+            Destroy(testRoof);
+            yield return new WaitForSecondsRealtime(.65f);
+            Check(!atmosphere.IsSheltered && atmosphere.ExposureStatus.StartsWith("EXPOSED"),
+                "leaving the roof returns the status to exposed");
             Check(atmosphere.WeatherName == "Rain" || atmosphere.WeatherName == "Snow", $"live weather after the clock moved: {atmosphere.WeatherName}");
             Check(atmosphere.WeatherIntensity >= 0.65f, $"live intensity {atmosphere.WeatherIntensity:F2}");
             Check(WeatherPresentation.ParticleCount > 100, $"live particles from the real clock: {WeatherPresentation.ParticleCount}");

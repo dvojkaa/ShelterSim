@@ -631,7 +631,8 @@ namespace SheltreSim.Bestiary
             if (Time.time >= nextSteer)
             {
                 nextSteer = Time.time + SteerInterval;
-                steering = Choose(flat.normalized);
+                steering = Enemy.TryGetPathDirection(destination, out Vector3 pathDirection)
+                    ? pathDirection : Choose(flat.normalized);
             }
             Vector3 motion = steering * speed;
             motion = Vector3.ClampMagnitude(motion, flat.magnitude / Mathf.Max(Time.deltaTime, 0.001f));

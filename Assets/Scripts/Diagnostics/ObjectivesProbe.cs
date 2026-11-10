@@ -229,12 +229,13 @@ namespace SheltreSim.Diagnostics
                 string detail = "";
                 for (int slot = 0; slot < 4; slot++)
                 {
-                    LootTables.Fill(scratch, ProceduralLandmarks.TableName(kind), random);
+                    var loot = landmark.Find("Cache_" + slot.ToString("D2")).GetComponent<LootContainer>();
+                    // Caches roll through the distance-tiered table (Fable #9), so the expectation must use the same call and position.
+                    LootTables.FillAtWorldPosition(scratch, ProceduralLandmarks.TableName(kind), random, loot.transform.position);
                     var expected = scratch.entries.Select(e => (e.resource.id, e.amount)).ToList();
                     bool slotPart = slot == 3 && (kind == ProceduralLandmarks.KindFactory || kind == ProceduralLandmarks.KindBunker);
                     if (slotPart || random.NextDouble() < .12) expected.Add(("expedition_parts", 1));
                     if (slot == 0) foreach (var reward in ProceduralLandmarks.GuaranteedRewards(kind)) expected.Add(reward);
-                    var loot = landmark.Find("Cache_" + slot.ToString("D2")).GetComponent<LootContainer>();
                     var actual = loot.entries.Select(e => (e.resource.id, e.amount)).ToList();
                     if (!actual.SequenceEqual(expected))
                     {

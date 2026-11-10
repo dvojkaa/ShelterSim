@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 5089425184758229095}
   - component: {fileID: 4717805814323839305}
   - component: {fileID: 3373100017549266678}
-  - component: {fileID: 7789591524487172283}
+  - component: {fileID: 6573020810393935511}
   m_Layer: 0
   m_Name: GatePiece
   m_TagString: Untagged
@@ -170,7 +170,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 80
   targetPriority: 5
---- !u!114 &7789591524487172283
+--- !u!114 &6573020810393935511
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

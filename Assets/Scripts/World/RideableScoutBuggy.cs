@@ -19,13 +19,14 @@ namespace SheltreSim.World
     public sealed class RideableScoutBuggy : MonoBehaviour, IInteractable, IItemStore, IPieceState
     {
         public const float TrunkCapacityKg = 120f;
-        public const float FuelRangePerCan = 700f;
-        public const float BatteryRangePerCell = 500f;
-        public const float TankRange = FuelRangePerCan * 3f;
+        public const float FuelRangePerCan = 4000f;
+        public const float BatteryRangePerCell = 1500f;
+        public const float TankRange = 12000f;
         public const float RamMinSpeed = 5.5f;
         public const float RamCooldown = 1.2f;
-        public float walkSpeed = 18f;
-        public float sprintSpeed = 22f;
+        // Arcade survival-game tuning: the buggy should cover ground noticeably faster than sprinting.
+        public float walkSpeed = 26f;
+        public float sprintSpeed = 34f;
         public string InteractPrompt => "Press E to drive scout buggy";
 
         [Serializable] private sealed class SavedStack { public string id; public int count; }
@@ -47,13 +48,15 @@ namespace SheltreSim.World
         private VehicleMountView mountView;
         private float oldWalk, oldSprint, fuelMeters, nextNoise, nextRamCleanup, driveScale, currentSpeed;
         private Vector3 lastRiderPosition, lastBumperPosition, vehicleLocalCenter, vehicleLocalHalfExtents;
-        private InputAction dismount, trunkAction, refuelAction, batteryAction, lightAction;
+        private InputAction dismount, trunkAction, refuelAction, batteryAction, lightAction, hornAction;
         private Collider[] vehicleColliders;
         private bool[] colliderStates;
         private Transform[] wheels;
         private Quaternion[] wheelRestRotations;
         private float wheelRotation;
         private bool mounted, lightsOn, lowFuelWarningSent, emptyFuelWarningSent, ramSweepReady;
+        private string lastBlockingCollider = string.Empty;
+        private float hornReadyAt;
 
         // The prefab root is the footprint centre: the floor is half the footprint height below it, so the root rides that far ABOVE the rider's feet.
         private const float RootHeight = 1.05f; // footprint 2.1 m high
@@ -65,6 +68,7 @@ namespace SheltreSim.World
         public bool IsMounted => mounted;
         public float Speed => currentSpeed;
         public float Throttle01 => rider != null && mounted ? Mathf.Clamp01(rider.MoveInput.magnitude) : 0f;
+        public string LastBlockingCollider => lastBlockingCollider;
         public float FuelFraction01 => TankRange > 0f ? Mathf.Clamp01(fuelMeters / TankRange) : 0f;
 
         private void Awake()
@@ -79,27 +83,28 @@ namespace SheltreSim.World
             refuelAction = new InputAction("RefuelBuggy", InputActionType.Button, "<Keyboard>/h");
             batteryAction = new InputAction("ChargeBuggy", InputActionType.Button, "<Keyboard>/j");
             lightAction = new InputAction("ToggleBuggyLights", InputActionType.Button, "<Keyboard>/l");
+            hornAction = new InputAction("HornBuggy", InputActionType.Button, "<Keyboard>/k");
             CreateHeadlights();
             ApplyHeadlights();
         }
 
         private void OnEnable()
         {
-            dismount?.Enable(); trunkAction?.Enable(); refuelAction?.Enable(); batteryAction?.Enable(); lightAction?.Enable();
+            dismount?.Enable(); trunkAction?.Enable(); refuelAction?.Enable(); batteryAction?.Enable(); lightAction?.Enable(); hornAction?.Enable();
             StorageRegistry.Register(this);
         }
 
         private void OnDisable()
         {
             StorageRegistry.Unregister(this);
-            dismount?.Disable(); trunkAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable();
+            dismount?.Disable(); trunkAction?.Disable(); refuelAction?.Disable(); batteryAction?.Disable(); lightAction?.Disable(); hornAction?.Disable();
             if (mounted) Dismount(true);
             else if (mountView != null && mountView.IsAttachedTo(transform) && mountView.IsTransitioning) mountView.ForceDismount(transform);
         }
 
         private void OnDestroy()
         {
-            dismount?.Dispose(); trunkAction?.Dispose(); refuelAction?.Dispose(); batteryAction?.Dispose(); lightAction?.Dispose();
+            dismount?.Dispose(); trunkAction?.Dispose(); refuelAction?.Dispose(); batteryAction?.Dispose(); lightAction?.Dispose(); hornAction?.Dispose();
         }
 
         private void Update()
@@ -109,6 +114,12 @@ namespace SheltreSim.World
             if (mountView != null && mountView.IsTransitioning) return;
             if (Time.timeScale == 0f) return;
             if (dismount.WasPressedThisFrame()) { Dismount(); return; }
+            if (hornAction.WasPressedThisFrame() && Time.time >= hornReadyAt)
+            {
+                hornReadyAt = Time.time + 1f;
+                SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.VehicleHorn, transform.position, 0.9f, 60f);
+                AlertNearby();
+            }
             if (trunkAction.WasPressedThisFrame())
             {
                 Inventory inventory = rider.GetComponent<Inventory>();
@@ -119,21 +130,11 @@ namespace SheltreSim.World
             if (batteryAction.WasPressedThisFrame()) ChargeBattery();
             if (lightAction.WasPressedThisFrame()) { lightsOn = !lightsOn; ApplyHeadlights(); GameMessageBus.Post(lightsOn ? "Buggy headlights on." : "Buggy headlights off."); }
 
+            CharacterController riderBody = rider.GetComponent<CharacterController>();
+            Vector3 previousRiderPosition = lastRiderPosition;
             Vector3 position = rider.transform.position;
-            Vector3 movement = position - lastRiderPosition;
+            Vector3 movement = position - previousRiderPosition;
             float travelled = movement.magnitude;
-            lastRiderPosition = position;
-            fuelMeters = Mathf.Max(0f, fuelMeters - travelled);
-            if (fuelMeters <= 0f && !emptyFuelWarningSent)
-            {
-                emptyFuelWarningSent = true;
-                GameMessageBus.Post("Buggy out of fuel. Dismount or press H with a fuel can to refuel.");
-            }
-            else if (fuelMeters <= 140f && fuelMeters > 0f && !lowFuelWarningSent)
-            {
-                lowFuelWarningSent = true;
-                GameMessageBus.Post("Buggy fuel low — less than 140 m of range remains.");
-            }
             Vector3 follow = position - rider.transform.forward * 1.55f;
             Vector3 previousVehiclePosition = transform.position;
             Quaternion previousVehicleRotation = transform.rotation;
@@ -141,17 +142,50 @@ namespace SheltreSim.World
             VehicleTerrain.SamplePose(follow, yaw, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
                 out Vector3 terrainFollow, out Quaternion desiredRotation, out float grade, out _);
             follow = terrainFollow;
+
+            // The controller has already advanced this frame. If the body is stopped by a
+            // wall, move the rider back by the same blocked distance before finalizing speed,
+            // fuel use, and the vehicle pose. Otherwise the camera walks through the doorway
+            // while the buggy remains pinned against it.
+            Vector3 resolved = ResolveVehicleMotion(follow, desiredRotation);
+            Vector3 correction = resolved - follow;
+            if (correction.sqrMagnitude > 0.0001f)
+            {
+                riderBody.Move(correction);
+                position = rider.transform.position;
+                movement = position - previousRiderPosition;
+                travelled = movement.magnitude;
+                yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
+                follow = position - rider.transform.forward * 1.55f;
+                VehicleTerrain.SamplePose(follow, yaw, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
+                    out terrainFollow, out desiredRotation, out grade, out _);
+                follow = terrainFollow;
+                resolved = ResolveVehicleMotion(follow, desiredRotation);
+            }
+
+            lastRiderPosition = position;
+            fuelMeters = Mathf.Max(0f, fuelMeters - travelled);
+            if (fuelMeters <= 0f && !emptyFuelWarningSent)
+            {
+                emptyFuelWarningSent = true;
+                GameMessageBus.Post("Buggy out of fuel. Dismount or press H with a fuel can to refuel.");
+            }
+            else if (fuelMeters <= 800f && fuelMeters > 0f && !lowFuelWarningSent)
+            {
+                lowFuelWarningSent = true;
+                GameMessageBus.Post("Buggy fuel low — less than 0.8 km of range remains.");
+            }
+
             float inputY = rider.MoveInput.y;
             float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, inputY);
             float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
-            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 1.6f);
+            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.8f);
             rider.walkSpeed = walkSpeed * driveScale;
             rider.sprintSpeed = sprintSpeed * driveScale;
             currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, yaw * Vector3.forward) : 0f;
             VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .53f, Time.deltaTime);
-            follow = ResolveVehicleMotion(follow, desiredRotation);
-            transform.position = follow;
-            transform.rotation = RotationHasClearance(follow, desiredRotation) ? desiredRotation : previousVehicleRotation;
+            transform.position = resolved;
+            transform.rotation = RotationHasClearance(resolved, desiredRotation) ? desiredRotation : previousVehicleRotation;
             Vector3 bumper = BumperPosition();
             Vector3 vehicleMovement = transform.position - previousVehiclePosition;
             vehicleMovement.y = 0f;
@@ -176,20 +210,15 @@ namespace SheltreSim.World
             if (rider == null) return;
             mountView = VehicleMountView.For(rider);
             if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
-            Vector3 parkedPosition = transform.position;
-            Quaternion parkedRotation = transform.rotation;
-            Quaternion desiredRotation = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            Vector3 follow = rider.transform.position - desiredRotation * Vector3.forward * 1.55f;
-            VehicleTerrain.SamplePose(follow, desiredRotation, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
-                out follow, out Quaternion groundRotation, out _, out _);
-            Vector3 resolved = ResolveVehicleMotion(follow, groundRotation);
-            transform.position = resolved;
-            if (RotationHasClearance(follow, groundRotation)) transform.rotation = groundRotation;
-            if (!mountView.BeginMount(transform))
+            Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (flatForward.sqrMagnitude < 0.001f) flatForward = transform.forward;
+            Vector3 riderSeatPosition = transform.position - Vector3.up * RootHeight + flatForward * 1.55f;
+            Quaternion riderSeatRotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            if (!mountView.BeginMount(transform, riderSeatPosition, riderSeatRotation))
             {
-                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
                 rider = null;
                 mountView = null;
+                GameMessageBus.Post("No clear driver space in the buggy.");
                 return;
             }
             mounted = true;
@@ -202,7 +231,7 @@ namespace SheltreSim.World
             foreach (Collider c in vehicleColliders) if (c != null) c.enabled = false;
             ramSweepReady = false;
             ramReadyAt.Clear();
-            GameMessageBus.Post($"Buggy controls: P trunk, H fuel (+{FuelRangePerCan:0} m), J energy cell (+{BatteryRangePerCell:0} m), L lights, Space dismount. Range: {fuelMeters:0} m.");
+            GameMessageBus.Post($"Buggy controls: P trunk, H fuel (+{FuelRangePerCan / 1000f:0.#} km), J energy cell (+{BatteryRangePerCell / 1000f:0.#} km), K horn (alerts nearby threats), L lights, Space dismount. Range: {fuelMeters / 1000f:0.#} km.");
         }
 
         private Vector3 BumperPosition() => transform.position + transform.forward * 2.15f + Vector3.up * 0.55f;
@@ -254,6 +283,7 @@ namespace SheltreSim.World
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = vehicleBlockHits[i];
+                if (IsUpwardSupportContact(hit)) continue;
                 if (!IsVehicleBlocker(hit.collider)) continue;
                 if (hit.distance < nearest)
                 {
@@ -265,11 +295,14 @@ namespace SheltreSim.World
 
             if (nearest < distance)
             {
+                lastBlockingCollider = nearestHit.collider != null
+                    ? nearestHit.collider.name + " at " + nearestHit.point.ToString("F1") : "unknown collider";
                 float impactSpeed = distance / Mathf.Max(0.0001f, Time.deltaTime);
                 if (impactSpeed >= RamMinSpeed)
                     ApplyImpactImpulse(nearestHit.collider, direction, nearestHit.point, impactSpeed);
                 desiredPosition = transform.position + direction * Mathf.Max(0f, nearest - 0.04f);
             }
+            else lastBlockingCollider = string.Empty;
             return desiredPosition;
         }
 
@@ -322,6 +355,10 @@ namespace SheltreSim.World
             if (rider != null && (collider.transform == rider.transform || collider.transform.IsChildOf(rider.transform))) return false;
             return true;
         }
+
+        // The terrain-follow solver places the chassis over the sampled slope. Do not treat
+        // an upward-facing, driveable hill as a vertical obstacle during the horizontal sweep.
+        private static bool IsUpwardSupportContact(RaycastHit hit) => VehicleTerrain.IsDriveSurface(hit);
 
         private void TryRam(Vector3 from, Vector3 to, float speed)
         {
@@ -392,14 +429,14 @@ namespace SheltreSim.World
             }
             if (TankRange - fuelMeters + 0.001f < FuelRangePerCan)
             {
-                GameMessageBus.Post($"Need at least {FuelRangePerCan:0} m tank space before using another fuel can.");
+                GameMessageBus.Post($"Need at least {FuelRangePerCan / 1000f:0.#} km tank space before using another fuel can.");
                 return;
             }
             if (!inventory.TryConsume("fuel", 1)) { GameMessageBus.Post("Need a fuel can to refuel the buggy."); return; }
             fuelMeters += FuelRangePerCan;
-            if (fuelMeters > 140f) lowFuelWarningSent = false;
+            if (fuelMeters > 800f) lowFuelWarningSent = false;
             if (fuelMeters > 0f) emptyFuelWarningSent = false;
-            GameMessageBus.Post($"Buggy refuelled. Range: {fuelMeters:0} m.");
+            GameMessageBus.Post($"Buggy refuelled. Range: {fuelMeters / 1000f:0.#} km.");
         }
 
         private void ChargeBattery()
@@ -408,14 +445,14 @@ namespace SheltreSim.World
             if (inventory == null) { GameMessageBus.Post("Cannot access the player's inventory."); return; }
             if (TankRange - fuelMeters + 0.001f < BatteryRangePerCell)
             {
-                GameMessageBus.Post($"Need at least {BatteryRangePerCell:0} m tank space before using an energy cell.");
+                GameMessageBus.Post($"Need at least {BatteryRangePerCell / 1000f:0.#} km tank space before using an energy cell.");
                 return;
             }
             if (!inventory.TryConsume("energy_cell", 1)) { GameMessageBus.Post("Need an energy cell to recharge the buggy."); return; }
             fuelMeters += BatteryRangePerCell;
-            if (fuelMeters > 140f) lowFuelWarningSent = false;
+            if (fuelMeters > 800f) lowFuelWarningSent = false;
             if (fuelMeters > 0f) emptyFuelWarningSent = false;
-            GameMessageBus.Post($"Buggy battery charged. Range: {fuelMeters:0} m.");
+            GameMessageBus.Post($"Buggy battery charged. Range: {fuelMeters / 1000f:0.#} km.");
         }
 
         private void AlertNearby()

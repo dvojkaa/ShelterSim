@@ -24,6 +24,14 @@ namespace SheltreSim.Combat
             { "machete", "melee_machete" },
             { "fire_axe", "melee_fire_axe" },
             { "steel_sword", "melee_steel_sword" },
+            { "hammer", "melee_hammer" },
+            // Stone and steel tiers intentionally reuse the authored iron silhouettes.
+            { "stone_axe", "melee_iron_axe" },
+            { "iron_axe", "melee_iron_axe" },
+            { "steel_axe", "melee_iron_axe" },
+            { "stone_pickaxe", "melee_iron_pickaxe" },
+            { "iron_pickaxe", "melee_iron_pickaxe" },
+            { "steel_pickaxe", "melee_iron_pickaxe" },
         };
 
         private PlayerGear gear;
@@ -31,6 +39,9 @@ namespace SheltreSim.Combat
         private Transform baseVisual;
         private GameObject extra;
         private readonly Dictionary<string, GameObject> cache = new Dictionary<string, GameObject>();
+        private MeleeAttacker attacker;
+        private float nextToolSelectionTime;
+        private string selectedToolId;
 
         /// <summary>The model id currently shown, or null for the original bat. For probes.</summary>
         public string ShownModelId { get; private set; }
@@ -39,10 +50,24 @@ namespace SheltreSim.Combat
         private void LateUpdate()
         {
             if (gear == null) gear = Object.FindAnyObjectByType<PlayerGear>();
-            string id = gear != null ? gear.WeaponId ?? "" : "";
-            if (id == shownWeapon) return;
-            shownWeapon = id;
-            Apply(id);
+            string weaponId = gear != null ? gear.WeaponId ?? "" : "";
+            string heldItemId = weaponId;
+            // Tools are passive inventory items, not a combat gear slot. Show the best owned
+            // gathering/building tool only while the player is aiming at a target it can serve.
+            // An explicitly equipped melee weapon always keeps the hand.
+            if (heldItemId.Length == 0)
+            {
+                if (attacker == null) attacker = GetComponentInParent<MeleeAttacker>();
+                if (Time.unscaledTime >= nextToolSelectionTime)
+                {
+                    nextToolSelectionTime = Time.unscaledTime + 0.12f;
+                    selectedToolId = attacker != null ? attacker.ContextualToolId() : null;
+                }
+                heldItemId = selectedToolId ?? "";
+            }
+            if (heldItemId == shownWeapon) return;
+            shownWeapon = heldItemId;
+            Apply(heldItemId);
         }
 
         private void Apply(string weaponId)

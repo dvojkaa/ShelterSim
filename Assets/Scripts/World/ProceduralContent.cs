@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using SheltreSim.Building;
 using SheltreSim.Crafting;
 using SheltreSim.Items;
 using UnityEngine;
@@ -14,18 +16,42 @@ namespace SheltreSim.World
     /// </summary>
     public static class ProceduralContent
     {
+        internal static bool CapturePerformanceTimings;
+        internal static bool BuildingRuinedPass;
+        internal static float LastTownStreetMs, LastTownBuildingMs, LastStaticCombineMs, LastFurnitureVisualMs, LastBoxMs;
+        internal static int LastBoxCount;
+
+        private static long StartTiming() => CapturePerformanceTimings ? Stopwatch.GetTimestamp() : 0L;
+        private static float TimingElapsedMs(long start) =>
+            (float)((Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency);
+
         public static GameObject Build(Transform parent, Vector2Int coordinate, int seed, ProceduralWorldAssets assets, bool ruined)
+            => Build(parent, coordinate, seed, assets, ruined, null);
+
+        /// <summary>
+        /// Builds the immediate chunk dressing and optionally returns town/suburb buildings as
+        /// ordered work items. Streaming spreads expensive building interiors across frames;
+        /// direct callers keep the original synchronous behavior.
+        /// </summary>
+        internal static GameObject Build(Transform parent, Vector2Int coordinate, int seed,
+            ProceduralWorldAssets assets, bool ruined, List<System.Action> deferredBuildings)
         {
+            BuildingRuinedPass = ruined;
             var root = new GameObject("Content");
             root.transform.SetParent(parent, false);
             if (assets == null) return root;
+            if (CapturePerformanceTimings)
+            {
+                LastTownStreetMs = LastTownBuildingMs = LastStaticCombineMs = LastFurnitureVisualMs = LastBoxMs = 0f;
+                LastBoxCount = 0;
+            }
             var random = new System.Random(ContentSeed(coordinate, seed));
             float x = coordinate.x * (float)WorldLayout.ChunkSize;
             float z = coordinate.y * (float)WorldLayout.ChunkSize;
             if (WorldLayout.IsTownChunk(coordinate, seed))
-                Town(root.transform, x, z, seed, assets, coordinate, ruined);
+                Town(root.transform, x, z, seed, assets, coordinate, ruined, deferredBuildings);
             else if (WorldLayout.IsSuburbChunk(coordinate, seed))
-                Suburb(root.transform, x, z, seed, assets, coordinate, ruined);
+                Suburb(root.transform, x, z, seed, assets, coordinate, ruined, deferredBuildings);
             else
                 Nature(root.transform, x, z, seed, assets, random, ruined);
             ForagePatches(root.transform, coordinate, seed, assets, ruined);
@@ -228,15 +254,18 @@ namespace SheltreSim.World
         }
 
         static void Town(Transform parent, float originX, float originZ, int seed,
-            ProceduralWorldAssets assets, Vector2Int coordinate, bool ruined)
+            ProceduralWorldAssets assets, Vector2Int coordinate, bool ruined, List<System.Action> deferredBuildings = null)
         {
             // Nine separated lots with two crossing streets; these roads join the boundary ring.
+            long timingStart = StartTiming();
             for (int line = 0; line < 4; line++)
             {
                 float offset = line == 0 ? 3.5f : line == 1 ? 44 : line == 2 ? 84 : 124.5f;
-                Street(parent, originX + offset, originZ + 64, true, seed, assets);
-                Street(parent, originX + 64, originZ + offset, false, seed, assets);
+                Street(parent, originX + offset, originZ + 64, true, seed, assets, true);
+                Street(parent, originX + 64, originZ + offset, false, seed, assets, true);
             }
+            if (CapturePerformanceTimings) LastTownStreetMs += TimingElapsedMs(timingStart);
+            timingStart = StartTiming();
             int blocks = 0;
             for (int slot = 0; slot < 9; slot++)
             {
@@ -253,12 +282,26 @@ namespace SheltreSim.World
                 bool block = corner && layout.NextDouble() < .45 && blocks < 2;
                 bool office = slot == 4 && layout.NextDouble() < .5;
                 float margin = block ? 11f : office ? 9f : 9f;
-                if (!occupied || !Clear(x, z, margin, seed) || !LevelLot(x, z, seed)) continue;
+                // Town chunks are the inner four cells of a 512 m macro. Every corner of
+                // these 128 m chunks stays inside WorldLayout's 215 m flattened town pad,
+                // so repeating the 3x3 terrain-height slope check can never reject this lot.
+                if (!occupied || !Clear(x, z, margin, seed)) continue;
                 if (block) blocks++;
-                Building(parent, "Building_" + slot.ToString("D2"), x, z,
-                    block ? 4 + layout.Next(3) : office ? 3 : 2, block, block && floors >= 4,
-                    office, seed, coordinate, slot, assets, ruined);
+                int buildingFloors = block ? 4 + layout.Next(3) : office ? 3 : 2;
+                if (deferredBuildings == null)
+                    Building(parent, "Building_" + slot.ToString("D2"), x, z, buildingFloors, block, block && floors >= 4,
+                        office, seed, coordinate, slot, assets, ruined);
+                else
+                {
+                    int buildingSlot = slot;
+                    bool buildingBlock = block, buildingWide = block && floors >= 4, buildingOffice = office;
+                    float buildingX = x, buildingZ = z;
+                    deferredBuildings.Add(() => Building(parent, "Building_" + buildingSlot.ToString("D2"),
+                        buildingX, buildingZ, buildingFloors, buildingBlock, buildingWide, buildingOffice,
+                        seed, coordinate, buildingSlot, assets, ruined));
+                }
             }
+            if (CapturePerformanceTimings) LastTownBuildingMs += TimingElapsedMs(timingStart);
             for (int slot = 0; slot < 3; slot++)
             {
                 var random = SlotRandom(coordinate, seed, 100 + slot);
@@ -278,7 +321,7 @@ namespace SheltreSim.World
 
         /// <summary>The edge of town: family houses on quiet streets, with hedges, cars, street lamps and poles.</summary>
         static void Suburb(Transform parent, float originX, float originZ, int seed,
-            ProceduralWorldAssets assets, Vector2Int coordinate, bool ruined)
+            ProceduralWorldAssets assets, Vector2Int coordinate, bool ruined, List<System.Action> deferredBuildings = null)
         {
             float streetZ = originZ + 64f;
             Street(parent, originX + 64, streetZ, false, seed, assets);
@@ -299,7 +342,16 @@ namespace SheltreSim.World
                 float x = originX + 24 + (slot % 3) * 40;
                 float z = streetZ + (north ? 27f : -27f);
                 if (!occupied || !Clear(x, z, 11, seed) || !LevelLot(x, z, seed)) continue;
-                House(parent, "House_" + slot.ToString("D2"), x, z, north ? 0f : 180f, seed, coordinate, slot, assets, lot, ruined);
+                if (deferredBuildings == null)
+                    House(parent, "House_" + slot.ToString("D2"), x, z, north ? 0f : 180f, seed, coordinate, slot, assets, lot, ruined);
+                else
+                {
+                    int houseSlot = slot;
+                    float houseX = x, houseZ = z, houseYaw = north ? 0f : 180f;
+                    System.Random houseRandom = lot;
+                    deferredBuildings.Add(() => House(parent, "House_" + houseSlot.ToString("D2"),
+                        houseX, houseZ, houseYaw, seed, coordinate, houseSlot, assets, houseRandom, ruined));
+                }
             }
             // Trees between the lots. Solid, but only harvestable once wood is worth fighting over.
             for (int i = 0; i < 6; i++)
@@ -361,7 +413,7 @@ namespace SheltreSim.World
             for (int floor = 0; floor < 2; floor++)
             {
                 float y = .1f + floor * 3f;
-                Shell(structure, y, 10f, 12f, wall, floor == 0 ? 1.8f : 0f);
+                Shell(structure, y, 10f, 12f, wall, floor == 0 ? 1.8f : 0f, "bld_door_house_front");
                 if (floor == 0) Slab(structure, "Floor", y, -5f, 5f, -6f, 6f, wall);
                 else SlabWithVoid(structure, y, 10f, 12f, .8f, 2.2f, -2.2f, 2f, wall);
             }
@@ -380,6 +432,7 @@ namespace SheltreSim.World
             Furniture(ground, "fridge", new Vector3(.4f, .1f, 5.375f), 0f, new Vector3(.75f, 1.9f, .65f), 3, lot, coordinate, seed, assets, ruined);
             Furniture(ground, "pantry_shelf", new Vector3(4.375f, .1f, 1f), 90f, new Vector3(1.3f, 1.9f, .65f), 4, lot, coordinate, seed, assets, ruined);
             Furniture(ground, "toolbox", new Vector3(4.375f, .1f, -2.5f), 90f, new Vector3(.9f, .9f, .65f), 5, lot, coordinate, seed, assets, ruined);
+            Decor(ground, "dining_set", new Vector3(-3.1f, .1f, .9f), 0f, new Vector3(1.6f, .95f, 1.6f), assets);
             Furniture(upper, "wardrobe", new Vector3(-3.1f, 3.1f, -5.375f), 180f, new Vector3(1.4f, 2.1f, .65f), 6, lot, coordinate, seed, assets, ruined);
             Furniture(upper, "nightstand", new Vector3(-4.375f, 3.1f, -.5f), -90f, new Vector3(.6f, .55f, .65f), 7, lot, coordinate, seed, assets, ruined);
             Furniture(upper, "dresser", new Vector3(-3.1f, 3.1f, 5.375f), 0f, new Vector3(1.3f, .95f, .65f), 8, lot, coordinate, seed, assets, ruined);
@@ -413,7 +466,6 @@ namespace SheltreSim.World
                     foreach (int side in new[] { -1, 1 })
                         Place(t, window, "Window", new Vector3(side * 5.02f, 1f + floor * 3f, 1f), side * -90f, assets);
                 }
-            if (assets.houseDoor != null) Place(t, assets.houseDoor, "FrontDoor", new Vector3(-1.45f, .1f, -5.4f), 90f, assets);
             for (int side = -1; side <= 1; side += 2)
                 for (int section = 0; section < 2; section++)
                     if (assets.hedge != null) Place(t, assets.hedge, "Hedge", new Vector3(side * (2.2f + section * 2f), 0f, -11f), 0f, assets);
@@ -537,7 +589,8 @@ namespace SheltreSim.World
             return max - min < .1f;
         }
 
-        static void Street(Transform parent, float x, float z, bool northSouth, int seed, ProceduralWorldAssets assets)
+        static void Street(Transform parent, float x, float z, bool northSouth, int seed, ProceduralWorldAssets assets,
+            bool guaranteedTownLevel = false)
         {
             // Town terrain is flattened by WorldLayout. Surface strips have no gameplay collider.
             for (int part = 0; part < 8; part++)
@@ -547,10 +600,12 @@ namespace SheltreSim.World
                 if (WorldLayout.IsRoad(px, pz) || WorldLayout.IsConnectorRoad(px, pz, seed) || WorldLayout.IsHomePlot(px, pz) ||
                     WorldLayout.IsHomePlot(px - 8, pz - 8) ||
                     WorldLayout.IsHomePlot(px + 8, pz + 8)) continue;
-                // A flat strip on a slope would float. Streets stop where the town's flat ground does.
-                if (Mathf.Abs(WorldLayout.HeightAt(px - 8, pz - 8, seed) - WorldLayout.HeightAt(px + 8, pz + 8, seed)) > .05f ||
-                    Mathf.Abs(WorldLayout.HeightAt(px - 8, pz + 8, seed) - WorldLayout.HeightAt(px + 8, pz - 8, seed)) > .05f ||
-                    Mathf.Abs(WorldLayout.HeightAt(px, pz, seed) - WorldLayout.HeightAt(px + 8, pz + 8, seed)) > .05f) continue;
+                // Inner town chunks (including this strip's 8 m samples) are fully inside
+                // the flat pad. Suburb streets still test their slope before placing a strip.
+                if (!guaranteedTownLevel &&
+                    (Mathf.Abs(WorldLayout.HeightAt(px - 8, pz - 8, seed) - WorldLayout.HeightAt(px + 8, pz + 8, seed)) > .05f ||
+                     Mathf.Abs(WorldLayout.HeightAt(px - 8, pz + 8, seed) - WorldLayout.HeightAt(px + 8, pz - 8, seed)) > .05f ||
+                     Mathf.Abs(WorldLayout.HeightAt(px, pz, seed) - WorldLayout.HeightAt(px + 8, pz + 8, seed)) > .05f)) continue;
                 var surface = Box(parent, "Street", Vector3.zero,
                     northSouth ? new Vector3(7, .04f, 16) : new Vector3(16, .04f, 7), assets.roadMaterial, false);
                 surface.transform.position = new Vector3(px, WorldLayout.HeightAt(px, pz, seed) + .025f, pz);
@@ -582,7 +637,8 @@ namespace SheltreSim.World
             for (int floor = 0; floor < floors; floor++)
             {
                 float y = .1f + floor * 3f;
-                Shell(structure, y, width, depth, wall, floor == 0 ? 2.8f : 0f);
+                Shell(structure, y, width, depth, wall, floor == 0 ? 2.8f : 0f,
+                    office ? "bld_door_office" : "bld_door_apt_entrance");
                 if (floor == 0) Slab(structure, "Floor", y, -width / 2f, width / 2f, -depth / 2f, depth / 2f, wall);
                 else SlabWithVoid(structure, y, width, depth, -1.6f, 1.6f, foot, back, wall);
                 StairCore(structure, y, foot, back, wall, assets);
@@ -663,7 +719,11 @@ namespace SheltreSim.World
                 bool sealedRoll = SlotRandom(coordinate, seed, 20000 + lot * 128 + firstSlot).NextDouble() < .4;
                 if (ruined && sealedRoll)
                 {
-                    Box(t, "SealedFlat_" + floor + "_" + flat, new Vector3(doorX, y + 1.1f, doorZ), new Vector3(1.8f, 2.2f, .3f), assets.roadMaterial);
+                    GameObject sealedDoor = Box(t, "SealedFlat_" + floor + "_" + flat,
+                        new Vector3(doorX, y + 1.1f, doorZ), new Vector3(1.8f, 2.2f, .3f), assets.roadMaterial);
+                    var health = sealedDoor.AddComponent<StructureHealth>();
+                    health.maxHealth = 180f;
+                    health.material = HomesteadMaterial.Stone;
                     continue;
                 }
                 bool studio = !wide && north;
@@ -735,7 +795,7 @@ namespace SheltreSim.World
             for (int floor = 0; floor < 2; floor++)
             {
                 float y = .1f + floor * 3f;
-                Shell(t, y, 12f, 12f, wall, floor == 0 ? 2.8f : 0f);
+                Shell(t, y, 12f, 12f, wall, floor == 0 ? 2.8f : 0f, "bld_door_shop_glass");
                 if (floor == 0) Slab(t, "Floor", y, -6f, 6f, -6f, 6f, wall);
                 else SlabWithVoid(t, y, 12f, 12f, -5.5f, -4.1f, -.3f, 3.9f, wall);
                 FacadeWindows(t, y, 12f, 12f, floor == 0, wall, assets);
@@ -786,24 +846,25 @@ namespace SheltreSim.World
             Slab(t, "SlabBack", top, minX, maxX, maxZ, depth / 2f, wall);
         }
 
-        static void Shell(Transform t, float y, float width, float depth, Material wall, float door)
+        static void Shell(Transform t, float y, float width, float depth, Material wall, float door, string entranceDoor)
         {
             Box(t, "Back", new Vector3(0, y + 1.4f, depth / 2f - .15f), new Vector3(width, 2.8f, .3f), wall);
             Box(t, "West", new Vector3(-width / 2f + .15f, y + 1.4f, 0), new Vector3(.3f, 2.8f, depth), wall);
             Box(t, "East", new Vector3(width / 2f - .15f, y + 1.4f, 0), new Vector3(.3f, 2.8f, depth), wall);
-            WallZ(t, "Front", -depth / 2f + .15f, -width / 2f, width / 2f, y, wall, door > 0f ? 0f : float.NaN, door, .3f);
+            WallZ(t, "Front", -depth / 2f + .15f, -width / 2f, width / 2f, y, wall,
+                door > 0f ? 0f : float.NaN, door, .3f, entranceDoor);
         }
 
         // All openings are genuine 1.8 m gaps, with 2.2 m clear height beneath the lintel.
         static void WallX(Transform t, string name, float x, float minZ, float maxZ, float y, Material wall,
-            float doorZ = float.NaN) => Wall(t, name, true, x, minZ, maxZ, y, wall, doorZ, 1.8f, .2f);
+            float doorZ = float.NaN, string doorModel = null) => Wall(t, name, true, x, minZ, maxZ, y, wall, doorZ, 1.8f, .2f, doorModel);
 
         static void WallZ(Transform t, string name, float z, float minX, float maxX, float y, Material wall,
-            float doorX = float.NaN, float doorWidth = 1.8f, float thickness = .2f)
-            => Wall(t, name, false, z, minX, maxX, y, wall, doorX, doorWidth, thickness);
+            float doorX = float.NaN, float doorWidth = 1.8f, float thickness = .2f, string doorModel = null)
+            => Wall(t, name, false, z, minX, maxX, y, wall, doorX, doorWidth, thickness, doorModel);
 
         static void Wall(Transform t, string name, bool alongZ, float axis, float min, float max, float y,
-            Material wall, float door, float gap, float thickness)
+            Material wall, float door, float gap, float thickness, string doorModel = null)
         {
             if (float.IsNaN(door)) WallPart(t, name, alongZ, axis, min, max, y, 2.8f, wall, thickness);
             else
@@ -811,6 +872,9 @@ namespace SheltreSim.World
                 WallPart(t, name, alongZ, axis, min, door - gap / 2f, y, 2.8f, wall, thickness);
                 WallPart(t, name, alongZ, axis, door + gap / 2f, max, y, 2.8f, wall, thickness);
                 WallPart(t, name + "Lintel", alongZ, axis, door - gap / 2f, door + gap / 2f, y + 2.2f, .6f, wall, thickness);
+                string model = doorModel ?? (name.IndexOf("Office", StringComparison.OrdinalIgnoreCase) >= 0 ? "bld_door_office" :
+                    name.IndexOf("Service", StringComparison.OrdinalIgnoreCase) >= 0 ? "bld_door_shop_glass" : BuildingDoors.InteriorModel(name));
+                BuildingDoors.Place(t, name, alongZ, axis, door, y, gap, thickness, model, 0, BuildingRuinedPass);
             }
         }
 
@@ -853,6 +917,16 @@ namespace SheltreSim.World
 
         static readonly Dictionary<string, GameObject> furnitureModels = new Dictionary<string, GameObject>();
         static readonly Dictionary<string, Mesh> stairWedges = new Dictionary<string, Mesh>();
+        static readonly List<Renderer> rendererScratch = new List<Renderer>(16);
+        private struct FurnitureModelBounds
+        {
+            public bool hasBounds;
+            public Bounds bounds;
+        }
+        static readonly Dictionary<GameObject, FurnitureModelBounds> furnitureModelBounds =
+            new Dictionary<GameObject, FurnitureModelBounds>();
+        static Mesh unitCubeMesh;
+        static Material defaultPrimitiveMaterial;
 
         static GameObject Prop(string id)
         {
@@ -923,7 +997,10 @@ namespace SheltreSim.World
             if (!ruined) return;
             var loot = root.gameObject.AddComponent<LootContainer>();
             var random = SlotRandom(coordinate, seed, 10000 + lot * 128 + slot);
-            int tier = Mathf.Max(0, Mathf.FloorToInt((position.y - .1f) / 3f)) + (town ? 1 : 0);
+            Vector3 worldPosition = new Vector3(coordinate.x * WorldLayout.ChunkSize + position.x, position.y,
+                coordinate.y * WorldLayout.ChunkSize + position.z);
+            int ringTier = SheltreSim.Bestiary.EncounterHabitats.DistanceRing(worldPosition) * 2;
+            int tier = Mathf.Max(0, Mathf.FloorToInt((position.y - .1f) / 3f)) + (town ? 1 : 0) + ringTier;
             LootTables.FillSlot(loot, kind, random, tier);
         }
 
@@ -938,6 +1015,7 @@ namespace SheltreSim.World
 
         static void FurnitureVisual(Transform parent, string kind, Vector3 size, ProceduralWorldAssets assets)
         {
+            long timingStart = StartTiming();
             string modelId = kind == "pantry_shelf" ? "furn_bookcase" : kind == "linen_closet" || kind == "lockers" ? "furn_wardrobe"
                 : kind == "counter" ? "furn_shop_counter" : kind == "roof" ? "furn_toolbox"
                 : kind == "roof_hvac" ? "bld_roof_hvac" : kind == "roof_tank" ? "bld_roof_water_tank" : "furn_" + kind;
@@ -945,35 +1023,49 @@ namespace SheltreSim.World
             if (model == null)
             {
                 Box(parent, kind, Vector3.up * (size.y / 2f), size, assets.roadMaterial != null ? assets.roadMaterial : assets.structureMaterial, false);
+                if (CapturePerformanceTimings) LastFurnitureVisualMs += TimingElapsedMs(timingStart);
                 return;
             }
             Visual(model, parent, Vector3.one, assets.atlasMaterial);
             Transform visual = parent.GetChild(0);
             // Fit visual geometry into a fixed gameplay envelope. Model bounds can never move a lot,
             // close a doorway, or make normal and ruined colliders differ when an art asset is absent.
-            bool any = false;
-            Bounds bounds = new Bounds();
-            foreach (Renderer renderer in visual.GetComponentsInChildren<Renderer>(true))
+            if (!furnitureModelBounds.TryGetValue(model, out FurnitureModelBounds cached))
             {
-                Bounds local = renderer.localBounds;
-                for (int corner = 0; corner < 8; corner++)
+                cached = new FurnitureModelBounds { hasBounds = false, bounds = new Bounds() };
+                rendererScratch.Clear();
+                visual.GetComponentsInChildren(true, rendererScratch);
+                foreach (Renderer renderer in rendererScratch)
                 {
-                    Vector3 point = local.center + Vector3.Scale(local.extents, new Vector3((corner & 1) == 0 ? -1 : 1, (corner & 2) == 0 ? -1 : 1, (corner & 4) == 0 ? -1 : 1));
-                    point = parent.InverseTransformPoint(renderer.transform.TransformPoint(point));
-                    if (!any) { bounds = new Bounds(point, Vector3.zero); any = true; }
-                    else bounds.Encapsulate(point);
+                    Bounds local = renderer.localBounds;
+                    for (int corner = 0; corner < 8; corner++)
+                    {
+                        Vector3 point = local.center + Vector3.Scale(local.extents, new Vector3((corner & 1) == 0 ? -1 : 1, (corner & 2) == 0 ? -1 : 1, (corner & 4) == 0 ? -1 : 1));
+                        // Keep the original parent-space bounds math on the cache miss. The
+                        // Visual root has identity local position, rotation and scale, so these
+                        // coordinates are also the unscaled bounds in Visual-root local space.
+                        point = parent.InverseTransformPoint(renderer.transform.TransformPoint(point));
+                        if (!cached.hasBounds) { cached.bounds = new Bounds(point, Vector3.zero); cached.hasBounds = true; }
+                        else cached.bounds.Encapsulate(point);
+                    }
                 }
+                rendererScratch.Clear();
+                furnitureModelBounds[model] = cached;
             }
-            if (!any) return;
+            if (!cached.hasBounds) return;
+            Bounds bounds = cached.bounds;
             Vector3 scale = new Vector3(size.x / Mathf.Max(.01f, bounds.size.x), size.y / Mathf.Max(.01f, bounds.size.y), size.z / Mathf.Max(.01f, bounds.size.z));
             visual.localScale = scale;
             visual.localPosition = -Vector3.Scale(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), scale);
+            if (CapturePerformanceTimings) LastFurnitureVisualMs += TimingElapsedMs(timingStart);
         }
 
         static void FinishStructure(Transform structure)
         {
             // Animated/searchable furniture lives outside Static. Colliders remain individual.
+            long timingStart = StartTiming();
             StaticBatchingUtility.Combine(structure.gameObject);
+            if (CapturePerformanceTimings) LastStaticCombineMs += TimingElapsedMs(timingStart);
         }
 
         static void Crate(Transform parent, string name, Vector3 position,
@@ -988,7 +1080,7 @@ namespace SheltreSim.World
             collider.size = Vector3.one * .8f;
             collider.center = Vector3.up * .4f;
             var loot = root.AddComponent<LootContainer>();
-            LootTables.Fill(loot, table, random);
+            LootTables.FillAtWorldPosition(loot, table, random, root.transform.position);
             loot.hasLoot = loot.entries.Count > 0;
         }
 
@@ -1003,26 +1095,60 @@ namespace SheltreSim.World
             visual.transform.localRotation = Quaternion.identity;
             visual.transform.localScale = scale;
             if (material != null)
-                foreach (var renderer in visual.GetComponentsInChildren<Renderer>(true))
-                    renderer.sharedMaterial = material;
+            {
+                rendererScratch.Clear();
+                visual.GetComponentsInChildren(true, rendererScratch);
+                foreach (var renderer in rendererScratch)
+                    if (renderer != null && renderer.sharedMaterial != material) renderer.sharedMaterial = material;
+                rendererScratch.Clear();
+            }
             // Assets are collider-free FBXs; imported root conversion is baked in their meshes.
         }
 
         static GameObject Box(Transform parent, string name, Vector3 position, Vector3 size,
             Material material, bool solid = true)
         {
-            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            box.name = name;
+            long timingStart = StartTiming();
+            if (unitCubeMesh == null)
+                unitCubeMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            if (material == null && defaultPrimitiveMaterial == null)
+                defaultPrimitiveMaterial = Resources.GetBuiltinResource<Material>("Default-Material.mat");
+
+            // Match CreatePrimitive's unit cube (including its default material when no
+            // explicit material is supplied), but avoid creating a default collider only
+            // to disable and destroy it for scenery-only boxes.
+            if (unitCubeMesh == null || (material == null && defaultPrimitiveMaterial == null))
+            {
+                var fallback = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                fallback.name = name;
+                fallback.transform.SetParent(parent, false);
+                fallback.transform.localPosition = position;
+                fallback.transform.localScale = size;
+                if (material != null) fallback.GetComponent<Renderer>().sharedMaterial = material;
+                if (!solid)
+                {
+                    var fallbackCollider = fallback.GetComponent<Collider>();
+                    fallbackCollider.enabled = false;
+                    UnityEngine.Object.Destroy(fallbackCollider);
+                }
+                if (CapturePerformanceTimings) { LastBoxMs += TimingElapsedMs(timingStart); LastBoxCount++; }
+                return fallback;
+            }
+
+            var box = new GameObject(name);
             box.transform.SetParent(parent, false);
+            box.name = name;
             box.transform.localPosition = position;
             box.transform.localScale = size;
-            if (material != null) box.GetComponent<Renderer>().sharedMaterial = material;
-            if (!solid)
+            box.AddComponent<MeshFilter>().sharedMesh = unitCubeMesh;
+            box.AddComponent<MeshRenderer>().sharedMaterial = material != null ? material : defaultPrimitiveMaterial;
+            if (solid)
             {
-                var collider = box.GetComponent<Collider>();
-                collider.enabled = false;
-                UnityEngine.Object.Destroy(collider);
+                var collider = box.AddComponent<BoxCollider>();
+                collider.center = Vector3.zero;
+                collider.size = Vector3.one;
             }
+            if (CapturePerformanceTimings) { LastBoxMs += TimingElapsedMs(timingStart); LastBoxCount++; }
             return box;
         }
     }

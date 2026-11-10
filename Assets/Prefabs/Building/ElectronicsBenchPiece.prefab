@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 379941931864939886}
   - component: {fileID: 3173881354871742011}
   - component: {fileID: 1705428501495457561}
-  - component: {fileID: 6927979270495211553}
+  - component: {fileID: 7363071791682565051}
   m_Layer: 0
   m_Name: ElectronicsBenchPiece
   m_TagString: Untagged
@@ -87,7 +87,7 @@ MonoBehaviour:
   craftingCost: []
   output: {fileID: 0}
   outputAmount: 1
---- !u!114 &6927979270495211553
+--- !u!114 &7363071791682565051
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

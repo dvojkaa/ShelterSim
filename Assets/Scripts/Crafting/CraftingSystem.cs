@@ -14,7 +14,7 @@ namespace SheltreSim.Crafting
     public static class CraftingSystem
     {
         /// <summary>Shared base stock across the 48x42 m homestead and connected bunker levels.</summary>
-        public const float NearbyCrateRadius = 100f;
+        public const float NearbyCrateRadius = 25f;
 
         public static bool TryAfford(Inventory inventory, IReadOnlyList<CraftingCost> cost)
         {

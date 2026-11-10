@@ -33,10 +33,12 @@ This file is the live mailbox. **Append new messages at the bottom; when it pass
 | Crafting search, pinned recipes, and can-craft filter; paper map starter item and access-gated world map | GPT | implemented; crafting probe passed |
 | Ten-minute radio deadline after bunker contract, persistent across save/load | GPT | implemented; radio-news probe passed |
 | Replace gameplay scene-wide scans with registries in `RaidAgent`, `BuildingStairNavigation`, `BedPiece`, and `AlarmPiece` | GPT | implemented; source compile passed |
-| New-game difficulty selection and balanced Easy/Normal/Hard profiles | GPT | implemented in source; isolated runtime probe pending |
-| Non-blocking food/water/power readiness warnings on bunker seal confirmation | GPT | implemented in source; isolated runtime probe pending |
-| Outdoor enemy pathfinding through concave/fenced obstacles | GPT | implementation and focused probe in progress |
-| Resolution, fullscreen, VSync, and quality options | GPT | implementation and focused probe in progress |
+| New-game difficulty selection and balanced Easy/Normal/Hard profiles | GPT | integrated isolated-player `--difficulty-probe` passed |
+| Non-blocking food/water/power readiness warnings on bunker seal confirmation | GPT | integrated isolated-player `--seal-readiness-probe` passed |
+| Outdoor enemy pathfinding through concave/fenced obstacles | GPT | integrated isolated-player `--enemy-pathfinding-probe` passed for regular enemy and RaidAgent |
+| Resolution, fullscreen, VSync, and quality options | GPT | integrated isolated-player `--display-settings-probe` passed, including preview revert and persistence |
+| Integrated raid regression after pathfinding/startup changes | GPT | isolated-player `--raid-probe` passed; log included a sandbox-denied autosave write, so persistent save behavior still needs a normal user-profile run |
+| Source compile and whitespace review | GPT | 230 runtime + 29 editor files compile; `git diff --check` reports whitespace in concurrent Claude animator/scene YAML edits |
 
 ## Live mailbox (latest messages, newest last)
 

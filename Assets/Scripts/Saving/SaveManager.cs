@@ -8,6 +8,7 @@ using SheltreSim.Core;
 using SheltreSim.Enemies;
 using SheltreSim.Interaction;
 using SheltreSim.Items;
+using SheltreSim.Raids;
 using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
@@ -16,9 +17,11 @@ using Object = UnityEngine.Object;
 
 namespace SheltreSim.Saving
 {
-    /// <summary>Versioned single-slot saves with a recoverable previous copy.</summary>
+    /// <summary>Versioned manual and rotating autosaves, each with a recoverable previous copy.</summary>
     public class SaveManager : MonoBehaviour
     {
+        public static event Action ManualSaveStarted;
+        public static event Action<bool> ManualSaveFinished;
         public SheltreSim.Player.FirstPersonController player;
         public SheltreSim.Survival.SurvivalStats stats;
         public BuildModeController buildController;
@@ -27,16 +30,28 @@ namespace SheltreSim.Saving
         public GameStateManager gameStateManager;
 
         private const string SaveFileName = "savegame.json";
+        private const string AutosaveFileName = "autosave.json";
         private const int MaximumEntries = 10000;
         private const int MaximumProceduralEntries = 100000;
         private const int MaximumChunkCoordinate = 100000;
         private const long MaximumSaveBytes = 10 * 1024 * 1024;
         private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+        private string AutosavePath => Path.Combine(Application.persistentDataPath, AutosaveFileName);
         public bool HasSave => File.Exists(SavePath) || File.Exists(SavePath + ".bak");
+        public bool HasContinueSave => HasSave || File.Exists(AutosavePath) || File.Exists(AutosavePath + ".bak");
 
         private SaveInputActions input;
         private EnemySpawner enemySpawner;
         private float initialAttackDamage = -1f;
+        private HomeBase homeBase;
+        private WorldAtmosphere atmosphere;
+        private RaidDirector raidDirector;
+        private bool hasObservedSealing;
+        private bool hasObservedRaid;
+        private int lastDawn = int.MinValue;
+        private int lastRaidsSurvived;
+        private bool autosavePending;
+        private float autosaveRetryAt;
 
         private void Awake()
         {
@@ -62,8 +77,108 @@ namespace SheltreSim.Saving
         private void OnSaveRequested(InputAction.CallbackContext context) => TrySave();
         private void OnLoadRequested(InputAction.CallbackContext context) => TryLoad();
 
-        public bool TrySave() => TrySaveToPath(SavePath);
+        private void Start()
+        {
+            ResolveAutosaveSources();
+            ObserveCurrentProgress();
+        }
+
+        private void Update()
+        {
+            ResolveAutosaveSources();
+            if (homeBase != null && homeBase.IsSealing && !hasObservedSealing)
+            {
+                hasObservedSealing = true;
+                autosavePending = true;
+            }
+            if (atmosphere != null)
+            {
+                // WorldAtmosphere advances 20-minute days. Hour 06:00 occurs at 1,100s, then
+                // every 1,200s; day zero is the opening stretch before the first dawn.
+                int dawn = Mathf.FloorToInt((atmosphere.ElapsedSeconds + 100f) / 1200f);
+                if (lastDawn == int.MinValue) lastDawn = dawn;
+                else if (dawn > lastDawn) { lastDawn = dawn; autosavePending = true; }
+            }
+            if (raidDirector != null)
+            {
+                if (!hasObservedRaid)
+                {
+                    lastRaidsSurvived = raidDirector.RaidsSurvived;
+                    hasObservedRaid = true;
+                }
+                else if (raidDirector.RaidsSurvived > lastRaidsSurvived)
+                {
+                    lastRaidsSurvived = raidDirector.RaidsSurvived;
+                    autosavePending = true;
+                }
+            }
+            if (autosavePending && Time.unscaledTime >= autosaveRetryAt)
+            {
+                if (TryAutosave()) autosavePending = false;
+                else autosaveRetryAt = Time.unscaledTime + 5f;
+            }
+        }
+
+        public bool TrySave()
+        {
+            ManualSaveStarted?.Invoke();
+            bool saved = TrySaveToPath(SavePath);
+            ManualSaveFinished?.Invoke(saved);
+            return saved;
+        }
         public bool TryLoad() => TryLoadFromPath(SavePath);
+
+        /// <summary>Continue loads the newest valid manual or autosave slot. Ties prefer the manual slot.</summary>
+        public bool TryLoadContinue()
+        {
+            var candidates = new List<string> { SavePath, AutosavePath };
+            candidates.Sort((a, b) =>
+            {
+                if (a == b) return 0;
+                DateTime ta = LatestWriteTime(a), tb = LatestWriteTime(b);
+                int order = tb.CompareTo(ta);
+                return order != 0 ? order : (a == SavePath ? -1 : 1);
+            });
+            // TryLoadFromPath prefers a valid primary, then that slot's .bak. If neither works,
+            // continue to the other slot in timestamp order; manual F5 wins equal-time ties.
+            foreach (string candidate in candidates)
+            {
+                if (!File.Exists(candidate) && !File.Exists(candidate + ".bak")) continue;
+                if (TryLoadFromPath(candidate)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Standalone rotating autosave. It has its own .bak and never changes savegame.json.</summary>
+        public bool TryAutosave() => WriteSnapshotToPath(AutosavePath, false);
+
+        // Isolated probes use an adjacent temporary path to verify rotation without touching the user's slot.
+        private bool TryAutosaveToPath(string path) => WriteSnapshotToPath(path, false);
+
+        private static DateTime LatestWriteTime(string path)
+        {
+            DateTime primary = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+            DateTime backup = File.Exists(path + ".bak") ? File.GetLastWriteTimeUtc(path + ".bak") : DateTime.MinValue;
+            return primary > backup ? primary : backup;
+        }
+
+        private void ResolveAutosaveSources()
+        {
+            if (homeBase == null) homeBase = HomeBase.Active;
+            if (atmosphere == null) atmosphere = Object.FindFirstObjectByType<WorldAtmosphere>();
+            if (raidDirector == null) raidDirector = RaidDirector.Active;
+        }
+
+        private void ObserveCurrentProgress()
+        {
+            hasObservedSealing = homeBase != null && homeBase.IsSealing;
+            if (atmosphere != null) lastDawn = Mathf.FloorToInt((atmosphere.ElapsedSeconds + 100f) / 1200f);
+            if (raidDirector != null)
+            {
+                lastRaidsSurvived = raidDirector.RaidsSurvived;
+                hasObservedRaid = true;
+            }
+        }
 
         private void ResolveReferences()
         {
@@ -91,8 +206,17 @@ namespace SheltreSim.Saving
         // Kept separate from the default slot so integration verification can use a temporary
         // file without reading or overwriting the player's actual saved game.
         private bool TrySaveToPath(string path)
+            => WriteSnapshotToPath(path, true);
+
+        private bool WriteSnapshotToPath(string path, bool showMessage)
         {
             if (!HasRequiredReferences()) return false;
+            VehicleMountView mountView = player.GetComponent<VehicleMountView>();
+            if (player.IsRiding || (mountView != null && mountView.IsBusy))
+            {
+                GameMessageBus.Post("Dismount before saving so your player and vehicle are both saved safely.");
+                return false;
+            }
             if (stats.IsDead || stats.health <= 0f)
             {
                 GameMessageBus.Post("Cannot save after death. Load your last save or restart.");
@@ -129,14 +253,15 @@ namespace SheltreSim.Saving
                     File.Move(temporaryPath, path);
                 }
 
-                GameMessageBus.Post("Game saved.");
+                if (showMessage) GameMessageBus.Post("Game saved.");
+                else Debug.Log("Autosaved game.");
                 Debug.Log($"Saved game to {path}");
                 return true;
             }
             catch (Exception error)
             {
                 Debug.LogWarning($"Save failed: {error.Message}");
-                GameMessageBus.Post("Could not save the game. Your previous save has been kept.");
+                if (showMessage) GameMessageBus.Post("Could not save the game. Your previous save has been kept.");
                 return false;
             }
             finally
@@ -203,6 +328,7 @@ namespace SheltreSim.Saving
             SaveData data = new SaveData
             {
                 version = SaveData.CurrentVersion,
+                difficulty = (int)GameDifficultySettings.Current,
                 sceneName = player.gameObject.scene.name,
                 playerPosition = player.transform.position,
                 playerYaw = player.transform.eulerAngles.y,
@@ -351,9 +477,13 @@ namespace SheltreSim.Saving
 
         private static void MigrateBunkerEconomy(SaveData data)
         {
-            if (data == null || data.version >= 7) return;
+            if (data == null) return;
+            // Version 8 adds difficulty. Every older run was Normal; ignore any absent or
+            // stray value rather than inheriting the menu's current new-game selection.
+            if (data.version < 8) data.difficulty = (int)GameDifficulty.Normal;
+            if (data.version >= 7) return;
             if (data.bunkerStages == 0 && !data.bunkerBuilding && data.money == 25000)
-                data.money = HomeBase.StartingMoney;
+                data.money = HomeBase.EconomyTuning.NormalBudget;
             data.bunkerContract = data.bunkerStages > 0 || data.bunkerBuilding;
             // Older builds let the player stop between manually purchased stages. Under the
             // contract, stages 1–3 run automatically, so resume the next stage on migration.
@@ -371,6 +501,7 @@ namespace SheltreSim.Saving
         {
             // Version 5 moved the start of the game: older saves place everything in a world that's gone.
             Require(data != null && data.version >= SaveData.MinimumVersion && data.version <= SaveData.CurrentVersion, "This save format is unsupported.");
+            Require(System.Enum.IsDefined(typeof(GameDifficulty), data.difficulty), "The saved difficulty is invalid.");
             Require(data.money >= 0 && data.bunkerStages >= 0 && data.bunkerStages <= HomeBase.Stages.Length &&
                 Finite(data.bunkerBuildElapsed) && data.bunkerBuildElapsed >= 0f, "The saved bunker project is invalid.");
             if (data.version >= 7)
@@ -488,13 +619,15 @@ namespace SheltreSim.Saving
                 Require(coordinates.Add(new Vector2Int(chunk.x, chunk.z)), "The save contains a duplicate chunk.");
                 Require(chunk.nodes != null && chunk.crates != null, "A saved chunk is incomplete.");
                 if(chunk.encounters == null) chunk.encounters = new List<ProceduralWorldState.EncounterState>();
-                totalEntries += chunk.nodes.Count + chunk.crates.Count + chunk.encounters.Count;
+                if(chunk.destroyedStructures == null) chunk.destroyedStructures = new List<string>();
+                totalEntries += chunk.nodes.Count + chunk.crates.Count + chunk.encounters.Count + chunk.destroyedStructures.Count;
                 Require(totalEntries <= MaximumProceduralEntries, "The save contains too much procedural state.");
                 ValidateEntries(chunk.nodes, node => node.id,
                     node => ValidProceduralId(node.id) && node.charges >= 0 && node.charges <= MaximumEntries
                         && Finite(node.elapsed) && node.elapsed >= 0f, true);
                 ValidateEntries(chunk.crates, crate => crate.id, crate => ValidProceduralId(crate.id), true);
                 ValidateEntries(chunk.encounters, actor=>actor.id, actor=>ValidProceduralId(actor.id)&&Finite(actor.health)&&actor.health>=0f&&actor.health<=10000f,true);
+                ValidateEntries(chunk.destroyedStructures, id => id, ValidProceduralId, true);
             }
         }
 
@@ -550,6 +683,7 @@ namespace SheltreSim.Saving
 
         private void ApplySnapshot(SaveData data, GameObject staging)
         {
+            GameDifficultySettings.Select((GameDifficulty)data.difficulty);
             List<PlacedPiece> previous = new List<PlacedPiece>(PlacedPieceRegistry.All);
             foreach (PlacedPiece piece in previous)
             {

@@ -154,17 +154,15 @@ namespace SheltreSim.World
             if (rider == null) return;
             mountView = VehicleMountView.For(rider);
             if (mountView == null || mountView.IsBusy) { rider = null; mountView = null; return; }
-            Vector3 parkedPosition = transform.position;
-            Quaternion parkedRotation = transform.rotation;
-            Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
-            VehicleTerrain.SamplePose(rider.transform.position - yaw * Vector3.forward * .8f, yaw, RootHeight, 1.4f,
-                VehicleTerrain.CurrentSeed, out Vector3 mountedPosition, out Quaternion groundRotation, out _, out _);
-            transform.SetPositionAndRotation(mountedPosition, groundRotation);
-            if (mountView == null || !mountView.BeginMount(transform))
+            Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (flatForward.sqrMagnitude < 0.001f) flatForward = Vector3.forward;
+            Vector3 riderSeatPosition = transform.position - Vector3.up * RootHeight + flatForward * .8f;
+            Quaternion riderSeatRotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            if (mountView == null || !mountView.BeginMount(transform, riderSeatPosition, riderSeatRotation))
             {
-                transform.SetPositionAndRotation(parkedPosition, parkedRotation);
                 rider = null;
                 mountView = null;
+                GameMessageBus.Post("No clear space to mount the bicycle.");
                 return;
             }
             mounted = true;

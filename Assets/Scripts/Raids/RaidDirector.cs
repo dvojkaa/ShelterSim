@@ -25,13 +25,23 @@ namespace SheltreSim.Raids
     /// </summary>
     public sealed class RaidDirector : MonoBehaviour, ISaveableSystem
     {
-        public const float FirstRaidSeconds = 900f;
+        public static float FirstRaidSeconds => GameDifficultySettings.FirstRaidSeconds;
         public const float WarningSeconds = 60f;
         public const float AlarmWarningSeconds = 120f;
+        public const float PostVictoryIntervalSeconds = 900f;
+        public const float PostVictoryWarningSeconds = 90f;
+        public const int PostVictoryMaxRaiders = 6;
         public const float HomeRange = 200f;
         public const float ReturnFuseSeconds = 25f;
         public const float SpawnRingMin = 35f, SpawnRingMax = 50f;
         public const int MaxRaiders = 14;
+        public const float DestroyedStructureSalvageFraction = 0.25f;
+        public static float StatMultiplierFor(int raidNumber) => GameDifficultySettings.RaidHealthMultiplier
+            * Mathf.Min(2.25f, 1f + Mathf.Max(0, raidNumber - 1) * 0.08f);
+        public static float DamageMultiplierFor(int raidNumber) => GameDifficultySettings.RaidDamageMultiplier
+            * Mathf.Min(1.75f, 1f + Mathf.Max(0, raidNumber - 1) * 0.05f);
+        public static int DestroyedStructureSalvageAmount(int ingredientAmount) =>
+            Mathf.Max(0, Mathf.FloorToInt(Mathf.Max(0, ingredientAmount) * DestroyedStructureSalvageFraction));
         /// <summary>A raider this long without progress, out of the player's sight, gives up, so nothing can hold the next raid back forever.</summary>
         public const float RetreatAfterStuckSeconds = 90f;
 
@@ -43,6 +53,9 @@ namespace SheltreSim.Raids
         public Phase CurrentPhase { get; private set; } = Phase.Countdown;
         public float Countdown { get; private set; } = FirstRaidSeconds;
         public int RaidNumber { get; private set; } = 1;
+        public int AttackSide { get; private set; }
+        public Vector3 BreachOutside => breachOutside;
+        public Vector3 BreachInside => breachInside;
         public int RaidersLeft => actors.Count;
         public IReadOnlyList<RaidAgent> Actors => actors;
         public bool WarningActive { get; private set; }
@@ -60,6 +73,9 @@ namespace SheltreSim.Raids
         private float nextHorn;
         private float pendingFuse = -1f;
         private bool announcedPending;
+        private int attackSide;
+        private Vector3 breachOutside = RaidRoute.GateOutside;
+        private Vector3 breachInside = RaidRoute.GateInside;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
@@ -149,6 +165,14 @@ namespace SheltreSim.Raids
                 TickBroadcast(dt);
                 return;
             }
+            // Old saves may contain a victory bit from before this loop existed. Enter it once
+            // after systems restore, then preserve the new schedule in the raid save section.
+            if (ObjectiveTracker.Victory && !postVictoryMode)
+            {
+                postVictoryMode = true;
+                if (CurrentPhase == Phase.Countdown) Countdown = PostVictoryIntervalSeconds;
+                WarningActive = false;
+            }
             // Attackers left over from a broadcast hold the ordinary clock until they're dead or gone.
             if (holdForLeftovers)
             {
@@ -157,18 +181,11 @@ namespace SheltreSim.Raids
                 if (actors.Count > 0) return;
                 holdForLeftovers = false;
             }
-            // After a successful broadcast raids are over for good. A raid already under way (an old save) still plays out.
-            if (ObjectiveTracker.Victory && CurrentPhase != Phase.Active)
-            {
-                WarningActive = false;
-                return;
-            }
-
             switch (CurrentPhase)
             {
                 case Phase.Countdown:
                     Countdown -= dt;
-                    float warning = HasPoweredAlarm() ? AlarmWarningSeconds : WarningSeconds;
+                    float warning = postVictoryMode ? PostVictoryWarningSeconds : HasPoweredAlarm() ? AlarmWarningSeconds : WarningSeconds;
                     if (!WarningActive && Countdown <= warning && PlayerDistanceHome <= HomeRange) BeginWarning();
                     if (Countdown <= 0f)
                     {
@@ -187,8 +204,9 @@ namespace SheltreSim.Raids
                     if (!announcedPending)
                     {
                         announcedPending = true;
+                        PrepareAttack(RaidNumber);
                         pendingFuse = ReturnFuseSeconds;
-                        GameMessageBus.Post("Raiders are massing near your bunker.");
+                        GameMessageBus.Post($"Raiders are massing to the {SideName(attackSide)} of your bunker.");
                         GameAudio.Play2D(Sfx.RaidHorn, 0.9f);
                     }
                     pendingFuse -= dt;
@@ -202,9 +220,12 @@ namespace SheltreSim.Raids
 
         private void BeginWarning()
         {
+            PrepareAttack(RaidNumber);
             WarningActive = true;
             GameAudio.Play2D(Sfx.RaidHorn, 1f);
-            GameMessageBus.Post("Raiders have been spotted heading for your bunker. Get ready.");
+            GameMessageBus.Post(postVictoryMode
+                ? $"The rescue convoy has drawn a horde from the {SideName(attackSide)}. Defend your surface supplies."
+                : $"Raiders have been spotted to the {SideName(attackSide)}. Defend the {SideName(attackSide)} breach.");
         }
 
         private void TickActive()
@@ -238,9 +259,10 @@ namespace SheltreSim.Raids
             }
         }
 
-        public static float IntervalAfter(int raidNumber) => Mathf.Max(360f, 600f - 30f * (raidNumber - 1));
+        public static float IntervalAfter(int raidNumber) => GameDifficultySettings.RaidIntervalAfter(raidNumber);
 
         public static bool IsBossRaid(int number) => number % 5 == 0;
+        public static int SideFor(int number, int seed) => new System.Random(unchecked(seed * 104729 + number * 15485863)).Next(4);
 
         private void FinishRaid()
         {
@@ -248,13 +270,16 @@ namespace SheltreSim.Raids
             CurrentPhase = Phase.Countdown;
             WarningActive = false;
             RaidsSurvived++;
-            Countdown = IntervalAfter(finished);
+            if (postVictoryMode) postVictoryRaidCount++;
+            Countdown = postVictoryMode ? PostVictoryIntervalSeconds : IntervalAfter(finished);
             RaidNumber = finished + 1;
             foreach (InteractableDoor door in FindObjectsByType<InteractableDoor>(FindObjectsSortMode.None)) door.RecoverAfterRaid();
             GameAudio.Play2D(Sfx.ObjectiveDone, 0.8f);
-            GameMessageBus.Post(IsBossRaid(finished)
-                ? $"Raid {finished} beaten and the Warlord is dead. Search the gold cache for your reward."
-                : $"Raid {finished} repelled. Search the bags they dropped.");
+            GameMessageBus.Post(postVictoryMode
+                ? "Rescue convoy horde repelled. Search the bags; another may follow in 15 minutes."
+                : IsBossRaid(finished)
+                    ? $"Raid {finished} beaten and the Warlord is dead. Search the gold cache for your reward."
+                    : $"Raid {finished} repelled. Search the bags they dropped.");
         }
 
         // ---------- Starting a raid ----------
@@ -286,18 +311,19 @@ namespace SheltreSim.Raids
         private void StartRaid(int number)
         {
             int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 0;
-            List<RaidVariant> roster = RosterFor(number, seed);
+            List<RaidVariant> roster = postVictoryMode ? PostVictoryRoster(postVictoryRaidCount + 1, seed) : RosterFor(number, seed);
             var random = new System.Random(unchecked(seed * 31 + number * 7919));
+            PrepareAttack(number);
             var spawned = 0;
             foreach (RaidVariant variant in roster)
             {
                 RaidVariantSpec spec = RaidVariantSpec.Of(variant);
-                if (!FindSpawnPoint(random, spec, out Vector3 position))
+                if (!FindSpawnPoint(random, spec, attackSide, out Vector3 position))
                 {
                     Debug.LogWarning($"[RaidDirector] No spawn point for {variant} in raid {number}.");
                     continue;
                 }
-                SpawnActor(variant, number, position, Quaternion.LookRotation(Flat(RaidRoute.GateOutside - position)), -1f, null);
+                SpawnActor(variant, number, position, Quaternion.LookRotation(Flat(breachOutside - position)), -1f, null, attackSide, breachOutside, breachInside);
                 spawned++;
             }
             if (spawned == 0)
@@ -310,10 +336,15 @@ namespace SheltreSim.Raids
                 return;
             }
             CurrentPhase = Phase.Active;
+            AttackSide = attackSide;
             WarningActive = false;
             nextHorn = Time.time + 40f;
             GameAudio.Play2D(Sfx.RaidHorn, 1f);
-            GameMessageBus.Post(IsBossRaid(number) ? $"Raid {number}: a Warlord leads this attack!" : $"Raid {number} has begun.");
+            string direction = SideName(attackSide);
+            bool hasWarlord = roster.Contains(RaidVariant.Warlord);
+            GameMessageBus.Post(postVictoryMode
+                ? hasWarlord ? $"Rescue horde: a Warlord leads this attack from the {direction}!" : $"Rescue horde attacking from the {direction}. Defend your supplies!"
+                : IsBossRaid(number) ? $"Raid {number}: a Warlord leads this attack from the {direction}!" : $"Raiders are attacking from the {direction}. Defend the {direction} breach!");
             AlarmPiece.NotifyRaidBegan();
             Debug.Log($"[RaidDirector] Raid {number} started: {spawned} of {roster.Count} ({string.Join(", ", roster)}).");
         }
@@ -325,7 +356,7 @@ namespace SheltreSim.Raids
         {
             var random = new System.Random(unchecked(seed * 17 + number * 104729));
             var roster = new List<RaidVariant>();
-            int size = Mathf.Min(MaxRaiders, 2 + number);
+            int size = Mathf.Min(MaxRaiders, 3 + number);
             if (IsBossRaid(number)) roster.Add(RaidVariant.Warlord);
             int gunners = number >= 3 ? 1 + (number - 3) / 3 : 0;
             int brutes = number >= 4 ? 1 + (number - 4) / 4 : 0;
@@ -342,18 +373,48 @@ namespace SheltreSim.Raids
             return roster;
         }
 
+        /// <summary>Recurring post-rescue pressure: a compact horde with occasional brute and Warlord finales.</summary>
+        public static List<RaidVariant> PostVictoryRoster(int postVictoryNumber, int seed)
+        {
+            int n = Mathf.Max(1, postVictoryNumber);
+            var roster = new List<RaidVariant>
+            {
+                RaidVariant.Raider, RaidVariant.Raider, RaidVariant.Raider,
+                RaidVariant.Scavenger, RaidVariant.Gunner
+            };
+            if (n % 3 == 0) roster.Add(RaidVariant.Brute);
+            if (n % 5 == 0)
+            {
+                roster[0] = RaidVariant.Warlord;
+                if (roster.Count < PostVictoryMaxRaiders) roster.Add(RaidVariant.Brute);
+            }
+            var random = new System.Random(unchecked(seed * 65537 + n * 104729 + 0x2D1));
+            for (int i = roster.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (roster[i], roster[j]) = (roster[j], roster[i]);
+            }
+            return roster;
+        }
+
         /// <summary>
-        /// The south half of the ring. The stair head and the fence gate both face south, so from there it's a clear walk in, and there's
-        /// no navmesh to get a raider round the lot from the north. Real ground only, not in a collider, not in the player's face.
+        /// Spawn on the announced side of the home lot. Attackers then use the validated opening on that side and the known yard route.
         /// </summary>
-        private bool FindSpawnPoint(System.Random random, RaidVariantSpec spec, out Vector3 position)
+        private bool FindSpawnPoint(System.Random random, RaidVariantSpec spec, int side, out Vector3 position)
         {
             int seed = ProceduralWorld.Active.Seed;
             Vector3 fallback = Vector3.zero;
             bool hasFallback = false;
             for (int attempt = 0; attempt < 60; attempt++)
             {
-                double angle = (random.NextDouble() * 140.0 - 70.0) * Math.PI / 180.0;
+                double spread = (random.NextDouble() * 70.0 - 35.0) * Math.PI / 180.0;
+                double angle = side switch
+                {
+                    0 => spread,
+                    1 => Math.PI + spread,
+                    2 => Math.PI * 0.5 + spread,
+                    _ => -Math.PI * 0.5 + spread,
+                };
                 float radius = SpawnRingMin + (float)random.NextDouble() * (SpawnRingMax - SpawnRingMin);
                 float x = RaidRoute.StairHeadCenter.x + Mathf.Sin((float)angle) * radius;
                 float z = RaidRoute.StairHeadCenter.z - Mathf.Cos((float)angle) * radius;
@@ -369,8 +430,7 @@ namespace SheltreSim.Raids
                 Vector3 origin = feet + Vector3.up * (spec.Scale + 0.1f);
                 if (TooCloseToPlayer(center)) continue;
                 if (!hasFallback) { fallback = origin; hasFallback = true; }
-                // Prefer a point that can see the gate along its whole width.
-                Vector3 gate = RaidRoute.GateOutside + Vector3.up * centerAboveFeet;
+                Vector3 gate = breachOutside + Vector3.up * centerAboveFeet;
                 Vector3 toGate = gate - center;
                 if (Physics.SphereCast(center, spec.BodyRadius, toGate.normalized, out RaycastHit block, toGate.magnitude, ~0, QueryTriggerInteraction.Ignore) && block.normal.y < 0.6f) continue;
                 position = origin;
@@ -380,13 +440,50 @@ namespace SheltreSim.Raids
             return hasFallback;
         }
 
+        private static string SideName(int side) => side switch { 0 => "south", 1 => "north", 2 => "east", _ => "west" };
+
+        private void PrepareAttack(int number)
+        {
+            int seed = ProceduralWorld.Active != null ? ProceduralWorld.Active.Seed : 0;
+            attackSide = SelectBreach(SideFor(number, seed), out breachOutside, out breachInside);
+            AttackSide = attackSide;
+        }
+
+        private static int SelectBreach(int side, out Vector3 outside, out Vector3 inside)
+        {
+            outside = RaidRoute.GateOutside;
+            inside = RaidRoute.GateInside;
+            if (side == 0) return 0; // The permanent vehicle gate is the safest south approach.
+
+            // Bomb damage removes every fourth fence panel. Find an actual opening on the selected edge at runtime;
+            // if terrain props or a changed lot layout closes all candidates, use the permanent south gate.
+            float fixedAxis = side == 1 ? -204f : side == 2 ? 96f : 48f;
+            for (int i = 0; i < (side <= 1 ? 16 : 14); i++)
+            {
+                float variable = side == 1 ? 49.5f + i * 3f : -244.5f + i * 3f;
+                Vector3 point = side <= 1
+                    ? new Vector3(variable, WorldLayout.HomeGroundY, fixedAxis)
+                    : new Vector3(fixedAxis, WorldLayout.HomeGroundY, variable);
+                Vector3 normal = side == 1 ? Vector3.back : side == 2 ? Vector3.left : Vector3.right;
+                Vector3 inPoint = point + normal * 2f;
+                Vector3 outPoint = point - normal * 3f;
+                Vector3 from = outPoint + Vector3.up;
+                Vector3 to = inPoint + Vector3.up;
+                if (Physics.CapsuleCast(from - Vector3.up * 0.45f, from + Vector3.up * 0.45f, 0.38f, (to - from).normalized,
+                    out _, Vector3.Distance(from, to), ~0, QueryTriggerInteraction.Ignore)) continue;
+                outside = outPoint; inside = inPoint; return side;
+            }
+            return 0;
+        }
+
         private bool TooCloseToPlayer(Vector3 point)
         {
             Vector3 eye = player.transform.position + Vector3.up * 1.6f;
             return Vector3.Distance(eye, point) < 15f && RaidSight.Clear(eye, point, player.transform, null);
         }
 
-        private RaidAgent SpawnActor(RaidVariant variant, int number, Vector3 position, Quaternion rotation, float health, List<LootItem> stolen)
+        private RaidAgent SpawnActor(RaidVariant variant, int number, Vector3 position, Quaternion rotation, float health, List<LootItem> stolen,
+            int side = 0, Vector3? outside = null, Vector3? inside = null)
         {
             GameObject prefab = ProceduralWorld.Active.assets.raiderPrefab;
             if (prefab == null) return null;
@@ -394,7 +491,8 @@ namespace SheltreSim.Raids
             obj.name = "Raid_" + variant;
             obj.SetActive(true);
             var agent = obj.AddComponent<RaidAgent>();
-            agent.Setup(variant, number, unchecked(ProceduralWorld.Active.Seed + number * 131 + actors.Count * 17));
+            agent.Setup(variant, number, unchecked(ProceduralWorld.Active.Seed + number * 131 + actors.Count * 17), side,
+                outside ?? RaidRoute.GateOutside, inside ?? RaidRoute.GateInside);
             EnemyAI enemy = obj.GetComponent<EnemyAI>();
             GiveModel(agent, enemy);
             if (health > 0f) enemy.health = Mathf.Min(health, enemy.maxHealth);
@@ -451,6 +549,8 @@ namespace SheltreSim.Raids
         private float beaconMissingSeconds;
         private float nextWaveTry;
         private bool holdForLeftovers;
+        private bool postVictoryMode;
+        private int postVictoryRaidCount;
         private bool wasPowered;
 
         /// <summary>Starts the broadcast on this beacon, or says why not. Nothing changes on a refusal.</summary>
@@ -563,8 +663,8 @@ namespace SheltreSim.Raids
             foreach (Ingredient ingredient in cost)
             {
                 if (ingredient.amount <= 0 || !ItemCatalog.Exists(ingredient.id)) continue;
-                // Half-cost salvage is always below the original cost, so building and breaking cannot create materials.
-                int amount = Mathf.FloorToInt(ingredient.amount * 0.5f);
+                // Low salvage preserves some recovery while making raid damage cost more than deliberate dismantling.
+                int amount = DestroyedStructureSalvageAmount(ingredient.amount);
                 if (amount > 0) salvage.Add(new KeyValuePair<string, int>(ingredient.id, amount));
             }
             if (salvage.Count == 0) return;
@@ -601,9 +701,16 @@ namespace SheltreSim.Raids
         {
             EndBroadcast();
             ObjectiveTracker.MarkVictory();
+            postVictoryMode = true;
+            postVictoryRaidCount = 0;
+            CurrentPhase = Phase.Countdown;
+            Countdown = PostVictoryIntervalSeconds;
+            WarningActive = false;
             GameAudio.Play2D(Sfx.Upgrade, 0.9f);
-            GameMessageBus.Post("VICTORY: The broadcast got through. A rescue convoy is on its way and the raids are over. You survived the apocalypse. You can keep playing.");
+            GameMessageBus.Post("VICTORY: The broadcast got through. A rescue convoy is on its way. Its engines draw infected hordes toward your base every 15 minutes. You can keep building and exploring.");
             if (actors.Count > 0) GameMessageBus.Post("Some attackers are still at your base. Finish them off.");
+            SaveManager save = FindFirstObjectByType<SaveManager>();
+            if (save != null && !save.TryAutosave()) Debug.LogWarning("[RaidDirector] Victory autosave failed.");
         }
 
         private void EndBroadcast()
@@ -626,7 +733,7 @@ namespace SheltreSim.Raids
             {
                 if (actors.Count >= MaxBroadcastActors) break;
                 RaidVariantSpec spec = RaidVariantSpec.Of(variant);
-                if (!FindSpawnPoint(random, spec, out Vector3 position)) continue;
+                if (!FindSpawnPoint(random, spec, 0, out Vector3 position)) continue;
                 if (SpawnActor(variant, RaidNumber, position, Quaternion.LookRotation(Flat(RaidRoute.GateOutside - position)), -1f, null) != null) spawned++;
             }
             if (spawned == 0 && actors.Count < MaxBroadcastActors)
@@ -699,10 +806,12 @@ namespace SheltreSim.Raids
             if (BroadcastActive)
                 text = $"BROADCAST {Clock(BroadcastRemaining)} / wave {Mathf.Max(1, BroadcastWave)}" + (BroadcastPowered ? "" : " / NO POWER");
             else if (holdForLeftovers && actors.Count > 0) text = $"ATTACKERS LEFT: {actors.Count}";
-            else if (CurrentPhase == Phase.Active) text = $"RAID {RaidNumber}: {actors.Count} left";
+            else if (CurrentPhase == Phase.Active) text = postVictoryMode ? $"RESCUE HORDE: {actors.Count} left" : $"RAID {RaidNumber}: {actors.Count} left";
+            else if (postVictoryMode && CurrentPhase == Phase.Countdown)
+                text = WarningActive ? $"RESCUE HORDE {SideName(attackSide).ToUpperInvariant()} {Clock(Countdown)}" : $"RESCUE HORDE IN {Clock(Countdown)}";
             else if (ObjectiveTracker.Victory) text = null;
-            else if (CurrentPhase == Phase.Pending && pendingFuse >= 0f) text = "RAID INBOUND " + Clock(pendingFuse);
-            else if (CurrentPhase == Phase.Countdown && WarningActive) text = "RAID INBOUND " + Clock(Countdown);
+            else if (CurrentPhase == Phase.Pending && pendingFuse >= 0f) text = $"RAID INBOUND {SideName(attackSide).ToUpperInvariant()} " + Clock(pendingFuse);
+            else if (CurrentPhase == Phase.Countdown && WarningActive) text = $"RAID INBOUND {SideName(attackSide).ToUpperInvariant()} " + Clock(Countdown);
             bool show = text != null;
             if (bannerPanel.activeSelf != show) bannerPanel.SetActive(show);
             if (show && banner.text != text) banner.text = text;
@@ -762,6 +871,11 @@ namespace SheltreSim.Raids
             public int broadcastWave;
             public Vector3 beaconPosition;
             public bool holdForLeftovers;
+            public bool postVictoryMode;
+            public int postVictoryRaidCount;
+            public int attackSide;
+            public Vector3 breachOutside;
+            public Vector3 breachInside;
             public List<SavedActor> actors = new List<SavedActor>();
             public List<SavedBag> bags = new List<SavedBag>();
             public List<SavedDoor> doors = new List<SavedDoor>();
@@ -784,6 +898,11 @@ namespace SheltreSim.Raids
                 broadcastWave = BroadcastWave,
                 beaconPosition = beaconPosition,
                 holdForLeftovers = holdForLeftovers,
+                postVictoryMode = postVictoryMode,
+                postVictoryRaidCount = postVictoryRaidCount,
+                attackSide = attackSide,
+                breachOutside = breachOutside,
+                breachInside = breachInside,
             };
             actors.RemoveAll(a => a == null);
             foreach (RaidAgent agent in actors)
@@ -836,6 +955,14 @@ namespace SheltreSim.Raids
             nextWaveTry = 0f;
             wasPowered = false;
             holdForLeftovers = saved.holdForLeftovers && saved.actors.Count > 0;
+            postVictoryMode = saved.postVictoryMode;
+            postVictoryRaidCount = Mathf.Max(0, saved.postVictoryRaidCount);
+            attackSide = Mathf.Clamp(saved.attackSide, 0, 3);
+            AttackSide = attackSide;
+            breachOutside = saved.breachOutside == Vector3.zero ? RaidRoute.GateOutside : saved.breachOutside;
+            breachInside = saved.breachInside == Vector3.zero ? RaidRoute.GateInside : saved.breachInside;
+            if (CurrentPhase != Phase.Active && !BroadcastActive && (WarningActive || CurrentPhase == Phase.Pending && announcedPending))
+                PrepareAttack(RaidNumber);
 
             foreach (SavedBag bag in saved.bags)
             {
@@ -853,7 +980,8 @@ namespace SheltreSim.Raids
             }
 
             foreach (SavedActor actor in saved.actors)
-                SpawnActor((RaidVariant)Mathf.Clamp(actor.variant, 0, 4), RaidNumber, actor.position, Quaternion.Euler(0f, actor.yaw, 0f), actor.health, actor.stolen);
+                SpawnActor((RaidVariant)Mathf.Clamp(actor.variant, 0, 4), RaidNumber, actor.position, Quaternion.Euler(0f, actor.yaw, 0f), actor.health, actor.stolen,
+                    attackSide, breachOutside, breachInside);
             Physics.SyncTransforms();
         }
     }

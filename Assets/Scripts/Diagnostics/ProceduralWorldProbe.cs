@@ -6,6 +6,7 @@ using System.Linq;
 using SheltreSim.Items;
 using SheltreSim.Player;
 using SheltreSim.Survival;
+using SheltreSim.UI;
 using SheltreSim.World;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -76,9 +77,13 @@ namespace SheltreSim.Diagnostics
             Directory.CreateDirectory(folder);
             yield return null;
             yield return null;
+            if (ModalUI.IsOpen) ModalUI.DismissCurrent();
+            Time.timeScale = 1f;
             world = ProceduralWorld.Active;
             player = FindFirstObjectByType<FirstPersonController>();
             Require(world != null && player != null, "Runtime world and player exist");
+            CheckWorldArtAssets();
+            CheckDestroyedStructureState();
             SheltreSim.Core.HomeBase.Active.DebugStartSurvival();
             player.GetComponent<SurvivalStats>().decayPaused = true;
 
@@ -110,6 +115,53 @@ namespace SheltreSim.Diagnostics
             yield return CheckRevisit();
         }
 
+        private void CheckDestroyedStructureState()
+        {
+            var originalChunk = new GameObject("ProbeChunk");
+            var originalBarrier = new GameObject("SealedFlat_2_1");
+            originalBarrier.transform.SetParent(originalChunk.transform, false);
+            ProceduralWorldState.Initialize(originalChunk);
+            ProceduralWorldState.RecordDestroyedStructure(originalChunk, originalBarrier.transform);
+            var saved = ProceduralWorldState.Capture(originalChunk, 37, -21);
+            Require(saved.destroyedStructures.Count == 1, "Destroyed generated structures enter chunk save state");
+
+            var restoredChunk = new GameObject("ProbeChunkRestored");
+            var restoredBarrier = new GameObject("SealedFlat_2_1");
+            restoredBarrier.transform.SetParent(restoredChunk.transform, false);
+            ProceduralWorldState.Apply(restoredChunk, saved);
+            Require(!restoredBarrier.activeSelf, "Destroyed generated structures stay gone when a chunk is rebuilt");
+            Destroy(originalChunk);
+            Destroy(restoredChunk);
+        }
+
+        private void CheckWorldArtAssets()
+        {
+            ProceduralWorldAssets a = world.assets;
+            Require(a != null, "Procedural world art references are configured");
+            GameObject[] models = { a.wildlifeDeer, a.wildlifeBoar, a.wildlifeCrow, a.campTent, a.campFire,
+                a.campLockedChest, a.landmarkRelayCabinet, a.landmarkFuelPump, a.lairWarningPost };
+            Require(models.All(m => m != null && m.GetComponentInChildren<Renderer>(true) != null),
+                "C3 wildlife, camp, and landmark FBX references are assigned and renderable");
+            Require(HasPart(a.wildlifeDeer, "Foreleg_L") && HasPart(a.wildlifeDeer, "Hindleg_R") &&
+                    HasPart(a.wildlifeBoar, "Foreleg_R") && HasPart(a.wildlifeBoar, "Hindleg_L"),
+                "deer and boar models expose the authored foreleg/hindleg animation pivots");
+            Require(HasPart(a.wildlifeCrow, "Wing_L") && HasPart(a.wildlifeCrow, "Wing_R"),
+                "crow model exposes both wing animation pivots");
+            Require(HasPart(a.campLockedChest, "Lid"), "locked chest has the loot-container lid pivot");
+            Require(HasPart(a.landmarkRelayCabinet, "Door") && HasPart(a.landmarkRelayCabinet, "Lamp"),
+                "relay cabinet exposes its door and repair-status lamp");
+            Require(HasPart(a.lairWarningPost, "Lamp"), "lair warning post exposes its signal lamp");
+            Debug.Log("[ProceduralWorldProbe] C3 world art references and authored parts are ready");
+        }
+
+        private static bool HasPart(GameObject prefab, string name)
+        {
+            if (prefab == null) return false;
+            foreach (Transform child in prefab.GetComponentsInChildren<Transform>(true))
+                if (child.name == name) return true;
+            return false;
+        }
+
         private IEnumerator Visit(Vector3 point)
         {
             var body = player.GetComponent<CharacterController>();
@@ -119,12 +171,24 @@ namespace SheltreSim.Diagnostics
             player.RestoreView(0f);
             body.enabled = true;
             Physics.SyncTransforms();
-            for (int frame = 0; frame < 80; frame++) yield return null;
+            Vector2Int coordinate = WorldLayout.Coordinate(point);
+            string chunkName = $"Chunk_{coordinate.x}_{coordinate.y}";
+            bool ready = false;
+            for (int frame = 0; frame < 1200; frame++)
+            {
+                yield return null;
+                if (world.transform.Find(chunkName) != null && !world.HasDeferredBuildingWork(coordinate))
+                {
+                    ready = true;
+                    break;
+                }
+            }
             Physics.SyncTransforms();
+            Require(ready, "Visited chunk finished generation and deferred building work: " + chunkName +
+                $" (remaining actions: {world.PendingBuildingActionCount(coordinate)}, chunks pending: {world.PendingChunkCount})");
             Require(world.LoadedChunkCount > 0 && world.LoadedChunkCount <= 81,
                 "Streaming residency is bounded: " + world.LoadedChunkCount);
-            Vector2Int coordinate = WorldLayout.Coordinate(point);
-            Require(world.transform.Find($"Chunk_{coordinate.x}_{coordinate.y}") != null,
+            Require(world.transform.Find(chunkName) != null,
                 "Exploration generated the player's chunk without EnsureChunk");
         }
 
@@ -183,6 +247,15 @@ namespace SheltreSim.Diagnostics
             node.Interact(player.gameObject);
             Require(node.remainingCharges == expected, "Gathering changes the real runtime node");
             yield return Visit(anchor + new Vector3(4096f, 0f, 4096f));
+            // Chunk unloading disables immediately and destroys at frame end. Visit may finish
+            // as soon as the destination chunk's deferred work completes, in the same frame.
+            yield return null;
+            if (node != null)
+            {
+                Transform owner = node.transform;
+                while (owner.parent != null && owner.parent != world.transform) owner = owner.parent;
+                Debug.LogWarning($"[ProceduralWorldProbe] old node still alive after distant visit: node={node.name}, owner={owner.name}, active={node.gameObject.activeInHierarchy}, ownerActive={owner.gameObject.activeInHierarchy}, center={WorldLayout.Coordinate(player.transform.position)}, chunkPresent={world.transform.Find(owner.name) != null}");
+            }
             Require(node == null, "Distant original node was destroyed by chunk unloading");
             yield return Visit(anchor + new Vector3(2f, 0f, 2f));
             ResourceNode restored = world.GetComponentsInChildren<ResourceNode>().FirstOrDefault(n =>

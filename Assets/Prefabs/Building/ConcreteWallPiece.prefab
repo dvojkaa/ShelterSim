@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 7353016971542847690}
   - component: {fileID: 4242760093174870075}
   - component: {fileID: 7178604374216410797}
-  - component: {fileID: 8721420220695469998}
+  - component: {fileID: 5879193699227563857}
   m_Layer: 0
   m_Name: ConcreteWallPiece
   m_TagString: Untagged
@@ -85,7 +85,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SheltreSim.Building.StructureHealth
   maxHealth: 2400
   targetPriority: 5
---- !u!114 &8721420220695469998
+--- !u!114 &5879193699227563857
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -23,6 +23,7 @@ namespace SheltreSim.Building
         public float dangerCheckRadius = 15f;
         public float healAmount = 40f;
         public float simulatedRestSeconds = 60f;
+        public float restCooldownSeconds = 600f;
 
         private float nextDangerCheck;
         private bool dangerNearby;
@@ -61,6 +62,12 @@ namespace SheltreSim.Building
                 return;
             }
 
+            if (stats.BedRestCooldownRemaining > 0f)
+            {
+                GameMessageBus.Post($"You need to wait {Mathf.CeilToInt(stats.BedRestCooldownRemaining)}s before resting again.");
+                return;
+            }
+
             if (stats.health >= stats.maxHealth)
             {
                 GameMessageBus.Post("You are already fully rested.");
@@ -83,6 +90,7 @@ namespace SheltreSim.Building
             {
                 return;
             }
+            stats.TryStartBedRest(restCooldownSeconds);
             stats.hunger = Mathf.Clamp(stats.hunger - hungerCost, 0f, stats.maxHunger);
             stats.thirst = Mathf.Clamp(stats.thirst - thirstCost, 0f, stats.maxThirst);
 
@@ -99,8 +107,8 @@ namespace SheltreSim.Building
             nextDangerCheck = Time.time + 0.5f;
             dangerNearby = false;
             float radiusSquared = Mathf.Max(0f, dangerCheckRadius) * Mathf.Max(0f, dangerCheckRadius);
-            SheltreSim.Enemies.EnemyAI[] enemies = Object.FindObjectsByType<SheltreSim.Enemies.EnemyAI>(FindObjectsSortMode.None);
-            for (int i = 0; i < enemies.Length; i++)
+            System.Collections.Generic.IReadOnlyList<SheltreSim.Enemies.EnemyAI> enemies = SheltreSim.Enemies.EnemyAI.Live;
+            for (int i = 0; i < enemies.Count; i++)
             {
                 if (enemies[i] == null || !enemies[i].isActiveAndEnabled || enemies[i].health <= 0f)
                 {
