@@ -17,6 +17,7 @@ namespace SheltreSim.Interaction
         public event Action<IInteractable> FocusChanged;
 
         private IInteractable focused;
+        private SheltreSim.Player.FirstPersonController playerController;
         private string lastLoggedPrompt;
         private InputAction interactAction;
 
@@ -51,6 +52,7 @@ namespace SheltreSim.Interaction
         private void Update()
         {
             if (Time.timeScale == 0f) return;
+            if (playerController == null) playerController = GetComponentInParent<SheltreSim.Player.FirstPersonController>();
             RefreshFocus();
         }
 
@@ -107,7 +109,8 @@ namespace SheltreSim.Interaction
             // Collector, opens a door, or fires M7's one-way apocalypse trigger — aimed at
             // whatever the frozen view happened to be pointing at. Build mode is not gated
             // here: it doesn't touch timeScale and interacting during it was already possible.
-            if (!isActiveAndEnabled || Time.timeScale == 0f)
+            if (!isActiveAndEnabled || Time.timeScale == 0f ||
+                (playerController != null && playerController.IsVehicleMounted))
             {
                 return;
             }

@@ -162,7 +162,7 @@ d.box((.18, .035, 1.0), (-2.19, -.35, 1.25), 'rust')                            
 d.box((.08, .16, .05), (-2.0, .1, 1.35), 'chrome')                              # inner handle
 
 # anchors (pivot position is what the game reads)
-for nm, p in (('Seat', (-.55, .25, 1.80)), ('Exit_L', (-2.45, 1.2, 0)), ('Exit_R', (2.45, 1.2, 0))):
+for nm, p in (('Seat', (-.55, .12, 1.93)), ('Exit_L', (-2.45, 1.2, 0)), ('Exit_R', (2.45, 1.2, 0))):
     a = m.part(nm, pivot=p)
     a.box((.01, .01, .01), (p[0], p[1], max(p[2], .005)), 'black')
 

@@ -53,6 +53,8 @@ namespace SheltreSim.Player
         private float preVehicleSlopeLimit, preVehicleStepOffset;
 
         public float CameraPitch => pitch;
+        public float CarLookYaw => carSteering ? carLookYaw : 0f;
+        public bool IsVehicleMounted => carSteering || bicycleMounted;
         public bool IsCrouching => crouched;
         public Vector2 MoveInput => input != null ? Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f) : Vector2.zero;
         private bool bicycleMounted;
@@ -220,9 +222,10 @@ namespace SheltreSim.Player
                 if (Mathf.Abs(drive.y) > 0.1f && Mathf.Abs(drive.x) > 0.01f)
                 {
                     float direction = drive.y > 0f ? 1f : -1f; // reversing flips the steering like a real car
-                    float turn = drive.x * direction * carTurnRate * Time.deltaTime;
+                    float actualSpeed = controller != null ? new Vector3(controller.velocity.x, 0f, controller.velocity.z).magnitude : 0f;
+                    float speedFactor = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(actualSpeed / 8f));
+                    float turn = drive.x * direction * carTurnRate * speedFactor * Time.deltaTime;
                     transform.Rotate(Vector3.up, turn);
-                    carLookYaw = Mathf.Clamp(carLookYaw - turn * 0.35f, -120f, 120f); // the view lags a little behind the turn
                 }
                 pitch = Mathf.Clamp(pitch - lookDelta.y, cameraPitchMin, cameraPitchMax);
                 if (cameraPivot != null) cameraPivot.localEulerAngles = new Vector3(pitch, carLookYaw, 0f);
@@ -245,6 +248,7 @@ namespace SheltreSim.Player
             float speed = crouched ? Mathf.Min(walkSpeed, crouchSpeed)
                 : sprinting ? Mathf.Max(walkSpeed, sprintSpeed * Mathf.Clamp01(sprintMultiplier)) : walkSpeed;
 
+            if (carSteering && moveInput.y < 0f) speed *= 0.48f; // reverse is deliberately slower and easier to control
             Vector3 horizontal = carSteering
                 ? transform.forward * moveInput.y * speed // cars never slide sideways
                 : (transform.right * moveInput.x + transform.forward * moveInput.y) * speed;

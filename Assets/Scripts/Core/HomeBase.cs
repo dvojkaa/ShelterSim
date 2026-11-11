@@ -240,6 +240,17 @@ namespace SheltreSim.Core
             RefreshVisuals();
         }
 
+        /// <summary>Bomb impact completes the unfinished bunker sufficiently to sustain a run.</summary>
+        public void CompleteFromBombs()
+        {
+            if (!HasContract || BunkerComplete) return;
+            CompletedStages = Stages.Length;
+            IsBuilding = false;
+            BuildElapsed = 0f;
+            RefreshVisuals();
+            GameMessageBus.Post("Bomb impact seals the unfinished bunker. Life support is damaged but operational.");
+        }
+
         public void Restore(int money, int completed, bool building, float elapsed, bool annex)
         {
             Money = Mathf.Max(0, money);

@@ -464,9 +464,12 @@ namespace SheltreSim.Audio
         {
             if (now < nextRaiderScan) return;
             nextRaiderScan = now + 1f;
-            foreach (EnemyAI enemy in FindObjectsByType<EnemyAI>())
+            // EnemyAI.Live is the gameplay registry (no whole-scene scan); copy because AddComponent can touch the list indirectly.
+            var live = EnemyAI.Live;
+            for (int i = live.Count - 1; i >= 0; i--)
             {
-                if (!enemy.TryGetComponent<RaiderAudio>(out _)) enemy.gameObject.AddComponent<RaiderAudio>();
+                EnemyAI enemy = i < live.Count ? live[i] : null;
+                if (enemy != null && !enemy.TryGetComponent<RaiderAudio>(out _)) enemy.gameObject.AddComponent<RaiderAudio>();
             }
         }
 

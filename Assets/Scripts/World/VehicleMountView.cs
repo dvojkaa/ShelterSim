@@ -212,7 +212,8 @@ namespace SheltreSim.World
         private void LateUpdate()
         {
             if (!mounted || IsTransitioning || seat == null || cameraPivot == null) return;
-            cameraPivot.SetPositionAndRotation(seat.position, seat.rotation * Quaternion.Euler(rider.CameraPitch, 0f, 0f));
+            cameraPivot.SetPositionAndRotation(seat.position,
+                seat.rotation * Quaternion.Euler(rider.CameraPitch, rider.CarLookYaw, 0f));
         }
 
         private bool TryChooseExit(Transform root, out Vector3 position, out Quaternion rotation, out bool rightExit)

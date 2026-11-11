@@ -83,6 +83,7 @@ namespace SheltreSim.Core
         {
             // Scene reload does not reset static timeScale. Release ownership before loading.
             Hide();
+            MainMenuController.PrepareImmediateNewGame();
             Time.timeScale = 1f;
             Scene active = SceneManager.GetActiveScene();
             if (active.buildIndex >= 0)

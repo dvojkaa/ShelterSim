@@ -110,8 +110,10 @@ namespace SheltreSim.Combat
 
         private void Update()
         {
+            bool riding = playerController != null && playerController.IsVehicleMounted;
+            if (weaponVisual != null) weaponVisual.gameObject.SetActive(!suppressed && !riding);
             if (swingCoroutine != null && ((stats != null && (stats.IsDead || stats.health <= 0f)) ||
-                (buildModeController != null && buildModeController.IsBuildModeActive)))
+                riding || (buildModeController != null && buildModeController.IsBuildModeActive)))
             {
                 ResetSwing();
             }
@@ -122,7 +124,7 @@ namespace SheltreSim.Combat
         /// <summary>One swing with the real hit-detection path. Returns false when gated (paused, dead, cooldown...).</summary>
         public bool TryAttack()
         {
-            if (suppressed || !isActiveAndEnabled || Time.timeScale <= 0f || (!ignoreCursorLock && Cursor.lockState != CursorLockMode.Locked) ||
+            if (suppressed || (playerController != null && playerController.IsVehicleMounted) || !isActiveAndEnabled || Time.timeScale <= 0f || (!ignoreCursorLock && Cursor.lockState != CursorLockMode.Locked) ||
                 (stats != null && (stats.IsDead || stats.health <= 0f)) ||
                 (playerController != null && !playerController.isActiveAndEnabled) ||
                 (buildModeController != null && buildModeController.IsBuildModeActive) ||
@@ -164,7 +166,7 @@ namespace SheltreSim.Combat
             else
             {
                 if (target != null) SheltreSim.Audio.GameAudio.PlayAt(SheltreSim.Audio.Sfx.HitBlock, transform.position + transform.forward, 0.75f, 20f);
-                GameMessageBus.Post(target != null ? "Swing blocked." : "Swing missed — move closer and aim at the raider.");
+                if (target != null) GameMessageBus.Post("Swing blocked.");
             }
 
             ResetSwing();

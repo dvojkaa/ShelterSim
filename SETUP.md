@@ -95,9 +95,9 @@ Work through each section in a fresh standalone build or Editor Play session. It
 ### Crafting & Inventory
 
 - [HUMAN] `C` = Hand crafting. `I` / `Tab` = Inventory. `E` on stations (Workbench, Stove, Forge, Chem Lab, Electronics Bench, Fabricator).
-- [AUTO]  96 items and 71 recipes registered (ItemCatalog / RecipeBook).
-- [HUMAN] Crafting UI shows **"in pack + in storage"** totals when base crates are within 100 m.
-- [HUMAN] Materials drawn from player pack first, then from nearby crates (100 m radius). Crates >100 m must not contribute.
+- [AUTO]  116 items (97 base + 19 construction kits) and 77 recipes registered (ItemCatalog / RecipeBook).
+- [HUMAN] Crafting UI shows **"in pack + in storage"** totals when base crates are within 25 m.
+- [HUMAN] Materials drawn from player pack first, then from nearby crates (25 m radius). Crates beyond 25 m must not contribute.
 - [HUMAN] Quick-stack at a storage crate: matching items move from pack to crate without touching unrelated slots.
 - [HUMAN] Quick consumables: assign medicine/food/drink to `3`/`4`/`5` from Inventory and use each key; verify counts and effects. Unassigned slots use their default item.
 - [HUMAN] Craft Backpack Frames (Workbench, tiers 1–3). Each frame adds +20 kg (up to 120 kg). Load HUD and sprint penalty update; tier 4 cannot be installed; tier survives save/load.
@@ -173,7 +173,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 
 ### Raids & Defense
 
-- [HUMAN] First raid ~15 min after bombs; every 10 min then 6 min; every 5th wave spawns a Warlord.
+- [HUMAN] First raid 9 min after the bombs on Normal (Easy 12, Hard 7); then every 10 min shrinking by 30 s per raid to a 6 min floor (Easy 12→9, Hard 8→5); every 5th wave spawns a Warlord.
 - [HUMAN] Warning siren before each raid. Raiders approach from outside, break through doors.
 - [HUMAN] Blast door: break-in takes ~1 min. Repair with `V` + Metal Repair Kit.
 - [HUMAN] Defenses: sandbags, barricades, spike traps, shock traps, MG turrets (ammo-fed), laser turrets (power-fed). Turrets must not shoot the player.

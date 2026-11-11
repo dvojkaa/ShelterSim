@@ -39,7 +39,11 @@ namespace SheltreSim.Diagnostics
                 "rope", "nails", "planks", "coal",
             };
             foreach (string id in ids) inv.SetCount(id, 3 + id.Length % 5);
-            ui.Open();
+            // The opening may leave another window (the bunker terminal) open and owning the modal state: close it first.
+            for (int guard = 0; guard < 4 && SheltreSim.UI.ModalUI.IsOpen; guard++) { SheltreSim.UI.ModalUI.DismissCurrent(); yield return null; }
+            if (!ui.Open()) { Debug.LogError("[InventoryShots] inventory could not open (another modal is open)"); Application.Quit(1); yield break; }
+            yield return null;
+            if (!ui.IsOpen) { Debug.LogError("[InventoryShots] inventory is not open"); Application.Quit(1); yield break; }
             yield return Shot("all", 4);
             ui.SelectForProbe("machete");
             yield return Shot("selected_machete", 4);
@@ -54,7 +58,10 @@ namespace SheltreSim.Diagnostics
             var crafting = SheltreSim.Crafting.CraftingUI.Find();
             if (crafting != null)
             {
+                for (int guard = 0; guard < 4 && SheltreSim.UI.ModalUI.IsOpen; guard++) { SheltreSim.UI.ModalUI.DismissCurrent(); yield return null; }
                 crafting.OpenHand();
+                yield return null;
+                if (!crafting.IsOpen) Debug.LogError("[InventoryShots] crafting window did not open");
                 yield return Shot("crafting", 5);
             }
             Debug.Log("[InventoryShots] done");

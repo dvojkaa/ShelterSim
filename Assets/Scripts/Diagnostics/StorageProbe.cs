@@ -423,7 +423,7 @@ namespace SheltreSim.Diagnostics
             Button craft = ui.CraftButton(recipe.id);
             Check(craft != null && craft.interactable, "Craft is enabled when only a crate holds the materials");
             Text inputs = craft != null ? craft.transform.parent.Find("Inputs")?.GetComponent<Text>() : null;
-            Check(inputs != null && inputs.text.Contains("0 + " + need + " in crates"), "Owned counts show the crate: " + inputs?.text);
+            Check(inputs != null && inputs.text.Contains("0 pack + " + need + " crate"), "Owned counts show the crate: " + inputs?.text);
             if (craft != null) craft.onClick.Invoke();
             Check(pack.GetCount(recipe.output) == recipe.outputAmount, "Clicking Craft makes the item in the pack");
             Check(crate.GetCount(id) == 0, "The crate paid for it");

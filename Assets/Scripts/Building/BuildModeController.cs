@@ -135,6 +135,7 @@ namespace SheltreSim.Building
         }
 
         private bool CanBuild => Time.timeScale > 0f &&
+            !(GetComponentInParent<SheltreSim.Player.FirstPersonController>()?.IsVehicleMounted ?? false) &&
             !(GetComponentInParent<SheltreSim.Survival.SurvivalStats>()?.IsDead ?? false);
 
         private void OnToggleBuildMode(UnityEngine.InputSystem.InputAction.CallbackContext context)

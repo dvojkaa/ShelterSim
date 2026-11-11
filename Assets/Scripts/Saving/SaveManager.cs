@@ -119,8 +119,12 @@ namespace SheltreSim.Saving
             }
         }
 
-        public bool TrySave()
+        public bool TrySave(bool allowWhenModal = false)
         {
+            // F5 is global, so never let it overwrite a good save while a front-end or
+            // gameplay modal is covering a different state. The pause menu's explicit
+            // Save button opts in through allowWhenModal.
+            if (!allowWhenModal && ModalUI.IsOpen) return false;
             ManualSaveStarted?.Invoke();
             bool saved = TrySaveToPath(SavePath);
             ManualSaveFinished?.Invoke(saved);
@@ -214,12 +218,12 @@ namespace SheltreSim.Saving
             VehicleMountView mountView = player.GetComponent<VehicleMountView>();
             if (player.IsRiding || (mountView != null && mountView.IsBusy))
             {
-                GameMessageBus.Post("Dismount before saving so your player and vehicle are both saved safely.");
+                if (showMessage) GameMessageBus.Post("Dismount before saving so your player and vehicle are both saved safely.");
                 return false;
             }
             if (stats.IsDead || stats.health <= 0f)
             {
-                GameMessageBus.Post("Cannot save after death. Load your last save or restart.");
+                if (showMessage) GameMessageBus.Post("Cannot save after death. Load your last save or restart.");
                 return false;
             }
 

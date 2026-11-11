@@ -202,11 +202,29 @@ namespace SheltreSim.Items
                 () => { if (selectedId != null) { QuickSlots.CycleSlot(selectedId); Refresh(); } });
             detailQuickLabel = detailQuickButton.GetComponentInChildren<Text>();
 
-            // Build recipes tab (owned : required per piece).
+            // Build tab: rows are created lazily from the real piece list (see EnsureRecipeRows), owned/required per piece.
             recipeContent = GameUI.ScrollContent(card, "RecipeScroll", new Vector2(28f, -214f), new Vector2(1084f, 508f));
             recipeScroll = recipeContent.parent.gameObject;
-            float y = 0f;
-            foreach (BuildPieceDefinition recipe in knownRecipes)
+
+            feedbackLabel = GameUI.Label(card, "Feedback", string.Empty, TopLeft, TopLeft,
+                new Vector2(28f, -738f), new Vector2(1084f, 28f), 18, GameUI.Accent);
+            GameUI.Label(card, "BuildHelp", "BUILD: B  /  Wheel: choose  /  R: rotate  /  Click: place  /  CRAFT: C  /  Click an item to inspect, scroll for more", TopLeft, TopLeft,
+                new Vector2(28f, -782f), new Vector2(1084f, 24f), 16, GameUI.Muted);
+            panel.SetActive(false);
+        }
+
+        private IReadOnlyList<BuildPieceDefinition> Pieces()
+        {
+            if (buildModeController != null && buildModeController.availablePieces != null && buildModeController.availablePieces.Count > 0)
+                return buildModeController.availablePieces;
+            return knownRecipes;
+        }
+
+        private void EnsureRecipeRows()
+        {
+            IReadOnlyList<BuildPieceDefinition> pieces = Pieces();
+            float y = recipeRows.Count * 102f;
+            foreach (BuildPieceDefinition recipe in pieces)
             {
                 if (recipe == null || string.IsNullOrEmpty(recipe.id) || recipeRows.ContainsKey(recipe.id)) continue;
                 Transform row = GameUI.Panel(recipeContent, "Recipe_" + recipe.id, TopLeft, TopLeft,
@@ -218,12 +236,6 @@ namespace SheltreSim.Items
                 y += 102f;
             }
             recipeContent.sizeDelta = new Vector2(0f, y);
-
-            feedbackLabel = GameUI.Label(card, "Feedback", string.Empty, TopLeft, TopLeft,
-                new Vector2(28f, -738f), new Vector2(1084f, 28f), 18, GameUI.Accent);
-            GameUI.Label(card, "BuildHelp", "BUILD: B  /  Wheel: choose  /  R: rotate  /  Click: place  /  CRAFT: C  /  Click an item to inspect, scroll for more", TopLeft, TopLeft,
-                new Vector2(28f, -782f), new Vector2(1084f, 24f), 16, GameUI.Muted);
-            panel.SetActive(false);
         }
 
         private void SetTab(Tab value)
@@ -415,7 +427,7 @@ namespace SheltreSim.Items
             ShowIcon(detailIcon, detailPlaceholder, spec);
             bool equipped = gear != null && gear.IsEquipped(spec.id);
             detailName.text = spec.name;
-            detailMeta.text = ItemCatalog.CategoryName(spec.category) + "   |   owned x" + (inventory != null ? inventory.GetCount(spec.id) : 0) + (equipped ? "   |   EQUIPPED" : string.Empty);
+            detailMeta.text = ItemCatalog.CategoryName(spec.category) + "   |   owned x" + (inventory != null ? inventory.GetCount(spec.id) : 0) + (equipped ? "   |   EQUIPPED" : string.Empty) + "   |   " + Encumbrance.WeightOf(spec.id).ToString("0.##") + " kg";
             detailText.text = spec.description;
             detailEffect.text = Describe(spec) == spec.description ? string.Empty : Describe(spec);
             string action = ActionName(spec, equipped);
@@ -442,11 +454,13 @@ namespace SheltreSim.Items
             if (stats != null)
             {
                 vitalsLabel.text = $"HEALTH  {stats.health:0}/{stats.maxHealth:0}       FOOD  {stats.hunger:0}/{stats.maxHunger:0}       WATER  {stats.thirst:0}/{stats.maxThirst:0}";
+                Encumbrance load = Encumbrance.Active;
+                if (load != null) vitalsLabel.text += $"       LOAD  {load.CurrentLoad:0}/{load.CarryCapacity:0} kg";
             }
             if (gear != null)
             {
                 sb.Clear();
-                sb.Append("WEAPON ").Append(gear.WeaponId.Length > 0 ? ItemCatalog.NameOf(gear.WeaponId) : "Fists")
+                sb.Append("WEAPON ").Append(gear.WeaponId.Length > 0 ? ItemCatalog.NameOf(gear.WeaponId) : "Starting bat")
                     .Append("   RANGED ").Append(gear.RangedId.Length > 0 ? ItemCatalog.NameOf(gear.RangedId) : "none")
                     .Append("   ARMOR ").Append(gear.ArmorId.Length > 0 ? ItemCatalog.NameOf(gear.ArmorId) : "none")
                     .Append("   COAT ").Append(gear.CoatId.Length > 0 ? ItemCatalog.NameOf(gear.CoatId) : "none")
@@ -506,7 +520,8 @@ namespace SheltreSim.Items
             itemContent.sizeDelta = new Vector2(0f, Mathf.Max(0, rows * (TileH + TileGap)));
             RefreshDetail(gear);
 
-            foreach (BuildPieceDefinition recipe in knownRecipes)
+            if (buildTab) EnsureRecipeRows();
+            foreach (BuildPieceDefinition recipe in Pieces())
             {
                 if (recipe == null || !recipeRows.TryGetValue(recipe.id, out Text row)) continue;
                 sb.Clear();
@@ -518,8 +533,12 @@ namespace SheltreSim.Items
                     foreach (CraftingCost cost in recipe.craftingCost)
                     {
                         if (cost == null || cost.resource == null || cost.amount <= 0) continue;
-                        int owned = inventory != null ? inventory.GetCount(cost.resource.id) : 0;
-                        sb.Append(any ? "   " : "\n").Append(cost.resource.displayName).Append(' ').Append(owned).Append(':').Append(cost.amount);
+                        int owned = CraftingSystem.CountAvailable(inventory, cost.resource.id);
+                        bool ok = owned >= cost.amount;
+                        sb.Append(any ? "   " : "\n");
+                        if (!ok) sb.Append("<color=#ff6459>");
+                        sb.Append(cost.resource.displayName).Append(' ').Append(owned).Append('/').Append(cost.amount);
+                        if (!ok) sb.Append("</color>");
                         any = true;
                     }
                 }

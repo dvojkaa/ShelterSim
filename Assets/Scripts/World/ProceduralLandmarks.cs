@@ -131,10 +131,11 @@ namespace SheltreSim.World
                     float height = Mathf.Max(.5f, deck - ground);
                     Box(t, "Footing_" + x + "_" + z, new Vector3(x * 19, -height * .5f, z * 16), new Vector3(2, height, 2), wall);
                 }
+            Skirt(t, deck, seed, dark);
             float rise = deck - toe;
             float angle = Mathf.Atan2(rise, RampLength) * Mathf.Rad2Deg;
             var ramp = Box(t, "EntranceRamp", new Vector3(0, -rise * .5f - .15f * Mathf.Cos(angle * Mathf.Deg2Rad), -33),
-                new Vector3(4.2f, .3f, Mathf.Sqrt(RampLength * RampLength + rise * rise)), wall);
+                new Vector3(4.2f, .3f, Mathf.Sqrt(RampLength * RampLength + rise * rise)), dark); // asphalt, like the deck
             ramp.transform.localRotation = Quaternion.Euler(-angle, 0, 0);
             // The entrance axis and ramp remain clear: rooms open towards negative Z.
             switch (kind)
@@ -142,7 +143,7 @@ namespace SheltreSim.World
                 case 0: Hospital(t, wall, dark); break;
                 case 1: Factory(t, wall, dark); break;
                 case 2: Fuel(t, wall, dark, assets); break;
-                case 3: Farm(t, wall, dark); break;
+                case 3: Farm(t, wall, dark, assets); break;
                 case 4: Military(t, wall, dark); break;
                 default: Bunker(t, wall, dark); break;
             }
@@ -223,6 +224,41 @@ namespace SheltreSim.World
             return maximum;
         }
 
+        // Visual-only skirt walls from the slab underside (y = -0.8) down to the terrain on all four sides.
+        // Sits entirely below the slab; the south side leaves the 4.2 m ramp opening clear.
+        static void Skirt(Transform t, float deck, int seed, Material material)
+        {
+            Vector3 origin = t.position;
+            const float seg = 2.1f;
+            int nx = Mathf.RoundToInt(2 * HalfWidth / seg);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int i = 0; i < nx; i++)
+                {
+                    float cx = -HalfWidth + seg * (i + .5f);
+                    if (side < 0 && Mathf.Abs(cx) < seg) continue; // ramp opening
+                    SkirtPiece(t, origin, deck, seed, material, new Vector3(cx, 0, side * (HalfDepth - .2f)), new Vector3(seg, 0, .4f));
+                }
+                for (int i = 0; i < 18; i++)
+                {
+                    float cz = -HalfDepth + 2f * (i + .5f);
+                    SkirtPiece(t, origin, deck, seed, material, new Vector3(side * (HalfWidth - .2f), 0, cz), new Vector3(.4f, 0, 2f));
+                }
+            }
+        }
+
+        static void SkirtPiece(Transform t, Vector3 origin, float deck, int seed, Material material, Vector3 c, Vector3 size)
+        {
+            float ground = float.PositiveInfinity;
+            for (int ix = -1; ix <= 1; ix++)
+                for (int iz = -1; iz <= 1; iz++)
+                    ground = Mathf.Min(ground, WorldLayout.HeightAt(origin.x + c.x + ix * size.x * .5f, origin.z + c.z + iz * size.z * .5f, seed));
+            float bottom = ground - .3f - deck; // local y, buried slightly
+            if (bottom > -.8f) return;
+            float height = -.8f - bottom;
+            Box(t, "Skirt", new Vector3(c.x, -.8f - height * .5f, c.z), new Vector3(size.x, height, size.z), material, false);
+        }
+
         static void Room(Transform t, Vector3 center, float width, float depth, float height, Material wall, Material dark)
         {
             Box(t, "BackWall", center + new Vector3(0, height * .5f, depth * .5f), new Vector3(width, height, .4f), wall);
@@ -233,7 +269,7 @@ namespace SheltreSim.World
                 Box(t, "EntranceWing", center + new Vector3(side * (width * .5f - wing * .5f), height * .5f, -depth * .5f),
                     new Vector3(wing, height, .4f), wall);
             Box(t, "EntranceLintel", center + new Vector3(0, (height + 2.8f) * .5f, -depth * .5f), new Vector3(3.4f, height - 2.8f, .4f), wall);
-            Box(t, "Roof", center + Vector3.up * (height + .15f), new Vector3(width + .8f, .3f, depth + .8f), wall);
+            Box(t, "Roof", center + Vector3.up * (height + .15f), new Vector3(width + .8f, .3f, depth + .8f), dark); // roof reads differently from the brick walls
             for (int i = -1; i <= 1; i += 2)
                 Box(t, "Window", center + new Vector3(i * (width * .5f - 1.8f), 1.9f, -depth * .5f - .22f), new Vector3(1.8f, 1.1f, .06f), dark, false);
         }
@@ -264,7 +300,7 @@ namespace SheltreSim.World
                 for (int i = 0; i < 3; i++)
                     DressNamed(t, "Bed", "lmk_hospital_ward_bed", new Vector3(side * 5.6f, 0, i * 3.5f + 1));
             HideNamedRenderers(t, "AmbulanceCanopy");
-            PlaceLandmark(t, "lmk_hospital_ambulance", new Vector3(0, 0, -8));
+            PlaceLandmark(t, "lmk_hospital_ambulance", new Vector3(-7, 0, -8), new Vector3(0, 12, 0)); // off the entrance axis: a 1.8 m lane stays free
             PlaceLandmark(t, "lmk_sign_hospital", new Vector3(0, 3.4f, -2));
             PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-18, 0, 12));
             PlaceLandmark(t, "lmk_crate_stack", new Vector3(18, 0, 12));
@@ -347,8 +383,12 @@ namespace SheltreSim.World
             PlaceLandmark(t, "lmk_rubble_pile", new Vector3(-18, 0, 14));
         }
 
-        static void Farm(Transform t, Material w, Material d)
+        static void Farm(Transform t, Material w, Material d, ProceduralWorldAssets assets)
         {
+            // Soil mat under the crop beds (wasteland biome material); visual only, no collider.
+            if (assets.biomeMaterials != null && assets.biomeMaterials.Length > 0 && assets.biomeMaterials[0] != null)
+                for (int side = -1; side <= 1; side += 2)
+                    Box(t, "SoilMat", new Vector3(side * 13.5f, .02f, -1), new Vector3(7.5f, .04f, 24), assets.biomeMaterials[0], false);
             Room(t, new Vector3(0, 0, 8), 16, 16, 4, w, d);
             for (int side = -1; side <= 1; side += 2)
             {

@@ -56,8 +56,14 @@ namespace SheltreSim.Crafting
         private bool built;
         private StationKind builtFor = (StationKind)(-1);
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() { pinnedRecipes.Clear(); Instance = null; }
+
+        private readonly Button[] filterButtons = new Button[FilterNames.Length];
+
         private void Awake()
         {
+            pinnedRecipes.Clear();
             Instance = this;
             toggle = new InputAction("CraftingToggle", InputActionType.Button, "<Keyboard>/c");
             cancel = new InputAction("CraftingClose", InputActionType.Button, "<Keyboard>/escape");
@@ -161,7 +167,7 @@ namespace SheltreSim.Crafting
             for (int i = 0; i < FilterNames.Length; i++)
             {
                 Filter f = (Filter)i;
-                GameUI.Button(card, "Filter_" + FilterNames[i], FilterNames[i], TopLeft, TopLeft,
+                filterButtons[i] = GameUI.Button(card, "Filter_" + FilterNames[i], FilterNames[i], TopLeft, TopLeft,
                     new Vector2(28f + i * 154f, -104f), new Vector2(146f, 38f), () => { filter = f; Refresh(); });
             }
             BuildSearchControls(card);
@@ -300,9 +306,8 @@ namespace SheltreSim.Crafting
                     bool ok = (long)owned + inCrates >= ing.amount;
                     if (i > 0) text.Append("   ");
                     if (!ok) text.Append("<color=#ff6459>");
-                    text.Append(ItemCatalog.NameOf(ing.id)).Append(' ').Append(owned);
-                    if (inCrates > 0) text.Append(" + ").Append(inCrates).Append(" in crates");
-                    text.Append(':').Append(ing.amount);
+                    text.Append(ItemCatalog.NameOf(ing.id)).Append(' ').Append((long)owned + inCrates).Append('/').Append(ing.amount);
+                    if (inCrates > 0) text.Append(" (").Append(owned).Append(" pack + ").Append(inCrates).Append(" crates)");
                     if (!ok) text.Append("</color>");
                 }
                 r.inputs.text = text.ToString();
@@ -310,6 +315,9 @@ namespace SheltreSim.Crafting
                 r.craftFive.interactable = RecipeBook.CanCraft(inventory, r.recipe, 5);
             }
             content.sizeDelta = new Vector2(0f, y);
+            for (int i = 0; i < filterButtons.Length; i++)
+                if (filterButtons[i] != null && filterButtons[i].targetGraphic is Image fi)
+                    fi.color = (int)filter == i ? new Color(0.22f, 0.38f, 0.29f) : new Color(0.16f, 0.23f, 0.25f);
             SetButtonLabel(craftableFilter, craftableOnly ? "Can Craft: On" : "Can Craft: Off");
             SetButtonLabel(pinnedFilter, pinnedOnly ? "Pinned: On" : "Pinned: Off");
         }

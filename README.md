@@ -37,7 +37,7 @@ See [`SETUP.md`](SETUP.md) for the complete playtest checklist and diagnostic pr
 2. **Apocalypse:** Completing the final stage triggers sirens (45 seconds to get underground). Bombs drop: surface burns, flash/quake damage above ground, and the world switches to its Ruined state.
 3. **Survival:** 20-minute day/night cycle with dynamic weather (clear, fog, rain, snow, overcast). Manage hunger, thirst, health, temperature exposure, and radiation hot spots.
 4. **Scavenging & Foraging:** Scavenge ruins and vehicle trunks; harvest trees, rocks, berry bushes, tall grass, and river reeds; collect dirty water directly from rivers and lakes.
-5. **Crafting & Homesteading:** 96 items, 71 recipes across 6 stations (Workbench, Stove, Forge, Chem Lab, Electronics Bench, Fabricator). Place 20+ build pieces (walls, doors, stairs, roofs, defenses, farm plots).
+5. **Crafting & Homesteading:** 116 items (97 base + 19 construction kits), 77 recipes across 6 stations (Workbench, Stove, Forge, Chem Lab, Electronics Bench, Fabricator). Place 20+ build pieces (walls, doors, stairs, roofs, defenses, farm plots).
 6. **Base Automation & Power:** Proximity power grid (25m wireless link range) with solar panels, fuel generators, batteries, and cooling units to prevent overheating.
 7. **Raids & Base Defense:** Periodic raider assaults with warning sirens. Build sandbags, barricades, spike/shock traps, and automated machine gun / laser turrets.
 8. **Endgame:** Craft and power the Radio Beacon in your bunker. Survive a 5-minute, 3-wave assault to achieve rescue, view your survival ledger, and continue in endless mode.

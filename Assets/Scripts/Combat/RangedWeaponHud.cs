@@ -9,7 +9,7 @@ namespace SheltreSim.Combat
     public sealed class RangedWeaponHud
     {
         private const float MarkerSeconds = 0.12f;
-        private const float BarWidth = 372f;
+        private const float BarWidth = 292f;
 
         private readonly GameObject root;
         private readonly GameObject card, heatBack, marker;
@@ -30,9 +30,9 @@ namespace SheltreSim.Combat
             Canvas canvas = GameUI.CreateCanvas(root.transform, "RangedHud_Canvas", 2, false);
             Vector2 lowerRight = new Vector2(1f, 0f), topLeft = new Vector2(0f, 1f), lowerLeft = Vector2.zero, center = new Vector2(0.5f, 0.5f);
 
-            card = GameUI.Panel(canvas.transform, "AmmoCard", lowerRight, lowerRight, new Vector2(-24f, 96f), new Vector2(400f, 96f), GameUI.PanelColor).gameObject;
-            ammoLabel = GameUI.Label(card.transform, "Ammo", string.Empty, topLeft, topLeft, new Vector2(14f, -8f), new Vector2(372f, 32f), 22, Color.white, bold: true);
-            stateLabel = GameUI.Label(card.transform, "State", string.Empty, topLeft, topLeft, new Vector2(14f, -40f), new Vector2(372f, 26f), 18, GameUI.Warning);
+            card = GameUI.Panel(canvas.transform, "AmmoCard", lowerRight, lowerRight, new Vector2(-24f, 340f), new Vector2(320f, 96f), GameUI.PanelColor).gameObject;
+            ammoLabel = GameUI.Label(card.transform, "Ammo", string.Empty, topLeft, topLeft, new Vector2(14f, -8f), new Vector2(292f, 32f), 22, Color.white, bold: true);
+            stateLabel = GameUI.Label(card.transform, "State", string.Empty, topLeft, topLeft, new Vector2(14f, -40f), new Vector2(292f, 26f), 18, GameUI.Warning);
             heatBack = GameUI.Panel(card.transform, "HeatBack", topLeft, topLeft, new Vector2(14f, -72f), new Vector2(BarWidth, 12f), GameUI.RowColor).gameObject;
             heatFill = GameUI.Panel(heatBack.transform, "HeatFill", lowerLeft, lowerLeft, Vector2.zero, new Vector2(0f, 12f), GameUI.Warning);
 
@@ -61,7 +61,7 @@ namespace SheltreSim.Combat
         {
             bool showMarker = Time.unscaledTime < markerUntil;
             if (marker.activeSelf != showMarker) marker.SetActive(showMarker);
-            visible = visible && spec != null;
+            visible = visible && spec != null && !ModalUI.IsOpen;
             if (card.activeSelf != visible) card.SetActive(visible);
             if (!visible) return;
 

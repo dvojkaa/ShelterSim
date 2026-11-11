@@ -54,6 +54,7 @@ namespace SheltreSim.Core
         private InputAction cancel;
         private bool open, closeRequested, sealArmed;
         private float sealArmExpires;
+        private const float SealConfirmSeconds = 8f;
         private int selectedCategory;
         private int selectedPreset = -1;
 
@@ -121,22 +122,22 @@ namespace SheltreSim.Core
             contractText = GameUI.Label(contract, "Text", string.Empty, tl, tl, new Vector2(10f,-7f), new Vector2(340f,78f), 16);
             contractButton = GameUI.Button(contract, "Buy", "SIGN  $20,000", new Vector2(1f,.5f), new Vector2(1f,.5f), new Vector2(-8f,0f), new Vector2(136f,52f), BuyContract, true);
             progress = GameUI.Label(left, "Progress", string.Empty, tl, tl, new Vector2(14f,-146f), new Vector2(478f,110f), 16, GameUI.Muted);
-            GameUI.Label(left, "RoomHeader", "ROOM LADDER  /  NEEDS CONCRETE SHELL", tl, tl, new Vector2(14f,-258f), new Vector2(480f,26f), 15, GameUI.Accent, bold:true);
+            GameUI.Label(left, "RoomHeader", "ROOMS  /  STAGE 2: ANNEX, WINGS  •  STAGE 3: VAULT, DOOR", tl, tl, new Vector2(14f,-226f), new Vector2(480f,26f), 15, GameUI.Accent, bold:true);
             foreach (BunkerShop.Offer offer in BunkerShop.All)
             {
                 if (offer.category != BunkerShop.Category.Rooms && offer.id != "door_reinforced") continue;
                 int index = roomOffers.Count;
                 roomOffers.Add(offer);
                 Transform row = GameUI.Panel(left, "Room_" + offer.id, tl, tl,
-                    new Vector2(12f, -290f - index * 62f), new Vector2(496f,56f), GameUI.RowColor).transform;
+                    new Vector2(12f, -256f - index * 62f), new Vector2(496f,56f), GameUI.RowColor).transform;
                 roomTexts.Add(GameUI.Label(row, "Text", string.Empty, tl, tl, new Vector2(9f,-5f), new Vector2(330f,48f), 14));
                 BunkerShop.Offer captured = offer;
                 roomButtons.Add(GameUI.Button(row, "Buy", "$" + offer.price.ToString("N0"), new Vector2(1f,.5f), new Vector2(1f,.5f), new Vector2(-7f,0f), new Vector2(132f,42f), () => BuyOffer(captured)));
             }
-            sealButton = GameUI.Button(left, "Seal", "SEAL THE BUNKER", tl, tl, new Vector2(12f,-672f), new Vector2(496f,58f), Seal, true);
+            sealButton = GameUI.Button(left, "Seal", "SEAL THE BUNKER", tl, tl, new Vector2(12f,-692f), new Vector2(496f,46f), Seal, true);
             sealText = sealButton.GetComponentInChildren<Text>();
             sealReadiness = GameUI.Label(left, "SealReadiness", string.Empty, tl, tl,
-                new Vector2(14f, -736f), new Vector2(478f, 102f), 13, Color.white);
+                new Vector2(14f, -566f), new Vector2(478f, 120f), 13, Color.white);
             sealReadiness.alignment = TextAnchor.UpperLeft;
             sealReadiness.horizontalOverflow = HorizontalWrapMode.Wrap;
             sealReadiness.verticalOverflow = VerticalWrapMode.Truncate;
@@ -147,10 +148,16 @@ namespace SheltreSim.Core
             for (int i=0;i<Categories.Length;i++)
             {
                 int index=i;
-                float x=14f + i*132f;
-                Button tab=GameUI.Button(right,"Tab"+i,CategoryNames[i],tl,tl,new Vector2(x,-48f),new Vector2(126f,42f),()=>SelectCategory(index));
+                float x=14f + i*134f;
+                Button tab=GameUI.Button(right,"Tab"+i,CategoryNames[i],tl,tl,new Vector2(x,-48f),new Vector2(132f,42f),()=>SelectCategory(index));
                 tabButtons.Add(tab);
-                tabLabels.Add(tab.GetComponentInChildren<Text>());
+                Text tabLabel=tab.GetComponentInChildren<Text>();
+                // D22: 6 tabs x 134 px fit the 808 px column; best-fit shrinks "POWER & WATER" instead of clipping it.
+                tabLabel.horizontalOverflow=HorizontalWrapMode.Overflow;
+                tabLabel.resizeTextForBestFit=true;
+                tabLabel.resizeTextMinSize=10;
+                tabLabel.resizeTextMaxSize=16;
+                tabLabels.Add(tabLabel);
             }
             for (int i = 0; i < PresetNames.Length; i++)
             {
@@ -191,16 +198,17 @@ namespace SheltreSim.Core
             if(offer.grants!=null) foreach(BunkerShop.Grant grant in offer.grants)
             {
                 if(sb.Length>0) sb.Append("  •  ");
-                sb.Append(grant.quantity).Append(" × ").Append(grant.itemId.Replace('_',' '));
+                sb.Append(grant.quantity).Append(" × ").Append(ItemCatalog.NameOf(grant.itemId));
             }
             string craft=CraftHint(offer);
-            if(!string.IsNullOrEmpty(craft)) sb.Append("   |   or craft: ").Append(craft);
+            if(!string.IsNullOrEmpty(craft)) sb.Append(offer.grants.Length==1&&offer.grants[0].quantity>1?"   |   or craft (each): ":"   |   or craft: ").Append(craft);
             return sb.ToString();
         }
 
         private static string CraftHint(BunkerShop.Offer offer)
         {
-            if(offer.grants==null) return string.Empty;
+            // A craft hint describes one item only; for a multi-item bundle it would be misleading.
+            if(offer.grants==null || offer.grants.Length!=1) return string.Empty;
             foreach(BunkerShop.Grant grant in offer.grants)
             {
                 string id=grant.itemId.StartsWith("kit_")?grant.itemId.Substring(4):grant.itemId;
@@ -215,7 +223,7 @@ namespace SheltreSim.Core
                     foreach(Ingredient input in pieceInputs)
                     {
                         if(sb.Length>0) sb.Append(", ");
-                        sb.Append(input.amount).Append(' ').Append(input.id.Replace('_',' '));
+                        sb.Append(input.amount).Append(' ').Append(ItemCatalog.NameOf(input.id));
                     }
                 }
                 else if(recipe.inputs!=null)
@@ -223,7 +231,7 @@ namespace SheltreSim.Core
                     foreach(Ingredient input in recipe.inputs)
                     {
                         if(sb.Length>0) sb.Append(", ");
-                        sb.Append(input.amount).Append(' ').Append(input.id.Replace('_',' '));
+                        sb.Append(input.amount).Append(' ').Append(ItemCatalog.NameOf(input.id));
                     }
                 }
                 return sb.ToString();
@@ -263,8 +271,8 @@ namespace SheltreSim.Core
             if(!sealArmed || Time.unscaledTime>sealArmExpires)
             {
                 sealArmed=true;
-                sealArmExpires=Time.unscaledTime+3f;
-                status.text=$"Click again within 3 seconds to seal. Unspent ${home.UnspentSavings:N0} is lost.";
+                sealArmExpires=Time.unscaledTime+SealConfirmSeconds;
+                status.text=$"Click again within {SealConfirmSeconds:0} seconds to seal. Unspent ${home.UnspentSavings:N0} is lost.";
                 string readiness = SealReadinessWarnings(home);
                 sealReadiness.text = string.IsNullOrEmpty(readiness)
                     ? "<color=#79D99A>READINESS CHECK PASSED</color>  Food, water and power provisions are stocked."
@@ -365,8 +373,12 @@ namespace SheltreSim.Core
             for(int i=0;i<HomeBase.Stages.Length;i++)
             {
                 HomeBase.Stage stage=HomeBase.Stages[i];
-                string state=home.CompletedStages>i?"DONE":home.IsBuilding&&home.CompletedStages==i?$"IN PROGRESS  {home.BuildFraction*100f:0}%":i<3&&home.HasContract?"SCHEDULED":$"LOCKED  ${stage.price:N0}";
-                if(i==3 && home.CompletedStages==3) state="READY TO SEAL";
+                string state;
+                if(home.CompletedStages>i) state="DONE";
+                else if(home.IsBuilding&&home.CompletedStages==i) state=$"IN PROGRESS  {home.BuildFraction*100f:0}%";
+                else if(i==3&&home.CompletedStages==3) state="READY TO SEAL";
+                else if(!home.HasContract) state="PART OF THE $20,000 CONTRACT";
+                else state=i==3?"WAITING  (starts when you seal)":"WAITING";
                 stageLine+=$"{i+1}. {stage.name}  —  {state}\n";
             }
             progress.text=stageLine;
@@ -412,7 +424,13 @@ namespace SheltreSim.Core
             sealButton.interactable=home.CanSeal;
             if(!sealArmed) sealText.text="SEAL THE BUNKER";
             else if(Time.unscaledTime<=sealArmExpires) sealText.text=$"SEAL — ${home.UnspentSavings:N0} LOST";
-            else { sealArmed=false; sealText.text="SEAL THE BUNKER"; }
+            else
+            {
+                sealArmed=false;
+                sealText.text="SEAL THE BUNKER";
+                if(sealReadiness!=null) sealReadiness.gameObject.SetActive(false);
+                status.text="Seal confirmation expired. Click SEAL THE BUNKER to review again.";
+            }
         }
 
         private static string DependencyHint(HomeBase home,string offerId)

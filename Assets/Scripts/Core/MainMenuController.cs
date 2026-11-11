@@ -15,6 +15,8 @@ namespace SheltreSim.Core
         private static MainMenuController instance;
         private GameObject panel;
         private Button continueButton;
+        private Button quitButton;
+        private float quitConfirmUntil;
         private Text status;
         private Text difficultyLabel;
         private Text difficultyDescription;
@@ -57,6 +59,16 @@ namespace SheltreSim.Core
             foreach (string argument in System.Environment.GetCommandLineArgs())
                 if (argument.StartsWith("--") && !argument.Contains("newgame") && (argument.Contains("probe") || argument.Contains("smoke") || argument.Contains("shots"))) return;
             Show();
+        }
+
+        private void Update()
+        {
+            if (quitConfirmUntil > 0f && Time.unscaledTime > quitConfirmUntil)
+            {
+                quitConfirmUntil = 0f;
+                if (quitButton != null) quitButton.GetComponentInChildren<Text>().text = "Quit";
+                if (status != null) status.text = "Choose Continue or start a new run.";
+            }
         }
 
         private void OnDestroy()
@@ -118,6 +130,8 @@ namespace SheltreSim.Core
 
         private static bool startNewGameImmediately;
 
+        public static void PrepareImmediateNewGame() => startNewGameImmediately = true;
+
         /// <summary>Public so the new-game probe can press the button.</summary>
         public void StartNewGame() => NewGame();
         public bool IsMenuOpen => isOpen;
@@ -162,9 +176,34 @@ namespace SheltreSim.Core
                 new Vector2(50f, -318f), new Vector2(620f, 58f), Continue, true);
             GameUI.Button(card, "NewGameButton", "New Game", TopLeft, TopLeft,
                 new Vector2(50f, -386f), new Vector2(620f, 58f), NewGame);
+            quitButton = GameUI.Button(card, "QuitButton", "Quit", TopLeft, TopLeft,
+                new Vector2(50f, -454f), new Vector2(620f, 52f), RequestQuit);
             status = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
-                new Vector2(50f, -460f), new Vector2(620f, 58f), 16, GameUI.Muted);
+                new Vector2(50f, -514f), new Vector2(620f, 48f), 16, GameUI.Muted);
             panel.SetActive(false);
+        }
+
+        private void RequestQuit()
+        {
+            if (quitConfirmUntil > Time.unscaledTime)
+            {
+                quitConfirmUntil = 0f;
+                QuitGame();
+                return;
+            }
+            quitConfirmUntil = Time.unscaledTime + 5f;
+            quitButton.GetComponentInChildren<Text>().text = "Confirm Quit";
+            status.text = "Quit the game? Press again within 5 seconds.";
+        }
+
+        private static void QuitGame()
+        {
+            ModalUI.DismissCurrent();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
     }
 }

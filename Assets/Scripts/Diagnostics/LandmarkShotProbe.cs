@@ -35,6 +35,9 @@ namespace SheltreSim.Diagnostics
             ProceduralWorld world = ProceduralWorld.Active;
             if (world == null) { Debug.LogError("[LandmarkShots] no world"); Application.Quit(1); yield break; }
             player = FindAnyObjectByType<FirstPersonController>();
+            // Shots are of the buildings, not of the player's hand: hide the held viewmodels (melee grip and ranged weapon).
+            foreach (Transform t in player.GetComponentsInChildren<Transform>(true))
+                if (t.name == "WeaponVisual" || t.name.StartsWith("RangedViewmodel", StringComparison.Ordinal)) t.gameObject.SetActive(false);
             world.SetRuined(true);
             RenderSettings.ambientLight = new Color(.55f, .55f, .6f);
             for (int kind = 0; kind < ProceduralLandmarks.KindCount; kind++)
@@ -50,7 +53,7 @@ namespace SheltreSim.Diagnostics
                 yield return Shot(n + "_front", root, new Vector3(0f, 2.2f, -34f), new Vector3(0f, 3f, 6f), 65f);
                 yield return Shot(n + "_threequarter", root, new Vector3(-30f, 9f, -26f), new Vector3(0f, 3f, 6f), 60f);
                 yield return Shot(n + "_aerial", root, new Vector3(26f, 24f, -34f), new Vector3(0f, 2f, 6f), 60f);
-                yield return Shot(n + "_entrance", root, new Vector3(0f, 1.7f, -12f), new Vector3(0f, 1.6f, 10f), 75f);
+                yield return Shot(n + "_entrance", root, new Vector3(-3.5f, 1.7f, -14f), new Vector3(0f, 1.6f, 10f), 75f);
             }
             Debug.Log("[LandmarkShots] done");
             Application.Quit(0);

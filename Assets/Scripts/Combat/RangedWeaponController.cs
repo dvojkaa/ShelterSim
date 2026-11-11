@@ -72,6 +72,7 @@ namespace SheltreSim.Combat
         private ItemSpec spec;
         private float nextFireTime, reloadLeft, nextDryClick, nextImpactSound;
         private bool reloading, debugHeldLastFrame;
+        private bool wasVehicleMounted;
 
         public string SaveKey => "weapons";
         public WeaponHand Hand => hand;
@@ -142,6 +143,7 @@ namespace SheltreSim.Combat
             hud = new RangedWeaponHud();
             viewmodel = new RangedViewmodel(transform, view);
             combat = new RangedCombat(playerController != null ? playerController.transform : transform.root, fx, kill => hud.ShowHit(kill));
+            wasVehicleMounted = playerController != null && playerController.IsVehicleMounted;
             SaveableSystems.Register(this);
         }
 
@@ -173,6 +175,13 @@ namespace SheltreSim.Combat
         {
             float dt = Time.deltaTime;
             SyncWeapon();
+            bool mounted = playerController != null && playerController.IsVehicleMounted;
+            if (mounted != wasVehicleMounted)
+            {
+                wasVehicleMounted = mounted;
+                if (mounted) CancelReload();
+                ApplyHand();
+            }
             RecoverRoundsOfLostFirearms();
             CoolAll(dt);
             TickReload(dt);
@@ -185,7 +194,8 @@ namespace SheltreSim.Combat
 
         private void RefreshHud()
         {
-            bool visible = hand == WeaponHand.Ranged && (stats == null || !stats.IsDead);
+            bool visible = hand == WeaponHand.Ranged && (stats == null || !stats.IsDead) &&
+                (playerController == null || !playerController.IsVehicleMounted);
             Magazine m = spec != null ? MagazineOf(weaponId) : null;
             hud.Refresh(visible, spec, m != null ? m.rounds : 0, spec != null ? ReserveFor(weaponId) : 0,
                 m != null ? m.heat : 0f, m != null && m.locked, reloading, reloadLeft);
@@ -221,13 +231,14 @@ namespace SheltreSim.Combat
         private void ApplyHand()
         {
             if (melee != null) melee.suppressed = hand == WeaponHand.Ranged;
-            viewmodel.Show(hand == WeaponHand.Ranged ? weaponId : "");
+            viewmodel.Show(playerController != null && playerController.IsVehicleMounted
+                ? "" : hand == WeaponHand.Ranged ? weaponId : "");
         }
 
         /// <summary>The 1 and 2 keys. Refused while paused, dead or building.</summary>
         public bool SelectHand(WeaponHand next)
         {
-            if (Time.timeScale <= 0f || IsDead || InBuildMode) return false;
+            if (Time.timeScale <= 0f || IsDead || InBuildMode || (playerController != null && playerController.IsVehicleMounted)) return false;
             if (next == hand) return true;
             SyncWeapon();
             if (next == WeaponHand.Ranged && spec == null)
@@ -244,6 +255,7 @@ namespace SheltreSim.Combat
         private bool InBuildMode => build != null && build.IsBuildModeActive;
 
         private bool CanAct() => isActiveAndEnabled && Time.timeScale > 0f && !IsDead && !InBuildMode &&
+            (playerController == null || !playerController.IsVehicleMounted) &&
             (ignoreCursorLock || Cursor.lockState == CursorLockMode.Locked) &&
             (playerController == null || playerController.isActiveAndEnabled);
 

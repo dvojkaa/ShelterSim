@@ -96,6 +96,9 @@ namespace SheltreSim.Core
             {
                 stats.decayPaused = false;
             }
+            // The radio deadline is a fail-forward path: the player still enters the
+            // survival loop, with a damaged but operational bunker and its systems live.
+            if (HomeBase.Active != null) HomeBase.Active.CompleteFromBombs();
             CurrentPhase = GamePhase.Survival;
             apocalypseSequence = null;
             // Swapped under the flash: the town burns, and loot, raiders and animals appear.
