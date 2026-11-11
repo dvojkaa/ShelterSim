@@ -123,7 +123,7 @@ namespace SheltreSim.World
             root.transform.position = new Vector3(coordinate.x * 128f + 64f, deck, coordinate.y * 128f + 64f);
             Transform t = root.transform;
             Material wall = assets.structureMaterial, dark = assets.roadMaterial;
-            Box(t, "Foundation", new Vector3(0, -.4f, 0), new Vector3(42, .8f, 36), wall);
+            Box(t, "Foundation", new Vector3(0, -.4f, 0), new Vector3(42, .8f, 36), dark); // asphalt deck: the brick walls now read against it
             for (int x = -1; x <= 1; x += 2)
                 for (int z = -1; z <= 1; z += 2)
                 {
@@ -251,7 +251,7 @@ namespace SheltreSim.World
             HideNamedRenderers(t, "Window");
             HideNamedRenderers(t, "MedicalCrossVertical");
             HideNamedRenderers(t, "MedicalCrossHorizontal");
-            PlaceLandmark(t, "lmk_hospital_facade", new Vector3(0, 0, 7));
+            PlaceLandmark(t, "lmk_hospital_facade", new Vector3(0, 0, -2.2f));
             for (int side = -1; side <= 1; side += 2)
                 for (int i = 0; i < 3; i++)
                     DressNamed(t, "Bed", "lmk_hospital_ward_bed", new Vector3(side * 5.6f, 0, i * 3.5f + 1));
@@ -331,7 +331,7 @@ namespace SheltreSim.World
             HideNamedRenderers(t, "EntranceWing");
             HideNamedRenderers(t, "EntranceLintel");
             HideNamedRenderers(t, "Window");
-            PlaceLandmark(t, "lmk_fuel_shop", new Vector3(0, 0, 8));
+            PlaceLandmark(t, "lmk_fuel_shop", new Vector3(0, 0, -.2f));
             PlaceLandmark(t, "lmk_sign_fuel", new Vector3(0, 3.4f, -2));
             PlaceLandmark(t, "lmk_barrel_stack", new Vector3(-19, 0, -14));
             PlaceLandmark(t, "lmk_crate_stack", new Vector3(19, 0, 14));
@@ -399,7 +399,7 @@ namespace SheltreSim.World
             HideNamedRenderers(t, "EntranceWing");
             HideNamedRenderers(t, "EntranceLintel");
             HideNamedRenderers(t, "Window");
-            PlaceLandmark(t, "lmk_mil_hangar", new Vector3(0, 0, 8));
+            PlaceLandmark(t, "lmk_mil_hangar", new Vector3(0, 0, -.2f));
             HideNamedRenderers(t, "FencePost");
             HideNamedRenderers(t, "FenceRail");
             for (int side = -1; side <= 1; side += 2)
