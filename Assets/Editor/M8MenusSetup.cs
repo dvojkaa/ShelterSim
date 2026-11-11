@@ -251,9 +251,9 @@ namespace SheltreSim.EditorTools
                 weaponObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 weaponObject.name = "WeaponVisual";
                 weaponObject.transform.SetParent(cameraPivot, false);
-                weaponObject.transform.localPosition = new Vector3(0.35f, -0.25f, 0.55f);
+                weaponObject.transform.localPosition = new Vector3(0.29f, -0.31f, 0.43f);
                 weaponObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                weaponObject.transform.localScale = new Vector3(0.045f, 0.3f, 0.045f);
+                weaponObject.transform.localScale = new Vector3(0.042f, 0.25f, 0.042f);
 
                 // Purely visual — no collider needed on the player's own weapon prop, and an
                 // active one would just add noise to the melee SphereCast's hit results.
@@ -283,6 +283,9 @@ namespace SheltreSim.EditorTools
             {
                 weaponObject = weapon.gameObject;
             }
+
+            weaponObject.transform.localPosition = new Vector3(0.29f, -0.31f, 0.43f);
+            weaponObject.transform.localScale = new Vector3(0.042f, 0.25f, 0.042f);
 
             attacker.weaponVisual = weaponObject.transform;
 

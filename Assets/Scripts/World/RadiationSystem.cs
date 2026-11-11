@@ -212,7 +212,7 @@ namespace SheltreSim.World
         private void UpdateReadout()
         {
             if (readout == null) return;
-            bool visible = stats != null && (rads >= 0.5f || intensity > 0f);
+            bool visible = stats != null && !ModalUI.IsOpen && (rads >= 0.5f || intensity > 0f);
             if (readout.activeSelf != visible) readout.SetActive(visible);
             if (!visible) return;
             int value = Mathf.FloorToInt(rads);

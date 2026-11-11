@@ -196,14 +196,14 @@ namespace SheltreSim.Saving
             if (initialAttackDamage <= 0f && meleeAttacker != null) initialAttackDamage = meleeAttacker.attackDamage;
         }
 
-        private bool HasRequiredReferences()
+        private bool HasRequiredReferences(bool showMessage = true)
         {
             ResolveReferences();
             if (player != null && stats != null && buildController != null)
             {
                 return true;
             }
-            GameMessageBus.Post("Save/load is unavailable: the player or building system is missing.");
+            if (showMessage) GameMessageBus.Post("Save/load is unavailable: the player or building system is missing.");
             return false;
         }
 
@@ -214,7 +214,7 @@ namespace SheltreSim.Saving
 
         private bool WriteSnapshotToPath(string path, bool showMessage)
         {
-            if (!HasRequiredReferences()) return false;
+            if (!HasRequiredReferences(showMessage)) return false;
             VehicleMountView mountView = player.GetComponent<VehicleMountView>();
             if (player.IsRiding || (mountView != null && mountView.IsBusy))
             {

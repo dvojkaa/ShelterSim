@@ -8,7 +8,7 @@ namespace SheltreSim.World
     {
         public const int ChunkSize = 128;
         /// <summary>Bump when terrain or placement generation changes, so a save can tell it was made on a different world.</summary>
-        public const int GenerationVersion = 5;
+        public const int GenerationVersion = 6;
         public const int MaximumChunkCoordinate = 100000;
         public static readonly string[] BiomeNames = { "Wasteland", "Pine forest", "Red desert", "Frozen wilderness", "Wetlands", "Highlands" };
 

@@ -23,6 +23,7 @@ namespace SheltreSim.Core
         private Button loadButton;
         private Button quitButton, mainMenuButton;
         private float confirmDestructiveUntil;
+        private string confirmDestructiveAction;
         private SheltreSim.UI.DisplaySettingsPanel displaySettings;
         private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
 
@@ -140,25 +141,18 @@ namespace SheltreSim.Core
             GameUI.Label(card, "ControlsHeading", "FIELD CONTROLS", TopLeft, TopLeft,
                 new Vector2(350f, -150f), new Vector2(560f, 30f), 21, GameUI.Accent, bold: true);
             GameUI.Label(card, "Controls",
-                "WASD   Move     /     Mouse   Look\n" +
-                "Space   Jump     /     Shift   Sprint\n" +
-                "Left Ctrl   Crouch (hold, harder to spot)\n" +
-                "E   Interact     /     Left click   Attack\n" +
-                "1 / 2   Melee / gun     /     R   Reload\n" +
-                "3 / 4 / 5   Quick use: medicine, food, drink\n" +
-                "F   Flashlight (loads an Energy Cell when empty)\n" +
-                "I or Tab   Inventory     /     C   Craft\n" +
-                "B   Build mode     /     Wheel   Choose piece\n" +
-                "R   Rotate     /     Left click   Place\n" +
-                "V   Repair     /     X   Dismantle (in build mode)\n" +
-                "G   Blueprints     /     M   Map\n" +
-                "Escape   Leave build mode / close menu\n" +
-                "F5   Quick save     /     F9   Quick load",
+                "WASD move   /   Mouse look   /   Space jump   /   Shift sprint   /   Ctrl crouch\n" +
+                "E interact   /   Left click attack   /   1 melee   /   2 gun   /   R reload\n" +
+                "3 medicine   /   4 food   /   5 drink   /   F flashlight\n" +
+                "Vehicles: W/S drive, A/D steer, P cargo, H fuel, J battery, K horn, L lights, T turret, Space exit\n" +
+                "I or Tab inventory   /   C craft   /   B build   /   Wheel choose piece\n" +
+                "R rotate   /   Click place   /   V repair   /   X dismantle   /   G blueprints   /   M map\n" +
+                "Esc leave build mode / close menu   /   F5 save   /   F9 load",
                 TopLeft, TopLeft, new Vector2(350f, -186f), new Vector2(590f, 310f), 17);
             statusLabel = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
                 new Vector2(32f, -528f), new Vector2(896f, 40f), 19, GameUI.Accent);
             GameUI.Label(card, "Advice",
-                "Prepare supplies and a Water Collector before using the red bunker console.\nFood and water stay full during preparation; raiders can still hurt you.\nAfter the alarm, scavenge, return home, eat, drink and rest. Save regularly.",
+                "Sign the bunker contract and prepare supplies. Get underground when the sirens sound.\nAfter impact, scavenge, return home, eat, drink and rest. Save regularly.",
                 TopLeft, TopLeft, new Vector2(32f, -574f), new Vector2(896f, 80f), 18, GameUI.Muted);
             SheltreSim.Audio.AudioSettingsPanel.Build(card, new Vector2(32f, -662f));
             GameplaySettingsPanel.Build(card, new Vector2(32f, -716f));
@@ -177,38 +171,39 @@ namespace SheltreSim.Core
 
         private void RequestQuit()
         {
-            if (confirmDestructiveUntil > Time.unscaledTime)
+            if (confirmDestructiveAction == "quit" && confirmDestructiveUntil > Time.unscaledTime)
             {
                 ClearDestructiveConfirmation();
                 QuitGame();
                 return;
             }
-            ArmDestructiveConfirmation("Quit without saving? Press Quit again within 5 seconds.", "Confirm Quit");
+            ArmDestructiveConfirmation("quit", quitButton, "Confirm Quit", "Quit without saving? Press Quit again within 5 seconds.");
         }
 
         private void RequestMainMenu()
         {
-            if (confirmDestructiveUntil > Time.unscaledTime)
+            if (confirmDestructiveAction == "menu" && confirmDestructiveUntil > Time.unscaledTime)
             {
                 ClearDestructiveConfirmation();
                 CloseIfOpen();
-                MainMenuController.ReturnToMenu();
+                MainMenuController.ShowFromPausedRun();
                 return;
             }
-            ArmDestructiveConfirmation("Return to the menu and discard this run? Press Main menu again within 5 seconds.", "Confirm Main Menu");
+            ArmDestructiveConfirmation("menu", mainMenuButton, "Confirm Main Menu", "Return to the menu and discard this run? Press Main menu again within 5 seconds.");
         }
 
-        private void ArmDestructiveConfirmation(string message, string buttonText)
+        private void ArmDestructiveConfirmation(string action, Button button, string buttonText, string message)
         {
             confirmDestructiveUntil = Time.unscaledTime + 5f;
+            confirmDestructiveAction = action;
             statusLabel.text = message;
-            quitButton.GetComponentInChildren<Text>().text = "Confirm Quit";
-            mainMenuButton.GetComponentInChildren<Text>().text = "Confirm Main Menu";
+            button.GetComponentInChildren<Text>().text = buttonText;
         }
 
         private void ClearDestructiveConfirmation()
         {
             confirmDestructiveUntil = 0f;
+            confirmDestructiveAction = null;
             if (quitButton != null) quitButton.GetComponentInChildren<Text>().text = "Quit";
             if (mainMenuButton != null) mainMenuButton.GetComponentInChildren<Text>().text = "Main menu";
         }

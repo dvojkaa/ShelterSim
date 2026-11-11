@@ -570,7 +570,7 @@ namespace SheltreSim.World
             if (!mounted || mountView == null || mountView.IsTransitioning) return;
             if (!mountView.BeginDismount(transform))
             {
-                GameMessageBus.Post("No capsule-clear space to leave the van.");
+                GameMessageBus.Post("Can't exit yet — nearby space is blocked. Move or turn the van and try again.");
                 return;
             }
             FinishDismount();

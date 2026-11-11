@@ -78,6 +78,8 @@ namespace SheltreSim.Objectives
         public Transform PlayerTransform { get { FindPlayer(); return player; } }
         public string HudText => label != null && panel != null && panel.activeSelf ? label.text : "";
         public bool HudVisible => canvas != null && canvas.enabled && panel != null && panel.activeSelf;
+        public bool HasTutorialGuidance => HudVisible && label != null &&
+            (label.text.StartsWith("OPENING ", StringComparison.Ordinal) || label.text.StartsWith("SURVIVAL ", StringComparison.Ordinal));
 
         public RelayStep Step => state.relayRewarded ? RelayStep.Done
             : RelayRepaired ? RelayStep.Contact

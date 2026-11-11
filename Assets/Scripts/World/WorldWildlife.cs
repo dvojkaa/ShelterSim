@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using SheltreSim.Player;
 using UnityEngine;
 
@@ -7,6 +8,10 @@ namespace SheltreSim.World
     /// <summary>Lightweight, non-hostile chunk residents. No loot, damage or global random state.</summary>
     public sealed class WorldWildlife : MonoBehaviour
     {
+        private static readonly HashSet<WorldWildlife> live = new HashSet<WorldWildlife>();
+        public static IEnumerable<WorldWildlife> Live => live;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetRegistry() => live.Clear();
         private Vector2Int coordinate;
         private int seed;
         private int species;
@@ -27,6 +32,9 @@ namespace SheltreSim.World
         public float Health => health;
         public bool IsHuntable => species != 2;
         private SheltreSim.Survival.SurvivalStats playerStats;
+
+        private void OnEnable() => live.Add(this);
+        private void OnDisable() => live.Remove(this);
 
         public static void Build(Transform parent, Vector2Int coordinate, int seed, ProceduralWorldAssets assets)
         {

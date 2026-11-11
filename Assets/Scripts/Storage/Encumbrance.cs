@@ -213,9 +213,9 @@ namespace SheltreSim.Storage
         {
             Canvas canvas = GameUI.CreateCanvas(transform, "Encumbrance_Canvas", 1, false);
             hud = canvas.gameObject;
-            // Directly under SurvivalHUD's objective card in the top right corner.
-            label = GameUI.Label(canvas.transform, "LoadLabel", string.Empty, Vector2.one, Vector2.one,
-                new Vector2(-24f, -274f), new Vector2(380f, 30f), 19, GameUI.Muted, TextAnchor.MiddleRight, true);
+            // Keep the load line beneath the left vitals stack, away from the checklist.
+            label = GameUI.Label(canvas.transform, "LoadLabel", string.Empty, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -362f), new Vector2(340f, 30f), 19, GameUI.Muted, TextAnchor.MiddleLeft, true);
             Shadow shadow = label.gameObject.AddComponent<Shadow>();
             shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
             shadow.effectDistance = new Vector2(1f, -1f);
@@ -225,12 +225,19 @@ namespace SheltreSim.Storage
         private void ShowLabel(string text, Color color)
         {
             LabelText = text;
-            bool visible = text.Length > 0;
+            bool visible = text.Length > 0 && !ModalUI.IsOpen;
             if (hud == null) return;
             if (hud.activeSelf != visible) hud.SetActive(visible);
             if (!visible) return;
             label.text = text;
             label.color = color;
+        }
+
+        private void LateUpdate()
+        {
+            if (hud == null) return;
+            bool visible = !ModalUI.IsOpen && !string.IsNullOrEmpty(LabelText);
+            if (hud.activeSelf != visible) hud.SetActive(visible);
         }
     }
 }

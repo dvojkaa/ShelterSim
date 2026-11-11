@@ -37,7 +37,8 @@ namespace SheltreSim.Core
             detailLabel.text = hasSave
                 ? "Your shelter is still out there. Continue from your latest save,\nor start a fresh run from the main menu."
                 : "Start again from the main menu and prepare a new run.\nF5 keeps a manual save alongside autosaves.";
-            statusLabel.text = hasSave ? "F9 loads the manual F5 save." : "No saved game available.";
+            statusLabel.text = hasSave ? "Continue loads your latest manual save or autosave." :
+                "No saved game available. F5 creates a manual save during a live run.";
         }
 
         /// <summary>RestoreVitals and validated loads use this to release death ownership.</summary>

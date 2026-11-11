@@ -194,6 +194,10 @@ namespace SheltreSim.Combat
             }
 
             string weaponId = gear != null ? gear.WeaponId : string.Empty;
+            // A carried starter hammer is a passive gathering tool, not permission to
+            // chip a placed wall or crate whenever the player misclicks. Require a
+            // weapon visibly equipped to damage player-built pieces.
+            if (piece != null && string.IsNullOrEmpty(weaponId)) return false;
             if (!string.IsNullOrEmpty(weaponId) && attackDamage > MeleeAttacker.DefaultDamage)
             {
                 float factor = StructureDamageRules.MeleeWeaponMultiplier(material);

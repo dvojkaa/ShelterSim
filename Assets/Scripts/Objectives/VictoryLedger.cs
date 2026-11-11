@@ -33,7 +33,7 @@ namespace SheltreSim.Objectives
                 new Vector2(36f, -208f), new Vector2(690f, 188f), 23, Color.white);
             GameUI.Button(card, "Continue", "Continue in endless mode", TopLeft, TopLeft,
                 new Vector2(36f, -420f), new Vector2(420f, 58f), Continue, true);
-            GameUI.Label(card, "Hint", "Raids are over. Explore, build and keep surviving.", TopLeft, TopLeft,
+            GameUI.Label(card, "Hint", "Rescue has arrived. The settlement still needs you: hordes return every 15 minutes.", TopLeft, TopLeft,
                 new Vector2(36f, -476f), new Vector2(690f, 28f), 16, GameUI.Muted);
             panel.SetActive(false);
         }

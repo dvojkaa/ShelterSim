@@ -547,7 +547,7 @@ namespace SheltreSim.World
             }
             else if (mountView == null || !mountView.BeginDismount(transform))
             {
-                if (!force) GameMessageBus.Post("No capsule-clear space to leave the buggy.");
+                if (!force) GameMessageBus.Post("Can't exit yet — nearby space is blocked. Move or turn the buggy and try again.");
                 return;
             }
 

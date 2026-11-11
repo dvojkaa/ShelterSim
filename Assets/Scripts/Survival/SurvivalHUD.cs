@@ -92,7 +92,7 @@ namespace SheltreSim.Survival
                 GameUI.Accent, TextAnchor.MiddleCenter, true);
             AddShadow(homeLabel);
             buildReadoutLabel = GameUI.Label(canvas.transform, "BuildReadout", string.Empty, new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(560f, 128f), 21,
+                new Vector2(0.5f, 1f), new Vector2(0f, -154f), new Vector2(560f, 128f), 21,
                 alignment: TextAnchor.UpperCenter, bold: true);
             AddShadow(buildReadoutLabel);
 
@@ -193,10 +193,12 @@ namespace SheltreSim.Survival
             Transform mountedVehicle = stats != null ? stats.GetComponent<VehicleMountView>()?.MountedVehicle : null;
             RideableScoutBuggy buggy = mountedVehicle != null ? mountedVehicle.GetComponent<RideableScoutBuggy>() : null;
             RideableArmoredVan van = mountedVehicle != null ? mountedVehicle.GetComponent<RideableArmoredVan>() : null;
+            RideableBicycle bicycle = mountedVehicle != null ? mountedVehicle.GetComponent<RideableBicycle>() : null;
             string vehicleControls = buggy != null
                 ? $"VEHICLE   /   W/S: drive   /   A/D: steer   /   P: trunk   /   H: fuel   /   J: energy   /   K: horn   /   L: lights   /   Space: exit\nFUEL RANGE   /   {buggy.FuelRemainingMeters / 1000f:0.#} km"
                 : van != null
                     ? $"VAN   /   W/S: drive   /   A/D: steer   /   P: cargo   /   H: fuel   /   J: energy   /   K: horn   /   T: turret   /   L: lights   /   Space: exit\nFUEL RANGE   /   {van.FuelRemainingMeters / 1000f:0.#} km"
+                    : bicycle != null ? "BICYCLE   /   W/S: pedal   /   Mouse: steer and look   /   P: panniers   /   Space: dismount"
                     : string.Empty;
             controlsLabel.text = !string.IsNullOrEmpty(vehicleControls) ? vehicleControls : building
                 ? "BUILD   /   Wheel: choose   /   R: rotate   /   Click: place   /   V: repair   /   X: dismantle   /   B or Esc: finish\nGreen: ready   /   Yellow: need supplies   /   Red: blocked"
@@ -240,8 +242,8 @@ namespace SheltreSim.Survival
 
             phaseLabel.color = GameUI.Accent;
             bool collector = HasWaterCollector();
-            int foodCount = inventory != null ? inventory.GetCount("food_berries") : 0;
-            int waterCount = inventory != null ? inventory.GetCount("water") : 0;
+            int foodCount = CountConsumables(drink: false);
+            int waterCount = CountConsumables(drink: true);
             if (phase == GamePhase.Building)
             {
                 HomeBase home = HomeBase.Active;
@@ -258,16 +260,22 @@ namespace SheltreSim.Survival
                 }
                 else
                 {
-                    HomeBase.Stage next = HomeBase.Stages[home.CompletedStages];
                     phaseDetailLabel.text = "A normal day. Nobody knows what is coming.";
-                    objectiveLabel.text = $"Bunker {home.CompletedStages}/{HomeBase.Stages.Length} done.\nNext: {next.name}, ${next.price:N0}.\nUse the laptop at the site (E).";
+                    if (home.CanSeal)
+                        objectiveLabel.text = $"Bunker {home.CompletedStages}/{HomeBase.Stages.Length} done.\nSeal life support at the site terminal — no extra charge.";
+                    else if (!home.HasContract)
+                        objectiveLabel.text = "Sign the $20,000 bunker contract at the site terminal (E). It covers all four construction stages.";
+                    else
+                        objectiveLabel.text = $"Bunker {home.CompletedStages}/{HomeBase.Stages.Length} done.\nThe $20,000 contract covers construction. Prepare supplies and use the site terminal (E).";
                 }
             }
             else
             {
                 phaseLabel.text = "SURVIVAL";
                 phaseDetailLabel.text = "Scavenge, return home, recover. Save your progress with F5.";
-                objectiveLabel.text = water <= 0.35f
+                bool checklistOwnsGuidance = SheltreSim.Objectives.ObjectiveTracker.Instance != null &&
+                    SheltreSim.Objectives.ObjectiveTracker.Instance.HasTutorialGuidance;
+                objectiveLabel.text = checklistOwnsGuidance ? string.Empty : water <= 0.35f
                     ? (waterCount > 0 ? "Open I or Tab and drink water.\n" : "Collect water at home or search crates.\n") + "An empty water bar costs health."
                     : food <= 0.35f
                         ? (foodCount > 0 ? "Open I or Tab and eat food.\n" : "Find berries outside or search crates.\n") + "An empty food bar costs health."
@@ -285,6 +293,16 @@ namespace SheltreSim.Survival
                 if (piece != null && piece.isActiveAndEnabled && piece.pieceId == "water_collector") return true;
             }
             return false;
+        }
+
+        private int CountConsumables(bool drink)
+        {
+            if (inventory == null) return 0;
+            int count = 0;
+            foreach (SheltreSim.Crafting.ItemSpec item in SheltreSim.Crafting.ItemCatalog.All)
+                if ((drink ? item.drink : item.food) && item.id != "dirty_water")
+                    count += inventory.GetCount(item.id);
+            return count;
         }
 
         /// <summary>Returns true once the player owns or has previously crafted any melee weapon,

@@ -812,7 +812,7 @@ namespace SheltreSim.Raids
             else if (ObjectiveTracker.Victory) text = null;
             else if (CurrentPhase == Phase.Pending && pendingFuse >= 0f) text = $"RAID INBOUND {SideName(attackSide).ToUpperInvariant()} " + Clock(pendingFuse);
             else if (CurrentPhase == Phase.Countdown && WarningActive) text = $"RAID INBOUND {SideName(attackSide).ToUpperInvariant()} " + Clock(Countdown);
-            bool show = text != null;
+            bool show = text != null && !ModalUI.IsOpen;
             if (bannerPanel.activeSelf != show) bannerPanel.SetActive(show);
             if (show && banner.text != text) banner.text = text;
         }

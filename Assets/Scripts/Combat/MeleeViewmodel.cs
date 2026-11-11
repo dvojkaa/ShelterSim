@@ -15,7 +15,7 @@ namespace SheltreSim.Combat
     {
         // The grip object is turned 90 degrees about X, so child +Y points at the camera's forward.
         // Tilting back about X lifts the tip up, and a roll about the weapon's own axis shows the flat of a blade.
-        public static readonly Quaternion HeldRotation = Quaternion.Euler(-54f, 0f, 0f) * Quaternion.Euler(0f, -40f, 0f);
+        public static readonly Quaternion HeldRotation = Quaternion.Euler(-45f, 0f, 0f) * Quaternion.Euler(0f, -30f, 0f);
 
         private static readonly Dictionary<string, string> ModelFor = new Dictionary<string, string>
         {

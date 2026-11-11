@@ -190,7 +190,7 @@ namespace SheltreSim.Core
 
         private void SetVisible(bool visible)
         {
-            if (canvas != null) canvas.enabled = visible;
+            if (canvas != null) canvas.enabled = visible && !ModalUI.IsOpen;
         }
     }
 }

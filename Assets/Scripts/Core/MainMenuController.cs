@@ -15,6 +15,7 @@ namespace SheltreSim.Core
         private static MainMenuController instance;
         private GameObject panel;
         private Button continueButton;
+        private Button resumeButton;
         private Button quitButton;
         private float quitConfirmUntil;
         private Text status;
@@ -22,6 +23,7 @@ namespace SheltreSim.Core
         private Text difficultyDescription;
         private SaveManager saves;
         private bool isOpen;
+        private static bool hasPausedRunToResume;
         private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -82,6 +84,13 @@ namespace SheltreSim.Core
             if (instance != null) instance.Show();
         }
 
+        public static void ShowFromPausedRun()
+        {
+            hasPausedRunToResume = true;
+            ReturnToMenu();
+            if (instance != null) instance.Refresh();
+        }
+
         private void Show()
         {
             if (isOpen) return;
@@ -103,6 +112,7 @@ namespace SheltreSim.Core
         {
             if (saves == null) saves = FindFirstObjectByType<SaveManager>();
             bool canContinue = saves != null && saves.HasContinueSave;
+            resumeButton.gameObject.SetActive(hasPausedRunToResume);
             continueButton.interactable = canContinue;
             status.text = canContinue
                 ? "Continue loads the newest valid manual save or autosave."
@@ -126,6 +136,14 @@ namespace SheltreSim.Core
                 if (saves == null) status.text = "Save/load is unavailable in this scene.";
                 Show();
             }
+            else hasPausedRunToResume = false;
+        }
+
+        private void ResumeRun()
+        {
+            if (!hasPausedRunToResume) return;
+            hasPausedRunToResume = false;
+            Hide();
         }
 
         private static bool startNewGameImmediately;
@@ -139,6 +157,7 @@ namespace SheltreSim.Core
         private void NewGame()
         {
             Hide();
+            hasPausedRunToResume = false;
             startNewGameImmediately = true;
             Time.timeScale = 1f;
             Scene active = SceneManager.GetActiveScene();
@@ -161,7 +180,7 @@ namespace SheltreSim.Core
             Canvas canvas = GameUI.CreateCanvas(transform, "MainMenuCanvas", 300, true);
             panel = GameUI.Backdrop(canvas.transform, "MainMenuPanel");
             Transform card = GameUI.Panel(panel.transform, "Card", new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 560f), GameUI.PanelColor, true).transform;
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 640f), GameUI.PanelColor, true).transform;
             GameUI.Label(card, "Title", "SHELTER SIM", TopLeft, TopLeft,
                 new Vector2(48f, -46f), new Vector2(624f, 72f), 48, GameUI.Accent, bold: true);
             GameUI.Label(card, "Subtitle", "A life underground begins with one decision.", TopLeft, TopLeft,
@@ -172,14 +191,17 @@ namespace SheltreSim.Core
                 new Vector2(50f, -232f), new Vector2(620f, 30f), 20, GameUI.Accent, bold: true);
             difficultyDescription = GameUI.Label(card, "DifficultyDescription", "", TopLeft, TopLeft,
                 new Vector2(50f, -263f), new Vector2(620f, 32f), 15, GameUI.Muted);
+            resumeButton = GameUI.Button(card, "ResumeButton", "Resume current run", TopLeft, TopLeft,
+                new Vector2(50f, -318f), new Vector2(620f, 54f), ResumeRun);
+            resumeButton.gameObject.SetActive(false);
             continueButton = GameUI.Button(card, "ContinueButton", "Continue", TopLeft, TopLeft,
-                new Vector2(50f, -318f), new Vector2(620f, 58f), Continue, true);
+                new Vector2(50f, -382f), new Vector2(620f, 54f), Continue, true);
             GameUI.Button(card, "NewGameButton", "New Game", TopLeft, TopLeft,
-                new Vector2(50f, -386f), new Vector2(620f, 58f), NewGame);
+                new Vector2(50f, -446f), new Vector2(620f, 54f), NewGame);
             quitButton = GameUI.Button(card, "QuitButton", "Quit", TopLeft, TopLeft,
-                new Vector2(50f, -454f), new Vector2(620f, 52f), RequestQuit);
+                new Vector2(50f, -510f), new Vector2(620f, 50f), RequestQuit);
             status = GameUI.Label(card, "SaveStatus", string.Empty, TopLeft, TopLeft,
-                new Vector2(50f, -514f), new Vector2(620f, 48f), 16, GameUI.Muted);
+                new Vector2(50f, -564f), new Vector2(620f, 44f), 16, GameUI.Muted);
             panel.SetActive(false);
         }
 

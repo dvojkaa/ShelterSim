@@ -651,7 +651,7 @@ namespace SheltreSim.Audio
             Vector3 from = player.transform.position;
             WorldWildlife nearest = null;
             float best = 45f * 45f;
-            foreach (WorldWildlife animal in FindObjectsByType<WorldWildlife>())
+            foreach (WorldWildlife animal in WorldWildlife.Live)
             {
                 float distance = (animal.transform.position - from).sqrMagnitude;
                 if (distance < best)

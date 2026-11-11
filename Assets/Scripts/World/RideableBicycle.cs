@@ -182,7 +182,7 @@ namespace SheltreSim.World
             if (!mounted) return;
             if (mountView != null && !mountView.BeginDismount(transform))
             {
-                GameMessageBus.Post("No capsule-clear space to leave the bicycle.");
+                GameMessageBus.Post("Can't dismount yet — nearby space is blocked. Move the bicycle and try again.");
                 return;
             }
             FinishDismount();
