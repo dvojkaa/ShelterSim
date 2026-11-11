@@ -194,7 +194,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 ### Scout Buggy
 
 - [HUMAN] Craft at Workbench (10 steel bars, 8 metal plates, 1 electric motor, 4 duct tape) and place the build piece.
-- [HUMAN] `E` mounts; walk/sprint speeds are 26/34 m/s (Scout Buggy) and 20/27 m/s (Armored Van). `H` adds 700 m from a fuel can or `J` adds 500 m from an energy cell (tank capacity 2,100 m); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
+- [HUMAN] `E` mounts; walk/sprint speeds are 26/34 m/s (Scout Buggy) and 20/27 m/s (Armored Van). `H` adds 4 km from a fuel can or `J` adds 1.5 km from an energy cell (tank capacity 12 km; the HUD shows the remaining range in km); empty range stops the vehicle. Fuel/cells are only consumed when there is room for their full range. `L` toggles headlights, `P` opens the trunk, and `Space` dismounts.
 - [HUMAN] The buggy remains visible through the mount transition. The camera eases to its `Seat`; dismount eases to a capsule-clear exit and leaves the buggy parked at the same transform.
 - [HUMAN] Trunk holds up to 120 kg and participates in nearby-storage crafting. Fuel, headlight state, trunk contents and vehicle placement persist after save/load.
 - [HUMAN] Driving alerts nearby wildlife and raiders. Check mounted movement, controls, low-fuel and empty-tank warnings, refueling at a nearly full tank, storage transfer capacity, and save/load. Collision sweeps should stop on blocking geometry; fast contacts should impart a capped impulse to dynamic props without repeated damage while blocked.
@@ -212,7 +212,7 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [AUTO] `--m28-probe`: both motor vehicles stop before dynamic obstacles and impart an impact impulse. This does not cover player input, world bounds, ram damage balance or garage behavior.
 
 - [HUMAN] Reinforced and concrete foundations accept walls and satisfy the same support rules as wood foundations. Reinforced/concrete walls count as full walls; repair and damage stages work.
-- [HUMAN] Craft the Armored Van (24 steel bars, 18 metal plates, 4 electric motors, 6 reinforced frames, 2 energy cells, 8 duct tape); cargo capacity is 300 kg, `H` adds 700 m from fuel, `J` adds 500 m from an energy cell, headlights toggle with `L`, cargo opens with `P`, `T` fires the turret, and `Space` dismounts. Neither fuel source should be consumed when there is insufficient tank room for its full range.
+- [HUMAN] Craft the Armored Van (24 steel bars, 18 metal plates, 4 electric motors, 6 reinforced frames, 2 energy cells, 8 duct tape); cargo capacity is 300 kg, `H` adds 4 km from fuel, `J` adds 1.5 km from an energy cell, headlights toggle with `L`, cargo opens with `P`, `T` fires the turret, and `Space` dismounts. Neither fuel source should be consumed when there is insufficient tank room for its full range.
 - [HUMAN] The van stays visible while mounting; the camera eases to `Seat`. `Space` finds a capsule-clear `Exit_L`/`Exit_R` and leaves the van parked. Its position survives save/load.
 - [HUMAN] Collision sweeps should stop the van against blocking geometry, keep the rider seated, and apply a throttled impulse to dynamic props without adding duplicate HP damage. Turning in tight spaces should remain responsive.
 - [HUMAN] Forward ram at speed damages enemies, wildlife and placed structures once per target cooldown; reversing/standing contact must not repeatedly damage targets. Turret uses one `ammo_rifle` per shot, aims from the camera to 70 m, fires every 0.75 s and is blocked by the first solid obstacle.
@@ -264,6 +264,19 @@ Work through each section in a fresh standalone build or Editor Play session. It
 - [HUMAN] `M` opens the procedural atlas. Shows terrain, biome borders, roads, town districts, discovered landmarks, and home direction indicator.
 
 ---
+
+### Latest Pass (2026-11-10): Menu, Pacing, Raids, Landmarks — HUMAN PLAYTEST FIRST
+Nothing here has been played by a person yet; probes only prove logic. Play ~45 minutes from `Builds/Linux/SheltreSim.x86_64` and report what feels wrong.
+- [HUMAN] Start screen offers New Game (Easy/Normal/Hard) and Continue (manual save or rotating autosave); Esc pause menu can return to it. Display settings panel changes resolution/fullscreen.
+- [HUMAN] Opening: pick a Homesteader/Fortress/Roamer offer highlight in the bunker terminal, sign the $20k contract; five pre-bomb steps and five post-bomb steps guide you (drink, craft, place a piece, enter a town, save). The paper map is in the starter pack and gates the world map. The radio deadline starts at 600 s after signing.
+- [HUMAN] Survival pacing: hunger/thirst drain is slower than before; farms need power/daylight; the bed has a cooldown. Does a day feel like pressure or like a chore?
+- [HUMAN] Raids: first raid is at 9 minutes with four attackers; attack side varies, a breach warning appears, raiders can target surface assets, 25% of destroyed pieces are salvaged. Do raids threaten a prepared base?
+- [HUMAN] After rescue: hordes recur every 15 game-minutes with a 90 s warning, a Warlord every fifth; the Expedition Workshop trader appears after all three upgrades.
+- [HUMAN] Loot and wildlife get richer with distance from home; habitat groups mix species from ring 1 outward.
+- [HUMAN] Crafting window: search box, pin/unpin, pinned-only and can-craft filters.
+- [HUMAN] Landmarks (hospital, ironworks, fuel station, farm, military outpost, bunker): facade on the front wall, signage, props, clear entrance and ramp, caches reachable, boss arenas lock and wave in phases. Look for anything floating, buried or blocking the entrance.
+- [HUMAN] Vehicles: fuel can adds 4 km, tank 12 km; a 3 km drive along a road shows no pop-in holes and no hitch you notice.
+- [AUTO] 32 silent probes pass on the committed tree (see `DEV_COORDINATION.md`); `--landmark-shots <folder>` writes landmark screenshots.
 
 ## Save System Notes
 
