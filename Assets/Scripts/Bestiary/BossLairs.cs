@@ -439,6 +439,8 @@ namespace SheltreSim.Bestiary
             gateOpenPosition = gateClosedPosition + Vector3.up * 3.2f;
         }
 
+        private readonly System.Collections.Generic.List<GameObject> arenaBarriers = new System.Collections.Generic.List<GameObject>();
+
         private void Barrier(string barrierName, Vector3 position, Vector3 scale, Color tint)
         {
             GameObject barrier = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -446,6 +448,7 @@ namespace SheltreSim.Bestiary
             barrier.transform.SetParent(lairRoot, true);
             barrier.transform.position = position + Vector3.up * 1.35f;
             barrier.transform.localScale = scale;
+            arenaBarriers.Add(barrier);
             Renderer renderer = barrier.GetComponent<Renderer>();
             if (renderer != null)
             {
@@ -458,8 +461,12 @@ namespace SheltreSim.Bestiary
         private void OpenArena()
         {
             ArenaLocked = false;
-            if (gate == null) return;
-            gateOpened = true;
+            // The perimeter walls must go as soon as the guardian falls: only the south shutter used to rise, and its animation sat
+            // behind an early return, so after the kill the player stayed walled in. Remove every barrier and the shutter now.
+            foreach (GameObject barrier in arenaBarriers) if (barrier != null) Destroy(barrier);
+            arenaBarriers.Clear();
+            if (gate != null) { Destroy(gate.gameObject); gate = null; }
+            if (gate == null && !gateOpened) { gateOpened = true; }
             GameMessageBus.Post($"The {bossName}'s arena gate opens. The guarded cache is clear.");
         }
     }

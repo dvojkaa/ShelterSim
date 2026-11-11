@@ -89,7 +89,8 @@ namespace SheltreSim.Player
         // Car controls (buggy, van): the mouse only looks around, W/S drive along the vehicle's heading and A/D steer it (no strafing).
         private bool carSteering;
         private float carTurnRate = 65f;
-        private float carLookYaw, carLookIdle;
+        private float carLookYaw, carLookIdle, carPlanarSpeed;
+        private Vector3 carLastPosition;
         public bool IsCarSteering => carSteering;
 
         /// <summary>Switches the rider to realistic car controls: A/D steer while moving, mouse = free look (yaw clamped, recentres when idle).</summary>
@@ -99,6 +100,8 @@ namespace SheltreSim.Player
             carTurnRate = turnRateDegreesPerSecond;
             carLookYaw = 0f;
             carLookIdle = 0f;
+            carPlanarSpeed = 0f;
+            carLastPosition = transform.position;
             if (cameraPivot != null) cameraPivot.localEulerAngles = new Vector3(pitch, 0f, 0f);
         }
 
@@ -214,6 +217,15 @@ namespace SheltreSim.Player
 
             if (carSteering)
             {
+                // Real planar speed from the position delta: CharacterController.velocity only reflects the LAST Move call of the frame,
+                // and the van repositions its rider with its own (often tiny) corrective Move, which made the van report ~0 and never steer.
+                Vector3 now = transform.position;
+                if (Time.deltaTime > 0f)
+                {
+                    float measured = new Vector2(now.x - carLastPosition.x, now.z - carLastPosition.z).magnitude / Time.deltaTime;
+                    carPlanarSpeed = Mathf.Lerp(carPlanarSpeed, measured, 1f - Mathf.Exp(-12f * Time.deltaTime));
+                }
+                carLastPosition = now;
                 // Mouse looks around the cabin; the body (and with it the vehicle) only turns by steering.
                 carLookYaw = Mathf.Clamp(carLookYaw + lookDelta.x, -120f, 120f);
                 carLookIdle = lookDelta.sqrMagnitude > 0.0001f ? 0f : carLookIdle + Time.deltaTime;
@@ -222,8 +234,8 @@ namespace SheltreSim.Player
                 if (Mathf.Abs(drive.y) > 0.1f && Mathf.Abs(drive.x) > 0.01f)
                 {
                     float direction = drive.y > 0f ? 1f : -1f; // reversing flips the steering like a real car
-                    float actualSpeed = controller != null ? new Vector3(controller.velocity.x, 0f, controller.velocity.z).magnitude : 0f;
-                    float speedFactor = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(actualSpeed / 8f));
+                    float actualSpeed = carPlanarSpeed;
+                    float speedFactor = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(actualSpeed / 3f));
                     float turn = drive.x * direction * carTurnRate * speedFactor * Time.deltaTime;
                     transform.Rotate(Vector3.up, turn);
                 }

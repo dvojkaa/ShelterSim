@@ -311,6 +311,9 @@ namespace SheltreSim.Diagnostics
             if (slot.Actor != null) slot.Actor.TakeDamage(100000f);
             for (int i = 0; i < 3; i++) yield return null;
             Check(lairState != null && !lairState.ArenaLocked, "Defeating the boss releases the arena gate");
+            int leftoverWalls = FindObjectsByType<Transform>(FindObjectsInactive.Include)
+                .Count(t => t != null && (t.name.EndsWith("Barrier", System.StringComparison.Ordinal) || t.name.StartsWith("SouthBarrier", System.StringComparison.Ordinal) || t.name == "ArenaShutter"));
+            Check(leftoverWalls == 0, "Defeating the boss removes every arena wall and the shutter (" + leftoverWalls + " left): the player is not walled in");
             store.Interact(player.gameObject);
             Check(store.Searched && inventory.GetCount(layout.contents[0].id) == count + layout.contents[0].amount,
                 $"After the {layout.bossName} falls the store gives {layout.contents[0].amount} {layout.contents[0].id}");

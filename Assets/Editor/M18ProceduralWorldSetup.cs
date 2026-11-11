@@ -53,10 +53,10 @@ namespace SheltreSim.EditorTools
                 wood = Resource("Wood"), stone = Resource("Stone"), iron = Resource("IronOre"),
                 berries = Resource("Berries"), water = Resource("Water"), scrap = Resource("ScrapMetal"),
                 medicine = Resource("FirstAidKit"), plantFiber = Resource("PlantFiber"),
-                wildlifeDeer = Models("animal_deer")[0], wildlifeBoar = Models("animal_boar")[0], wildlifeCrow = Models("animal_crow")[0],
-                campTent = Models("camp_tent")[0], campFire = Models("camp_fire")[0], campLockedChest = Models("camp_locked_chest")[0],
-                landmarkRelayCabinet = Models("lm_relay_cabinet")[0], landmarkFuelPump = Models("lm_fuel_pump")[0],
-                lairWarningPost = Models("lair_warning_post")[0]
+                wildlifeDeer = AtlasModel("animal_deer"), wildlifeBoar = AtlasModel("animal_boar"), wildlifeCrow = AtlasModel("animal_crow"),
+                campTent = AtlasModel("camp_tent"), campFire = AtlasModel("camp_fire"), campLockedChest = AtlasModel("camp_locked_chest"),
+                landmarkRelayCabinet = AtlasModel("lm_relay_cabinet"), landmarkFuelPump = AtlasModel("lm_fuel_pump"),
+                lairWarningPost = AtlasModel("lair_warning_post")
             };
             if (root.GetComponent<WorldMapUI>() == null) root.AddComponent<WorldMapUI>();
             // Preserve hierarchy indices used by older saves; disable the old tiny-map fences.
@@ -75,6 +75,29 @@ namespace SheltreSim.EditorTools
             ?? throw new InvalidOperationException("Missing world material " + name);
         private static ResourceDefinition Resource(string name) => AssetDatabase.LoadAssetAtPath<ResourceDefinition>("Assets/Data/Resources/" + name + ".asset")
             ?? throw new InvalidOperationException("Missing world resource " + name);
+        /// <summary>
+        /// A prefab of the FBX with the shared palette material on every renderer. The raw FBX has no material, so camps, wildlife and the
+        /// landmark interactables rendered pure white in the game (playtest: "the camps are all white").
+        /// </summary>
+        private static GameObject AtlasModel(string name)
+        {
+            GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/" + name + ".fbx")
+                ?? throw new InvalidOperationException("Missing world model " + name);
+            Material atlas = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/SS_Atlas.mat")
+                ?? throw new InvalidOperationException("Missing SS_Atlas material");
+            System.IO.Directory.CreateDirectory("Assets/Art/Resources/Props");
+            string path = "Assets/Art/Resources/Props/" + name + ".prefab";
+            GameObject instance = UnityEngine.Object.Instantiate(model);
+            try
+            {
+                instance.name = name;
+                foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = atlas;
+                foreach (Collider c in instance.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
+                return PrefabUtility.SaveAsPrefabAsset(instance, path);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(instance); }
+        }
+
         private static GameObject[] Models(params string[] names) => names.Select(name =>
             AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/" + name + ".fbx")
             ?? throw new InvalidOperationException("Missing world model " + name)).ToArray();

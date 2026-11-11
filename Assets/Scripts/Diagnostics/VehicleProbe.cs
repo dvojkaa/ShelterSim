@@ -147,6 +147,32 @@ namespace SheltreSim.Diagnostics
                     Check(measuredDriveSpeed >= minimumDriveSpeed,
                         $"{ids[i]} reaches a useful real-input cruise speed (measured {measuredDriveSpeed:F1} m/s, minimum {minimumDriveSpeed:F1})");
 
+                if (ids[i] != "piece_bicycle")
+                {
+                    // Real W + D: the rider turns (A/D steer, no strafing) and the vehicle must follow the new heading.
+                    float riderYaw0 = player.transform.eulerAngles.y, vehicleYaw0 = vehicle.transform.eulerAngles.y;
+                    Vector3 sideStart = player.transform.position;
+                    // Back away from whatever the straight drive ran into (the yard fence) so the steering run has room.
+                    Keyboard backKeyboard = InputSystem.AddDevice<Keyboard>("VehicleBackProbeKeyboard");
+                    InputSystem.QueueStateEvent(backKeyboard, new KeyboardState(Key.S));
+                    yield return new WaitForSeconds(1.4f);
+                    InputSystem.QueueStateEvent(backKeyboard, new KeyboardState());
+                    yield return new WaitForSeconds(0.4f);
+                    InputSystem.RemoveDevice(backKeyboard);
+                    riderYaw0 = player.transform.eulerAngles.y; vehicleYaw0 = vehicle.transform.eulerAngles.y;
+                    sideStart = player.transform.position;
+                    Keyboard steerKeyboard = InputSystem.AddDevice<Keyboard>("VehicleSteerProbeKeyboard");
+                    InputSystem.QueueStateEvent(steerKeyboard, new KeyboardState(Key.W, Key.D));
+                    yield return new WaitForSeconds(1.2f);
+                    InputSystem.QueueStateEvent(steerKeyboard, new KeyboardState());
+                    yield return null;
+                    InputSystem.RemoveDevice(steerKeyboard);
+                    float riderTurn = Mathf.DeltaAngle(riderYaw0, player.transform.eulerAngles.y);
+                    float vehicleTurn = Mathf.DeltaAngle(vehicleYaw0, vehicle.transform.eulerAngles.y);
+                    Debug.Log($"[VehicleProbe] {ids[i]} steer W+D 1.2 s: riderTurn={riderTurn:F1} vehicleTurn={vehicleTurn:F1} travel={(player.transform.position - sideStart).magnitude:F1} m");
+                    Check(riderTurn > 15f, $"{ids[i]} W+D steers right (rider turned {riderTurn:F1} deg)");
+                    Check(Mathf.Abs(vehicleTurn - riderTurn) < 12f, $"{ids[i]} chassis follows the steering (vehicle {vehicleTurn:F1} vs rider {riderTurn:F1} deg)");
+                }
                 // Deterministic pose step checks the full movement path without frame-rate dependence.
                 CharacterController cc = player.GetComponent<CharacterController>();
                 for (int step = 0; step < 6; step++)
