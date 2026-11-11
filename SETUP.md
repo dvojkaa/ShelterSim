@@ -273,6 +273,7 @@ Nothing here has been played by a person yet; probes only prove logic. Play ~45 
 - [HUMAN] Raids: first raid is at 9 minutes with four attackers; attack side varies, a breach warning appears, raiders can target surface assets, 25% of destroyed pieces are salvaged. Do raids threaten a prepared base?
 - [HUMAN] After rescue: hordes recur every 15 game-minutes with a 90 s warning, a Warlord every fifth; the Expedition Workshop trader appears after all three upgrades.
 - [HUMAN] Loot and wildlife get richer with distance from home; habitat groups mix species from ring 1 outward.
+- [HUMAN] Inventory (I/Tab): icon grid with tabs (All/Weapons/Armor/Tools/Medicine/Food/Materials/Build), click a tile to inspect it (big icon, description, effect, quick-slot key), per-tile Eat/Use/Equip button; every item has an icon (`Assets/Art/Resources/Icons`, sources `ArtSource/icons`). `--inventory-shots <folder>` captures it.
 - [HUMAN] Crafting window: search box, pin/unpin, pinned-only and can-craft filters.
 - [HUMAN] Landmarks (hospital, ironworks, fuel station, farm, military outpost, bunker): facade on the front wall, signage, props, clear entrance and ramp, caches reachable, boss arenas lock and wave in phases. Look for anything floating, buried or blocking the entrance.
 - [HUMAN] Vehicles: fuel can adds 4 km, tank 12 km; a 3 km drive along a road shows no pop-in holes and no hitch you notice.

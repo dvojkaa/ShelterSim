@@ -122,6 +122,26 @@ namespace SheltreSim.World
             return Mathf.Clamp(1f + -gradeInTravelDirection * .75f, 1f, 1.25f);
         }
 
+        /// <summary>Applies engine response without changing the vehicle's tuned top speed.</summary>
+        public static float ApproachDriveScale(float current, float target, float deltaTime, float acceleration, float braking)
+        {
+            float rate = target > current ? acceleration : braking;
+            return Mathf.MoveTowards(current, target, Mathf.Max(0f, deltaTime) * Mathf.Max(0f, rate));
+        }
+
+        /// <summary>Lets the chassis yaw trail steering while keeping its sampled terrain pitch and roll current.</summary>
+        public static Quaternion SteerPose(Quaternion currentPose, Quaternion terrainPose, float degreesPerSecond, float deltaTime)
+        {
+            Vector3 desiredForward = Vector3.ProjectOnPlane(terrainPose * Vector3.forward, Vector3.up);
+            Vector3 currentForward = Vector3.ProjectOnPlane(currentPose * Vector3.forward, Vector3.up);
+            if (desiredForward.sqrMagnitude < .001f || currentForward.sqrMagnitude < .001f) return terrainPose;
+            Quaternion desiredYaw = Quaternion.LookRotation(desiredForward.normalized, Vector3.up);
+            Quaternion currentYaw = Quaternion.LookRotation(currentForward.normalized, Vector3.up);
+            Quaternion steeredYaw = Quaternion.RotateTowards(currentYaw, desiredYaw, Mathf.Max(0f, degreesPerSecond) * Mathf.Max(0f, deltaTime));
+            Quaternion terrainTilt = Quaternion.Inverse(desiredYaw) * terrainPose;
+            return steeredYaw * terrainTilt;
+        }
+
         /// <summary>Terrain is support, not a forward obstacle; other upward-facing slopes are driveable through the grade limit.</summary>
         public static bool IsDriveSurface(RaycastHit hit)
         {

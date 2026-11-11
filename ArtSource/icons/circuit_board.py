@@ -1,0 +1,10 @@
+from ss_art import Model, finish_icon
+m = Model('circuit_board', seed=15)
+m.box((.26,.2,.015),(0,0,.0075),'paint_green',rot=(0,0,15))
+m.box((.07,.07,.025),(0,0,.027),'black',rot=(0,0,15))
+m.box((.05,.03,.02),(.07,.04,.025),'gunmetal',rot=(0,0,15))
+m.cyl(.025,.04,(-.07,-.04,.03),'mustard',seg=8)
+m.cyl(.015,.03,(-.07,.05,.03),'warning_red',seg=8)
+m.box((.12,.012,.008),(-.02,-.07,.019),'ore_metal',rot=(0,0,15))
+m.box((.012,.1,.008),(.09,-.01,.019),'ore_metal',rot=(0,0,15))
+finish_icon(m)

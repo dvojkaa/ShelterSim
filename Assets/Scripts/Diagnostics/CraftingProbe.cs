@@ -141,10 +141,16 @@ namespace SheltreSim.Diagnostics
                 "mandatory bunker contract is priced consistently");
             BunkerShop.Offer buggy = BunkerShop.Get("buggy");
             BunkerShop.Offer mgTurret = BunkerShop.Get("mg_turret");
-            Check(buggy != null && buggy.price == 12000 && buggy.requiredRooms == BunkerShop.RoomBits.Annex,
-                "the $12k Scout Buggy is gated behind an Annex budget choice");
-            Check(mgTurret != null && mgTurret.requiredRooms == BunkerShop.RoomBits.Workshop,
-                "the MG turret is gated behind the Workshop specialization");
+            Check(buggy != null && buggy.price == 18000 && buggy.requiredRooms == BunkerShop.RoomBits.Annex &&
+                buggy.grants.Any(g => g.itemId == "fuel" && g.quantity == 1),
+                "the $18k Scout Buggy is gated behind an Annex and includes one fuel can");
+            Check(mgTurret != null && mgTurret.price == 9000 && mgTurret.requiredRooms == BunkerShop.RoomBits.Workshop &&
+                mgTurret.grants.Any(g => g.itemId == "ammo_rifle" && g.quantity == 60),
+                "the $9k MG turret is gated behind the Workshop and includes one magazine");
+            BunkerShop.Offer hydro = BunkerShop.Get("room_wing_hydro");
+            BunkerShop.Offer workshop = BunkerShop.Get("room_wing_workshop");
+            Check(hydro != null && workshop != null && hydro.price == 8000 && workshop.price == 6000,
+                "Hydroponics is a more expensive durable food-production specialization than Workshop");
         }
 
         private void CheckCrateRadius()

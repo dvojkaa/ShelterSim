@@ -346,3 +346,50 @@ def finish(model, bounds=None, preview=True):
         os._exit(1)
     print(f"ASSET_OK {model.name}")
     sys.stdout.flush()
+
+
+ICON_DIR = os.path.join(ROOT, 'Assets', 'Art', 'Resources', 'Icons')
+
+
+def finish_icon(model, size=256):
+    """Inventory icon: transparent-background 3/4 render saved to Assets/Art/Resources/Icons/<id>.png (no FBX).
+    model.name must be the ITEM ID (e.g. 'bandage'). Model it small and centred on the origin (any size; it is auto-framed)."""
+    ensure_atlas()
+    objs = _build_objects(model)
+    bpy.context.view_layer.update()
+    lo, hi = _world_bounds(objs)
+    scene = bpy.context.scene
+    scene.render.engine = 'CYCLES'
+    scene.cycles.device = 'CPU'
+    scene.cycles.samples = 32
+    scene.cycles.use_denoising = False
+    scene.render.threads = 4
+    scene.render.threads_mode = 'FIXED'
+    scene.render.resolution_x = scene.render.resolution_y = size
+    scene.render.film_transparent = True
+    scene.render.image_settings.file_format = 'PNG'
+    scene.render.image_settings.color_mode = 'RGBA'
+    scene.view_settings.view_transform = 'Standard'
+    world = bpy.data.worlds.new('w'); world.use_nodes = True
+    world.node_tree.nodes['Background'].inputs[0].default_value = (0.72, 0.74, 0.78, 1)
+    world.node_tree.nodes['Background'].inputs[1].default_value = 0.9
+    scene.world = world
+    sun_d = bpy.data.lights.new('s', 'SUN'); sun_d.energy = 3.0
+    sun = bpy.data.objects.new('s', sun_d); bpy.context.collection.objects.link(sun)
+    sun.rotation_euler = Euler((math.radians(50), 0, math.radians(35)))
+    center = (lo + hi) / 2
+    span = max((hi - lo).length, 0.05)
+    cam_d = bpy.data.cameras.new('c'); cam_d.type = 'ORTHO'; cam_d.ortho_scale = span * 1.08; cam_d.clip_end = span * 40
+    cam = bpy.data.objects.new('c', cam_d); bpy.context.collection.objects.link(cam)
+    scene.camera = cam
+    v = Vector((-1, -1.25, 0.8)).normalized()
+    cam.location = center + v * span * 8
+    cam.rotation_euler = (-v).to_track_quat('-Z', 'Y').to_euler()
+    os.makedirs(ICON_DIR, exist_ok=True)
+    path = os.path.join(ICON_DIR, model.name + '.png')
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs)
+    print(f"ASSET_INFO {model.name} icon tris={tris} path={path}")
+    print(f"ASSET_OK {model.name}")
+    sys.stdout.flush()

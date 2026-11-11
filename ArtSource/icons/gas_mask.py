@@ -1,0 +1,12 @@
+from ss_art import Model, finish_icon
+m = Model('gas_mask', seed=402)
+m.box((.5,.26,.5),(0,0,0),'army_green_dark',bevel=.06,taper=(.7,.8))
+m.box((.56,.1,.1),(0,.02,.12),'black')
+m.cyl(.1,.06,(-.12,-.14,.08),'chrome',rot=(90,0,0))
+m.cyl(.07,.07,(-.12,-.15,.08),'glass',rot=(90,0,0))
+m.cyl(.1,.06,(.12,-.14,.08),'chrome',rot=(90,0,0))
+m.cyl(.07,.07,(.12,-.15,.08),'glass',rot=(90,0,0))
+m.cyl(.1,.2,(0,-.2,-.16),'steel_dark',rot=(90,0,0))
+m.cyl(.07,.04,(0,-.32,-.16),'rust',rot=(90,0,0))
+m.box((.12,.05,.14),(0,-.14,-.02),'rubber')
+finish_icon(m)

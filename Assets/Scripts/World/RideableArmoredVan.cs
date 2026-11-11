@@ -139,6 +139,7 @@ namespace SheltreSim.World
             float travelled = Vector3.Distance(position, previousRiderPosition);
             Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             Vector3 follow = FollowPosition(position, yaw, out Quaternion desiredRotation, out float grade);
+            desiredRotation = VehicleTerrain.SteerPose(transform.rotation, desiredRotation, 105f, Time.deltaTime);
             Vector3 previousVehiclePosition = transform.position;
             Vector3 resolved = ResolveVehicleMotion(follow, Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f, desiredRotation);
             Vector3 correction = resolved - follow;
@@ -151,6 +152,7 @@ namespace SheltreSim.World
                 movement = position - previousRiderPosition;
                 travelled = Vector3.Distance(position, previousRiderPosition);
                 follow = FollowPosition(position, yaw, out desiredRotation, out grade);
+                desiredRotation = VehicleTerrain.SteerPose(transform.rotation, desiredRotation, 105f, Time.deltaTime);
                 resolved = ResolveVehicleMotion(follow, Time.deltaTime > 0f ? travelled / Time.deltaTime : 0f, desiredRotation);
             }
 
@@ -161,8 +163,8 @@ namespace SheltreSim.World
             currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, desiredRotation * Vector3.forward) : 0f;
             VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .72f, Time.deltaTime);
             float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, rider.MoveInput.y);
-            float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
-            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.2f);
+            float targetScale = fuelMeters > 0f && rider.MoveInput.sqrMagnitude > .001f ? gradeScale : 0f;
+            driveScale = VehicleTerrain.ApproachDriveScale(driveScale, targetScale, Time.deltaTime, 2.2f, 3f);
             rider.walkSpeed = walkSpeed * driveScale;
             rider.sprintSpeed = sprintSpeed * driveScale;
 

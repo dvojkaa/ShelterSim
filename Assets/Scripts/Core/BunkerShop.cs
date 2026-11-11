@@ -68,7 +68,9 @@ namespace SheltreSim.Core
                 "kit_storage_crate",2),
             O("room_wing_workshop", "Workshop Wing", Category.Rooms, 6000, 1, 2, RoomBits.None, "north_wing", RoomBits.Workshop,
                 "kit_workbench",1, "kit_piece_stove",1),
-            O("room_wing_hydro", "Hydroponics Wing", Category.Rooms, 6000, 1, 2, RoomBits.None, "north_wing", RoomBits.Hydro,
+            // This is a durable food-production investment, so it carries a premium over
+            // the Workshop's immediate crafting access and keeps the exclusive choice meaningful.
+            O("room_wing_hydro", "Hydroponics Wing", Category.Rooms, 8000, 1, 2, RoomBits.None, "north_wing", RoomBits.Hydro,
                 "kit_piece_farm",4, "kit_piece_irrigator",1, "kit_piece_light_ceiling",2, "seeds",10, "fertilizer",4),
             O("room_vault", "Vault", Category.Rooms, 3500, 1, 3, RoomBits.Annex, null, RoomBits.Vault,
                 "kit_bed",1, "kit_storage_crate",1),
@@ -89,8 +91,8 @@ namespace SheltreSim.Core
             O("alarm", "Raid Alarm", Category.Defence, 800, 1, 0, RoomBits.None, null, RoomBits.None, "kit_piece_alarm",1),
             // The MG is the strongest early defence. Requiring a Workshop makes it a deliberate
             // specialization rather than a first-click purchase before the player commits to a wing.
-            O("mg_turret", "Machine Gun Turret", Category.Defence, 7500, 2, 0, RoomBits.Workshop, null, RoomBits.None,
-                "kit_piece_turret_mg",1, "ammo_rifle",100),
+            O("mg_turret", "Machine Gun Turret", Category.Defence, 9000, 2, 0, RoomBits.Workshop, null, RoomBits.None,
+                "kit_piece_turret_mg",1, "ammo_rifle",60),
             O("pantry", "Pantry Bundle", Category.Supplies, 1500, 3, 0, RoomBits.None, null, RoomBits.None,
                 "canned_food",20, "bottled_water",20),
             O("medical", "Medical Bundle", Category.Supplies, 2500, 2, 0, RoomBits.None, null, RoomBits.None,
@@ -113,10 +115,10 @@ namespace SheltreSim.Core
                 "shotgun",1, "ammo_shell",36),
             O("bicycle", "Bicycle", Category.Vehicles, 1500, 1, 0, RoomBits.None, null, RoomBits.None,
                 "kit_piece_bicycle",1),
-            // Mobility can multiply the value of every expedition loot table; require the Annex
-            // as a meaningful early budget choice while retaining the designed $12k price.
-            O("buggy", "Scout Buggy", Category.Vehicles, 12000, 1, 0, RoomBits.Annex, null, RoomBits.None,
-                "kit_piece_scout_buggy",1, "fuel",4),
+            // Mobility can multiply the value of every expedition loot table; its price plus
+            // the required Annex makes the $22k entry cost a deliberate share of the budget.
+            O("buggy", "Scout Buggy", Category.Vehicles, 18000, 1, 0, RoomBits.Annex, null, RoomBits.None,
+                "kit_piece_scout_buggy",1, "fuel",1),
         };
 
         private static readonly Dictionary<string, Offer> byId = BuildIndex();

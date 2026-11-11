@@ -1,0 +1,11 @@
+from ss_art import Model, finish_icon
+m = Model('herbal_tea', seed=605)
+m.cyl(.07,.02,(0,0,.01),'paint_white',seg=14,r2=.1)
+m.cyl(.06,.09,(0,0,.065),'plaster',seg=14,r2=.07)
+m.cyl(.058,.01,(0,0,.112),'leaf_dry',seg=14)
+m.box((.04,.015,.07),(.09,0,.07),'plaster')
+m.box((.07,.015,.015),(.1,0,.045),'plaster')
+m.box((.005,.005,.1),(-.01,0,.17),'rope')
+m.box((.06,.04,.01),(.0,.0,.12),'leaf_green',rot=(0,0,20))
+m.box((.03,.02,.04),(-.01,0,.23),'leaf_green',rot=(0,30,0))
+finish_icon(m)

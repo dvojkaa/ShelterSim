@@ -171,6 +171,14 @@ namespace SheltreSim.World
             float x = c.x * 128f + 64f, z = c.y * 128f + 64f;
             deck = float.NegativeInfinity;
             toe = WorldLayout.HeightAt(x, z - 48f, seed) + .12f;
+            // A raised landmark platform over a lake or broad stream looks like a floating
+            // island and hides the world biome around it. Keep the site dry across most of
+            // its footprint; the ramp may still reach a shoreline or cross a narrow stream.
+            int wetSamples = 0;
+            for (int ix = -1; ix <= 1; ix++)
+                for (int iz = -1; iz <= 1; iz++)
+                    if (WorldLayout.IsWater(x + ix * 14f, z + iz * 12f, seed)) wetSamples++;
+            if (wetSamples >= 5) return false;
             // Every destination fits within its own chunk, outside roads and preserved starting ground.
             for (int ix = -1; ix <= 1; ix++)
                 for (int iz = -1; iz <= 1; iz++)
@@ -266,6 +274,7 @@ namespace SheltreSim.World
         static void Factory(Transform t, Material w, Material d)
         {
             Room(t, new Vector3(0, 0, 7), 20, 18, 7, w, d);
+            PlaceLandmark(t, "lmk_factory_facade", new Vector3(0, 0, -2.2f));
             for (int i = 0; i < 2; i++)
             {
                 Cylinder(t, "Smokestack", new Vector3(-15 + i * 5, 10, 10), new Vector3(3, 10, 3), w);

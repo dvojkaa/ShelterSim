@@ -246,21 +246,28 @@ namespace SheltreSim.World
                 float extent = 1.6f;
                 foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
                     extent = Mathf.Max(extent, renderer.bounds.extents.x, renderer.bounds.extents.z);
-                float distance = extent + GetComponent<CharacterController>().radius + 0.25f;
-                Vector3[] candidates =
+                float clearanceDistance = extent + GetComponent<CharacterController>().radius + 0.25f;
+                // Authored markers are nearest and preferred. If nearby parked vehicles or
+                // geometry block both, search outward in bounded rings while retaining the
+                // same full capsule overlap test. This handles crowded parking without
+                // weakening collision safety or trapping the rider on a blocked marker.
+                for (float distance = clearanceDistance; distance <= clearanceDistance + 3.5f; distance += 0.5f)
                 {
-                    root.position + root.right * distance,
-                    root.position - root.right * distance,
-                    root.position - root.forward * distance,
-                    root.position + root.forward * distance
-                };
-                foreach (Vector3 candidate in candidates)
-                {
-                    if (!TryProjectToSurface(candidate, root, out Vector3 groundPosition) ||
-                        !TryRaiseToClearPose(groundPosition, root.rotation, out Vector3 clearPosition)) continue;
-                    position = clearPosition;
-                    rotation = Yaw(root.rotation);
-                    return true;
+                    Vector3[] candidates =
+                    {
+                        root.position + root.right * distance,
+                        root.position - root.right * distance,
+                        root.position - root.forward * distance,
+                        root.position + root.forward * distance
+                    };
+                    foreach (Vector3 candidate in candidates)
+                    {
+                        if (!TryProjectToSurface(candidate, root, out Vector3 groundPosition) ||
+                            !TryRaiseToClearPose(groundPosition, root.rotation, out Vector3 clearPosition)) continue;
+                        position = clearPosition;
+                        rotation = Yaw(root.rotation);
+                        return true;
+                    }
                 }
                 return false;
             }

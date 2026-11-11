@@ -190,6 +190,9 @@ namespace SheltreSim.Diagnostics
                 Check(Mathf.Approximately(playerController.slopeLimit, walkingSlopeLimit) &&
                     Mathf.Approximately(playerController.stepOffset, walkingStepOffset),
                     $"{ids[i]} dismount restores normal player slope and step settings");
+                if (ids[i] == "piece_bicycle")
+                    Check(!vehicle.GetComponent<RideableBicycle>().IsMounted,
+                        "bicycle finds a capsule-clear exit after driving with a nearby parked vehicle");
                 Look(ids[i], "dismounted", vehicle, player, GroundAt(vehicle.transform.position));
             }
 

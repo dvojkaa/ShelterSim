@@ -141,6 +141,7 @@ namespace SheltreSim.World
             Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             VehicleTerrain.SamplePose(follow, yaw, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
                 out Vector3 terrainFollow, out Quaternion desiredRotation, out float grade, out _);
+            desiredRotation = VehicleTerrain.SteerPose(transform.rotation, desiredRotation, 180f, Time.deltaTime);
             follow = terrainFollow;
 
             // The controller has already advanced this frame. If the body is stopped by a
@@ -159,6 +160,7 @@ namespace SheltreSim.World
                 follow = position - rider.transform.forward * 1.55f;
                 VehicleTerrain.SamplePose(follow, yaw, RootHeight, 2.8f, VehicleTerrain.CurrentSeed,
                     out terrainFollow, out desiredRotation, out grade, out _);
+                desiredRotation = VehicleTerrain.SteerPose(transform.rotation, desiredRotation, 180f, Time.deltaTime);
                 follow = terrainFollow;
                 resolved = ResolveVehicleMotion(follow, desiredRotation);
             }
@@ -178,8 +180,8 @@ namespace SheltreSim.World
 
             float inputY = rider.MoveInput.y;
             float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, inputY);
-            float targetScale = fuelMeters > 0f ? gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f) : 0f;
-            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.8f);
+            float targetScale = fuelMeters > 0f && rider.MoveInput.sqrMagnitude > .001f ? gradeScale : 0f;
+            driveScale = VehicleTerrain.ApproachDriveScale(driveScale, targetScale, Time.deltaTime, 2.8f, 3.6f);
             rider.walkSpeed = walkSpeed * driveScale;
             rider.sprintSpeed = sprintSpeed * driveScale;
             currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, yaw * Vector3.forward) : 0f;

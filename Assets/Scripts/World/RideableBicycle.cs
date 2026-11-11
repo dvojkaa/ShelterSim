@@ -100,12 +100,13 @@ namespace SheltreSim.World
             Quaternion yaw = Quaternion.Euler(0f, rider.transform.eulerAngles.y, 0f);
             VehicleTerrain.SamplePose(position - yaw * Vector3.forward * .8f, yaw, RootHeight, 1.4f,
                 VehicleTerrain.CurrentSeed, out Vector3 follow, out Quaternion groundRotation, out float grade, out _);
+            groundRotation = VehicleTerrain.SteerPose(transform.rotation, groundRotation, 210f, Time.deltaTime);
             currentSpeed = Time.deltaTime > 0f ? Vector3.Dot(movement / Time.deltaTime, yaw * Vector3.forward) : 0f;
             VehicleTerrain.SpinWheels(wheels, wheelRestRotations, ref wheelRotation, currentSpeed, .33f, Time.deltaTime);
             lastRiderPosition = position;
             float gradeScale = VehicleTerrain.GradeSpeedMultiplier(grade, rider.MoveInput.y);
-            float targetScale = gradeScale * (rider.MoveInput.sqrMagnitude > .001f ? 1f : .72f);
-            driveScale = Mathf.MoveTowards(driveScale, targetScale, Time.deltaTime * 2.2f);
+            float targetScale = rider.MoveInput.sqrMagnitude > .001f ? gradeScale : 0f;
+            driveScale = VehicleTerrain.ApproachDriveScale(driveScale, targetScale, Time.deltaTime, 2.2f, 2.8f);
             rider.walkSpeed = walkSpeed * driveScale;
             rider.sprintSpeed = sprintSpeed * driveScale;
             transform.SetPositionAndRotation(follow, groundRotation);

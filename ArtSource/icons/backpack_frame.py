@@ -1,0 +1,10 @@
+from ss_art import Model, finish_icon
+m = Model('backpack_frame', seed=25951)
+m.tube([(-.12,0,-.2),(-.12,0,.2),(.12,0,.2),(.12,0,-.2),(-.12,0,-.2)],.015,'steel')
+m.tube([(-.12,0,0),(.12,0,0)],.015,'steel')
+m.tube([(-.12,0,.2),(-.15,.1,-.1)],.015,'steel')
+m.tube([(.12,0,.2),(.15,.1,-.1)],.015,'steel')
+m.box((.28,.02,.04),(0,.02,-.2),'leather')
+m.box((.04,.03,.3),(-.1,.1,0),'army_green')
+m.box((.04,.03,.3),(.1,.1,0),'army_green')
+finish_icon(m)

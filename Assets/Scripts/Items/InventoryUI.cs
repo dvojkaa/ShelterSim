@@ -42,24 +42,38 @@ namespace SheltreSim.Items
 
         public bool IsOpen { get; private set; }
 
+        /// <summary>One grid tile: icon, count badge, name and a per-item action button.</summary>
         private sealed class ItemRow
         {
             public GameObject root;
-            public Text name, effect, buttonLabel;
-            public Button action, quickSlot;
+            public Image background, icon;
+            public Text placeholder, count, name, buttonLabel;
+            public Button select, action;
         }
+
+        private enum Tab { All, Weapons, Armor, Tools, Medicine, Food, Materials, Build }
+        private static readonly string[] TabNames = { "All", "Weapons", "Armor", "Tools", "Medicine", "Food", "Materials", "Build" };
 
         private GameObject panel;
         private Text vitalsLabel, gearLabel, feedbackLabel;
         private InventoryInputActions input;
-        private RectTransform itemContent;
+        private RectTransform itemContent, recipeContent;
+        private GameObject gridScroll, recipeScroll, detailPanel;
+        private Image detailIcon;
+        private Text detailPlaceholder, detailName, detailMeta, detailText, detailEffect, detailAction, detailQuickLabel;
+        private Button detailActionButton, detailQuickButton;
+        private readonly Button[] tabButtons = new Button[TabNames.Length];
+        private Tab tab = Tab.All;
+        private string selectedId;
         private readonly Dictionary<string, ItemRow> itemRows = new Dictionary<string, ItemRow>();
-        private readonly Dictionary<ItemCategory, Text> headers = new Dictionary<ItemCategory, Text>();
         private readonly Dictionary<string, Text> recipeRows = new Dictionary<string, Text>();
         private readonly Dictionary<string, string> effectText = new Dictionary<string, string>();
         private readonly List<string> shown = new List<string>();
         private readonly StringBuilder sb = new StringBuilder(128);
         private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
+        private static readonly Color SelectedColor = new Color(0.20f, 0.33f, 0.28f, 0.98f);
+        private const float TileW = 160f, TileH = 156f, TileGap = 10f;
+        private const int Columns = 4;
         private static readonly ItemCategory[] CategoryOrder =
         {
             ItemCategory.Weapon, ItemCategory.Armor, ItemCategory.Tool, ItemCategory.Medicine, ItemCategory.Food,
@@ -144,7 +158,7 @@ namespace SheltreSim.Items
             Transform card = GameUI.Panel(panel.transform, "InventoryPanel", new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1140f, 820f), GameUI.PanelColor, true).transform;
 
-            GameUI.Label(card, "Title", "SUPPLIES & BLUEPRINTS", TopLeft, TopLeft,
+            GameUI.Label(card, "Title", "INVENTORY", TopLeft, TopLeft,
                 new Vector2(28f, -24f), new Vector2(650f, 44f), 30, GameUI.Accent, bold: true);
             GameUI.Button(card, "CloseButton", "Close", Vector2.one, Vector2.one,
                 new Vector2(-28f, -24f), new Vector2(120f, 42f), CloseIfOpen);
@@ -157,35 +171,65 @@ namespace SheltreSim.Items
             gearLabel = GameUI.Label(card, "Gear", string.Empty, TopLeft, TopLeft,
                 new Vector2(28f, -132f), new Vector2(1084f, 28f), 18, GameUI.Accent);
 
-            GameUI.Label(card, "SuppliesHeader", "INVENTORY", TopLeft, TopLeft,
-                new Vector2(28f, -168f), new Vector2(510f, 28f), 18, GameUI.Accent, bold: true);
-            GameUI.Label(card, "RecipesHeader", "BUILD RECIPES  /  owned : required", TopLeft, TopLeft,
-                new Vector2(590f, -168f), new Vector2(522f, 28f), 18, GameUI.Accent, bold: true);
+            for (int i = 0; i < TabNames.Length; i++)
+            {
+                Tab captured = (Tab)i;
+                tabButtons[i] = GameUI.Button(card, "Tab_" + TabNames[i], TabNames[i], TopLeft, TopLeft,
+                    new Vector2(28f + i * 114f, -166f), new Vector2(108f, 34f), () => SetTab(captured));
+            }
 
-            itemContent = GameUI.ScrollContent(card, "InventoryScroll",
-                new Vector2(28f, -202f), new Vector2(522f, 520f));
+            // Item grid (left) and the selected item's details (right).
+            GameObject gridRoot = new GameObject("GridHolder", typeof(RectTransform));
+            gridRoot.transform.SetParent(card, false);
+            itemContent = GameUI.ScrollContent(card, "InventoryScroll", new Vector2(28f, -214f), new Vector2(700f, 508f));
+            gridScroll = itemContent.parent.gameObject;
+            Destroy(gridRoot);
 
-            RectTransform recipeContent = GameUI.ScrollContent(card, "RecipeScroll",
-                new Vector2(590f, -202f), new Vector2(522f, 520f));
+            detailPanel = GameUI.Panel(card, "Detail", TopLeft, TopLeft, new Vector2(748f, -214f), new Vector2(364f, 508f), GameUI.RowColor).gameObject;
+            Transform d = detailPanel.transform;
+            Image iconBack = GameUI.Panel(d, "IconBack", TopLeft, TopLeft, new Vector2(100f, -14f), new Vector2(164f, 164f), new Color(0f, 0f, 0f, 0.25f));
+            detailIcon = GameUI.Panel(iconBack.transform, "Icon", new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(148f, 148f), Color.white);
+            detailIcon.preserveAspect = true;
+            detailPlaceholder = GameUI.Label(iconBack.transform, "Placeholder", string.Empty, new Vector2(.5f, .5f), new Vector2(.5f, .5f),
+                Vector2.zero, new Vector2(150f, 60f), 40, Color.white, TextAnchor.MiddleCenter, true);
+            detailName = GameUI.Label(d, "Name", string.Empty, TopLeft, TopLeft, new Vector2(14f, -186f), new Vector2(336f, 32f), 24, GameUI.Accent, TextAnchor.MiddleCenter, true);
+            detailMeta = GameUI.Label(d, "Meta", string.Empty, TopLeft, TopLeft, new Vector2(14f, -218f), new Vector2(336f, 24f), 16, GameUI.Muted, TextAnchor.MiddleCenter);
+            detailText = GameUI.Label(d, "Description", string.Empty, TopLeft, TopLeft, new Vector2(18f, -250f), new Vector2(328f, 104f), 17);
+            detailEffect = GameUI.Label(d, "Effect", string.Empty, TopLeft, TopLeft, new Vector2(18f, -358f), new Vector2(328f, 58f), 17, GameUI.Warning);
+            detailActionButton = GameUI.Button(d, "Use", "Use", TopLeft, TopLeft, new Vector2(22f, -428f), new Vector2(320f, 34f), () => UseItem(selectedId), true);
+            detailAction = detailActionButton.GetComponentInChildren<Text>();
+            detailQuickButton = GameUI.Button(d, "QuickSlot", "Set key", TopLeft, TopLeft, new Vector2(22f, -468f), new Vector2(320f, 30f),
+                () => { if (selectedId != null) { QuickSlots.CycleSlot(selectedId); Refresh(); } });
+            detailQuickLabel = detailQuickButton.GetComponentInChildren<Text>();
+
+            // Build recipes tab (owned : required per piece).
+            recipeContent = GameUI.ScrollContent(card, "RecipeScroll", new Vector2(28f, -214f), new Vector2(1084f, 508f));
+            recipeScroll = recipeContent.parent.gameObject;
             float y = 0f;
             foreach (BuildPieceDefinition recipe in knownRecipes)
             {
                 if (recipe == null || string.IsNullOrEmpty(recipe.id) || recipeRows.ContainsKey(recipe.id)) continue;
                 Transform row = GameUI.Panel(recipeContent, "Recipe_" + recipe.id, TopLeft, TopLeft,
-                    new Vector2(0f, -y), new Vector2(520f, 112f), GameUI.RowColor).transform;
+                    new Vector2(0f, -y), new Vector2(1060f, 96f), GameUI.RowColor).transform;
                 GameUI.Label(row, "Name", recipe.displayName, TopLeft, TopLeft,
-                    new Vector2(12f, -5f), new Vector2(496f, 26f), 19);
+                    new Vector2(12f, -5f), new Vector2(1030f, 26f), 19);
                 recipeRows[recipe.id] = GameUI.Label(row, "Cost", string.Empty, TopLeft, TopLeft,
-                    new Vector2(12f, -32f), new Vector2(496f, 74f), 16);
-                y += 118f;
+                    new Vector2(12f, -32f), new Vector2(1030f, 58f), 16);
+                y += 102f;
             }
             recipeContent.sizeDelta = new Vector2(0f, y);
 
             feedbackLabel = GameUI.Label(card, "Feedback", string.Empty, TopLeft, TopLeft,
                 new Vector2(28f, -738f), new Vector2(1084f, 28f), 18, GameUI.Accent);
-            GameUI.Label(card, "BuildHelp", "BUILD: B  /  Wheel: choose  /  R: rotate  /  Click: place  /  CRAFT: C  /  Scroll lists for more", TopLeft, TopLeft,
+            GameUI.Label(card, "BuildHelp", "BUILD: B  /  Wheel: choose  /  R: rotate  /  Click: place  /  CRAFT: C  /  Click an item to inspect, scroll for more", TopLeft, TopLeft,
                 new Vector2(28f, -782f), new Vector2(1084f, 24f), 16, GameUI.Muted);
             panel.SetActive(false);
+        }
+
+        private void SetTab(Tab value)
+        {
+            tab = value;
+            Refresh();
         }
 
         // ---------- Test hooks ----------
@@ -193,35 +237,75 @@ namespace SheltreSim.Items
         public int VisibleItemRowCount { get { int n = 0; foreach (ItemRow r in itemRows.Values) if (r.root.activeSelf) n++; return n; } }
         public bool HasVisibleRow(string id) => itemRows.TryGetValue(id, out ItemRow r) && r.root.activeSelf;
         public Button ActionButton(string id) => itemRows.TryGetValue(id, out ItemRow r) ? r.action : null;
-        public Button QuickSlotButton(string id) => itemRows.TryGetValue(id, out ItemRow r) ? r.quickSlot : null;
+        /// <summary>Selects the item (so the shared quick-slot button targets it) and returns that button.</summary>
+        public Button QuickSlotButton(string id) { if (!itemRows.ContainsKey(id)) return null; Select(id); return detailQuickButton; }
         public Button CraftButton => panel != null ? panel.transform.Find("InventoryPanel/CraftButton")?.GetComponent<Button>() : null;
+        public string SelectedItemId => selectedId;
+        public void SelectForProbe(string id) { selectedId = null; if (itemRows.ContainsKey(id) || ItemCatalog.Exists(id)) { selectedId = id; Refresh(); } }
+        public void SetTabForProbe(int index) => SetTab((Tab)index);
 
-        // ---------- Item rows ----------
+        // ---------- Item tiles ----------
 
         private ItemRow RowFor(string id)
         {
             if (itemRows.TryGetValue(id, out ItemRow existing)) return existing;
-            Transform row = GameUI.Panel(itemContent, "Item_" + id, TopLeft, TopLeft, Vector2.zero, new Vector2(520f, 58f), GameUI.RowColor).transform;
-            var made = new ItemRow { root = row.gameObject };
-            made.name = GameUI.Label(row, "Count", id, TopLeft, TopLeft, new Vector2(12f, -5f), new Vector2(390f, 26f), 19);
-            made.effect = GameUI.Label(row, "Effect", string.Empty, TopLeft, TopLeft, new Vector2(12f, -31f), new Vector2(390f, 22f), 15, GameUI.Muted);
+            ItemSpec spec = ItemCatalog.Spec(id);
+            Image bg = GameUI.Panel(itemContent, "Item_" + id, TopLeft, TopLeft, Vector2.zero, new Vector2(TileW, TileH), GameUI.RowColor, true);
+            Transform t = bg.transform;
+            var made = new ItemRow { root = bg.gameObject, background = bg };
             string captured = id;
-            made.action = GameUI.Button(row, "Use", "Use", Vector2.one, Vector2.one, new Vector2(-10f, -9f), new Vector2(90f, 40f), () => UseItem(captured));
+            made.select = bg.gameObject.AddComponent<Button>();
+            made.select.targetGraphic = bg;
+            Navigation none = made.select.navigation; none.mode = Navigation.Mode.None; made.select.navigation = none;
+            made.select.onClick.AddListener(() => { SheltreSim.Audio.GameAudio.UiClick(); Select(captured); });
+            made.icon = GameUI.Panel(t, "Icon", new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -8f), new Vector2(84f, 84f), Color.white);
+            made.icon.preserveAspect = true;
+            made.placeholder = GameUI.Label(t, "Placeholder", string.Empty, new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -8f), new Vector2(84f, 84f), 30,
+                Color.white, TextAnchor.MiddleCenter, true);
+            made.count = GameUI.Label(t, "Count", string.Empty, Vector2.one, Vector2.one, new Vector2(-8f, -6f), new Vector2(70f, 24f), 18, GameUI.Accent, TextAnchor.UpperRight, true);
+            made.name = GameUI.Label(t, "Name", spec != null ? spec.name : id, TopLeft, TopLeft, new Vector2(6f, -96f), new Vector2(TileW - 12f, 22f), 15, Color.white, TextAnchor.UpperCenter);
+            made.action = GameUI.Button(t, "Use", "Use", new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 8f), new Vector2(TileW - 20f, 28f), () => { Select(captured); UseItem(captured); });
             made.buttonLabel = made.action.GetComponentInChildren<Text>();
-            made.quickSlot = GameUI.Button(row, "QuickSlot", "Set key", Vector2.one, Vector2.one,
-                new Vector2(-108f, -9f), new Vector2(92f, 40f), () => QuickSlots.CycleSlot(captured));
-            made.quickSlot.gameObject.SetActive(false);
+            made.buttonLabel.fontSize = 16;
             itemRows[id] = made;
             return made;
         }
 
-        private Text HeaderFor(ItemCategory category)
+        private void Select(string id)
         {
-            if (headers.TryGetValue(category, out Text header)) return header;
-            header = GameUI.Label(itemContent, "Header_" + category, ItemCatalog.CategoryName(category).ToUpperInvariant(), TopLeft, TopLeft,
-                Vector2.zero, new Vector2(520f, 26f), 16, GameUI.Warning, bold: true);
-            headers[category] = header;
-            return header;
+            if (selectedId == id) return;
+            selectedId = id;
+            Refresh();
+        }
+
+        private static bool InTab(Tab t, ItemCategory c)
+        {
+            switch (t)
+            {
+                case Tab.All: return true;
+                case Tab.Weapons: return c == ItemCategory.Weapon;
+                case Tab.Armor: return c == ItemCategory.Armor;
+                case Tab.Tools: return c == ItemCategory.Tool;
+                case Tab.Medicine: return c == ItemCategory.Medicine;
+                case Tab.Food: return c == ItemCategory.Food;
+                case Tab.Materials: return c == ItemCategory.Raw || c == ItemCategory.Refined || c == ItemCategory.Endgame;
+                default: return false;
+            }
+        }
+
+        private static string Initials(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "?";
+            string[] words = name.Split(' ');
+            return words.Length > 1 ? (words[0].Substring(0, 1) + words[1].Substring(0, 1)).ToUpperInvariant() : name.Substring(0, Mathf.Min(2, name.Length)).ToUpperInvariant();
+        }
+
+        private static void ShowIcon(Image image, Text placeholder, ItemSpec spec)
+        {
+            Sprite sprite = ItemIcons.Get(spec.id);
+            image.sprite = sprite;
+            image.color = sprite != null ? Color.white : ItemIcons.CategoryColor(spec.category);
+            placeholder.text = sprite != null ? string.Empty : Initials(spec.name);
         }
 
         private static string ActionName(ItemSpec spec, bool equipped)
@@ -314,6 +398,42 @@ namespace SheltreSim.Items
             Refresh();
         }
 
+        private void RefreshDetail(PlayerGear gear)
+        {
+            ItemSpec spec = selectedId != null ? ItemCatalog.Spec(selectedId) : null;
+            if (spec == null)
+            {
+                detailIcon.sprite = null; detailIcon.color = new Color(1f, 1f, 1f, 0f); detailPlaceholder.text = string.Empty;
+                detailName.text = "Nothing selected";
+                detailMeta.text = string.Empty;
+                detailText.text = tab == Tab.All ? "Your inventory is empty. Gather, loot and craft." : "No items of this kind. Pick another tab.";
+                detailEffect.text = string.Empty;
+                detailActionButton.gameObject.SetActive(false);
+                detailQuickButton.gameObject.SetActive(false);
+                return;
+            }
+            ShowIcon(detailIcon, detailPlaceholder, spec);
+            bool equipped = gear != null && gear.IsEquipped(spec.id);
+            detailName.text = spec.name;
+            detailMeta.text = ItemCatalog.CategoryName(spec.category) + "   |   owned x" + (inventory != null ? inventory.GetCount(spec.id) : 0) + (equipped ? "   |   EQUIPPED" : string.Empty);
+            detailText.text = spec.description;
+            detailEffect.text = Describe(spec) == spec.description ? string.Empty : Describe(spec);
+            string action = ActionName(spec, equipped);
+            detailActionButton.gameObject.SetActive(action != null);
+            if (action != null)
+            {
+                detailAction.text = action;
+                detailActionButton.interactable = CanUse(spec);
+            }
+            bool canQuick = QuickSlots.IsQuickUsable(spec.id);
+            detailQuickButton.gameObject.SetActive(canQuick);
+            if (canQuick)
+            {
+                int key = QuickSlots.AssignedSlotOf(spec.id);
+                detailQuickLabel.text = key > 0 ? $"Quick slot: key {key}  (click to change)" : "Assign quick-slot key";
+            }
+        }
+
         /// <summary>Rebuilds the visible rows. Called on open and after each action, never per frame (the world is paused while open).</summary>
         public void Refresh()
         {
@@ -335,56 +455,56 @@ namespace SheltreSim.Items
                 gearLabel.text = sb.ToString();
             }
 
-            foreach (ItemRow r in itemRows.Values) r.root.SetActive(false);
-            foreach (Text h in headers.Values) h.gameObject.SetActive(false);
-
-            float y = 0f;
-            foreach (ItemCategory category in CategoryOrder)
+            for (int i = 0; i < tabButtons.Length; i++)
             {
-                shown.Clear();
-                if (inventory != null)
+                Image tabImage = (Image)tabButtons[i].targetGraphic;
+                tabImage.color = (int)tab == i ? new Color(0.22f, 0.38f, 0.29f) : new Color(0.16f, 0.23f, 0.25f);
+            }
+            bool buildTab = tab == Tab.Build;
+            gridScroll.SetActive(!buildTab);
+            detailPanel.SetActive(!buildTab);
+            recipeScroll.SetActive(buildTab);
+
+            foreach (ItemRow r in itemRows.Values) r.root.SetActive(false);
+            shown.Clear();
+            if (inventory != null && !buildTab)
+            {
+                foreach (ItemCategory category in CategoryOrder)
+                {
+                    int start = shown.Count;
                     foreach (var kv in inventory.GetAllCounts())
                     {
                         ItemSpec spec = ItemCatalog.Spec(kv.Key);
-                        if (kv.Value > 0 && spec != null && spec.category == category) shown.Add(kv.Key);
+                        if (kv.Value > 0 && spec != null && spec.category == category && InTab(tab, category)) shown.Add(kv.Key);
                     }
-                if (shown.Count == 0) continue;
-                shown.Sort(System.StringComparer.Ordinal);
-                Text header = HeaderFor(category);
-                header.gameObject.SetActive(true);
-                header.rectTransform.anchoredPosition = new Vector2(4f, -y);
-                y += 28f;
-                foreach (string id in shown)
-                {
-                    ItemSpec spec = ItemCatalog.Spec(id);
-                    ItemRow row = RowFor(id);
-                    row.root.SetActive(true);
-                    ((RectTransform)row.root.transform).anchoredPosition = new Vector2(0f, -y);
-                    bool equipped = gear != null && gear.IsEquipped(id);
-                    row.name.text = equipped ? $"{spec.name}   x{inventory.GetCount(id)}   [EQUIPPED]" : $"{spec.name}   x{inventory.GetCount(id)}";
-                    row.effect.text = Describe(spec);
-                    bool canQuickSlot = QuickSlots.IsQuickUsable(spec.id);
-                    row.quickSlot.gameObject.SetActive(canQuickSlot);
-                    float labelWidth = canQuickSlot ? 300f : 390f;
-                    row.name.rectTransform.sizeDelta = new Vector2(labelWidth, 26f);
-                    row.effect.rectTransform.sizeDelta = new Vector2(labelWidth, 22f);
-                    if (canQuickSlot)
-                    {
-                        int key = QuickSlots.AssignedSlotOf(id);
-                        Text quickLabel = row.quickSlot.GetComponentInChildren<Text>();
-                        if (quickLabel != null) quickLabel.text = key > 0 ? $"Key {key}  >" : "Set key";
-                    }
-                    string action = ActionName(spec, equipped);
-                    row.action.gameObject.SetActive(action != null);
-                    if (action != null)
-                    {
-                        row.buttonLabel.text = action;
-                        row.action.interactable = CanUse(spec);
-                    }
-                    y += 64f;
+                    shown.Sort(start, shown.Count - start, StringComparer.Ordinal);
                 }
             }
-            itemContent.sizeDelta = new Vector2(0f, y);
+            if (selectedId == null || !shown.Contains(selectedId)) selectedId = shown.Count > 0 ? shown[0] : null;
+
+            for (int index = 0; index < shown.Count; index++)
+            {
+                string id = shown[index];
+                ItemSpec spec = ItemCatalog.Spec(id);
+                ItemRow row = RowFor(id);
+                row.root.SetActive(true);
+                ((RectTransform)row.root.transform).anchoredPosition = new Vector2((index % Columns) * (TileW + TileGap), -(index / Columns) * (TileH + TileGap));
+                bool equipped = gear != null && gear.IsEquipped(id);
+                row.background.color = id == selectedId ? SelectedColor : GameUI.RowColor;
+                ShowIcon(row.icon, row.placeholder, spec);
+                row.count.text = equipped ? "EQUIPPED" : "x" + inventory.GetCount(id);
+                row.count.color = equipped ? GameUI.Warning : GameUI.Accent;
+                string action = ActionName(spec, equipped);
+                row.action.gameObject.SetActive(action != null);
+                if (action != null)
+                {
+                    row.buttonLabel.text = action;
+                    row.action.interactable = CanUse(spec);
+                }
+            }
+            int rows = (shown.Count + Columns - 1) / Columns;
+            itemContent.sizeDelta = new Vector2(0f, Mathf.Max(0, rows * (TileH + TileGap)));
+            RefreshDetail(gear);
 
             foreach (BuildPieceDefinition recipe in knownRecipes)
             {
