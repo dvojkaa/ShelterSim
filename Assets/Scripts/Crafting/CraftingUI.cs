@@ -32,6 +32,8 @@ namespace SheltreSim.Crafting
         {
             public Recipe recipe;
             public GameObject root;
+            public Image outputIcon;
+            public Text outputPlaceholder;
             public Text inputs;
             public Button craft, craftFive, pin;
         }
@@ -220,16 +222,37 @@ namespace SheltreSim.Crafting
                 ResourceDefinition outDef = ItemCatalog.Def(recipe.output);
                 Transform row = GameUI.Panel(content, "Recipe_" + recipe.id, TopLeft, TopLeft, Vector2.zero, new Vector2(1070f, RowHeight - 6f), GameUI.RowColor).transform;
                 string head = recipe.outputAmount > 1 ? $"{ItemCatalog.NameOf(recipe.output)}  x{recipe.outputAmount}" : ItemCatalog.NameOf(recipe.output);
-                GameUI.Label(row, "Name", head, TopLeft, TopLeft, new Vector2(14f, -6f), new Vector2(760f, 28f), 21, bold: true);
-                GameUI.Label(row, "Desc", outDef != null ? outDef.description : string.Empty, TopLeft, TopLeft, new Vector2(14f, -34f), new Vector2(760f, 24f), 16, GameUI.Muted);
-                Row r = new Row { recipe = recipe, root = row.gameObject };
-                r.inputs = GameUI.Label(row, "Inputs", string.Empty, TopLeft, TopLeft, new Vector2(14f, -60f), new Vector2(760f, 52f), 17);
+                Image iconBack = GameUI.Panel(row, "OutputIconBackground", TopLeft, TopLeft,
+                    new Vector2(12f, -13f), new Vector2(82f, 82f), new Color(0.025f, 0.04f, 0.045f, 0.8f));
+                Image outputIcon = GameUI.Panel(iconBack.transform, "OutputIcon", new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(70f, 70f), Color.white);
+                outputIcon.preserveAspect = true;
+                Text outputPlaceholder = GameUI.Label(iconBack.transform, "OutputPlaceholder", string.Empty,
+                    new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(70f, 70f), 26,
+                    ItemIcons.CategoryColor(ItemCatalog.Spec(recipe.output)?.category ?? ItemCategory.Refined), TextAnchor.MiddleCenter, bold: true);
+                Sprite sprite = ItemIcons.Get(recipe.output);
+                outputIcon.sprite = sprite;
+                outputIcon.color = sprite != null ? Color.white : ItemIcons.CategoryColor(ItemCatalog.Spec(recipe.output)?.category ?? ItemCategory.Refined);
+                outputPlaceholder.text = sprite != null ? string.Empty : OutputInitials(ItemCatalog.NameOf(recipe.output));
+                GameUI.Label(row, "Name", head, TopLeft, TopLeft, new Vector2(106f, -6f), new Vector2(666f, 28f), 21, bold: true);
+                GameUI.Label(row, "Desc", outDef != null ? outDef.description : string.Empty, TopLeft, TopLeft, new Vector2(106f, -34f), new Vector2(666f, 24f), 16, GameUI.Muted);
+                Row r = new Row { recipe = recipe, root = row.gameObject, outputIcon = outputIcon, outputPlaceholder = outputPlaceholder };
+                r.inputs = GameUI.Label(row, "Inputs", string.Empty, TopLeft, TopLeft, new Vector2(106f, -60f), new Vector2(666f, 52f), 17);
                 r.pin = GameUI.Button(row, "Pin", "☆", TopLeft, TopLeft, new Vector2(790f, -4f), new Vector2(52f, 32f),
                     () => TogglePin(captured));
                 r.craft = GameUI.Button(row, "Craft", "Craft", Vector2.one, Vector2.one, new Vector2(-136f, -34f), new Vector2(120f, 48f), () => DoCraft(captured, 1), true);
                 r.craftFive = GameUI.Button(row, "CraftFive", "Craft x5", Vector2.one, Vector2.one, new Vector2(-12f, -34f), new Vector2(116f, 48f), () => DoCraft(captured, 5));
                 rows.Add(r);
             }
+        }
+
+        private static string OutputInitials(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "?";
+            string[] words = value.Split(' ');
+            return words.Length > 1
+                ? (words[0].Substring(0, 1) + words[1].Substring(0, 1)).ToUpperInvariant()
+                : value.Substring(0, Mathf.Min(2, value.Length)).ToUpperInvariant();
         }
 
         private static bool Matches(Filter f, ItemCategory c)

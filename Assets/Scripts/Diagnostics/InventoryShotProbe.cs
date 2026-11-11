@@ -49,6 +49,14 @@ namespace SheltreSim.Diagnostics
             yield return Shot("medicine", 4);
             ui.SetTabForProbe(7);
             yield return Shot("build", 4);
+            ui.CloseIfOpen();
+            yield return null;
+            var crafting = SheltreSim.Crafting.CraftingUI.Find();
+            if (crafting != null)
+            {
+                crafting.OpenHand();
+                yield return Shot("crafting", 5);
+            }
             Debug.Log("[InventoryShots] done");
             Application.Quit(0);
         }

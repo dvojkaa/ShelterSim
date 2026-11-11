@@ -129,6 +129,12 @@ namespace SheltreSim.Diagnostics
             CheckCrateRadius();
             Check(ItemCatalog.All.All(s => ItemCatalog.Def(s.id) != null && ItemCatalog.Def(s.id).id == s.id), "every catalog item has a ResourceDefinition asset");
             Check(ItemCatalog.All.All(s => { var d = ItemCatalog.Def(s.id); return d != null && d.displayName == s.name && d.category == s.category; }), "assets match the catalog");
+            ItemSpec[] iconItems = ItemCatalog.All.ToArray();
+            string[] missingIcons = iconItems.Where(s => ItemIcons.Get(s.id) == null).Select(s => s.id).ToArray();
+            Check(iconItems.Length == 116 && missingIcons.Length == 0,
+                $"all {iconItems.Length} inventory items load an icon sprite" +
+                (missingIcons.Length == 0 ? string.Empty : $"; missing: {string.Join(", ", missingIcons)}"));
+            Check(RecipeBook.All.All(r => ItemIcons.Get(r.output) != null), "every craftable output has an icon for its recipe row");
             Check(RecipeBook.All.All(r => r.Resolves()), "every recipe resolves to assets");
             foreach (StationKind kind in Enum.GetValues(typeof(StationKind)))
                 Check(RecipeBook.ForStation(kind).Count >= 4, $"station {kind} has recipes ({RecipeBook.ForStation(kind).Count})");
