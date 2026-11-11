@@ -1,0 +1,15 @@
+from ss_art import Model, finish_icon
+m = Model('kit_piece_pump', seed=709)
+m.box((.28,.19,.1),(0,0,.05),'wood',bevel=.01)
+m.box((.29,.2,.025),(0,0,.1),'wood_light')
+m.box((.03,.2,.105),(-.08,0,.052),'steel_dark')
+m.box((.03,.2,.105),(.08,0,.052),'steel_dark')
+m.box((.06,.01,.05),(-.11,-.098,.06),'hazard_yellow')
+z=.1125
+m.box((.09,.09,.04),(0,0,z+.02),'steel_dark')
+m.cyl(.03,.12,(0,0,z+.1),'plastic_blue',seg=10)
+m.cyl(.035,.02,(0,0,z+.17),'steel',seg=10)
+m.cyl(.008,.14,(.0,0,z+.2),'wood_dark',rot=(0,75,0),seg=6)
+m.tube([(0,0,z+.12),(-.07,0,z+.12),(-.07,0,z+.06)],.01,'steel')
+m.cyl(.02,.02,(-.07,0,z+.05),'water',seg=8)
+finish_icon(m)

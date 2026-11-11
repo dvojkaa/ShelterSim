@@ -1,0 +1,15 @@
+from ss_art import Model, finish_icon
+m = Model('kit_generator', seed=701)
+m.box((.28,.19,.1),(0,0,.05),'wood',bevel=.01)
+m.box((.29,.2,.025),(0,0,.1),'wood_light')
+m.box((.03,.2,.105),(-.08,0,.052),'steel_dark')
+m.box((.03,.2,.105),(.08,0,.052),'steel_dark')
+m.box((.06,.01,.05),(-.11,-.098,.06),'hazard_yellow')
+z=.1125
+m.box((.2,.12,.09),(0,0,z+.045),'army_green')
+m.box((.2,.125,.02),(0,0,z+.1),'army_green_dark')
+m.cyl(.015,.1,(.07,0,z+.14),'gunmetal',seg=8)
+m.cyl(.025,.015,(.07,0,z+.19),'steel_dark',seg=8)
+m.box((.04,.01,.04),(-.06,-.065,z+.05),'hazard_yellow')
+m.cyl(.025,.03,(-.1,0,z+.05),'steel',rot=(0,90,0),seg=8)
+finish_icon(m)

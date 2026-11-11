@@ -1,0 +1,15 @@
+from ss_art import Model, finish_icon
+m = Model('kit_piece_stove', seed=714)
+m.box((.28,.19,.1),(0,0,.05),'wood',bevel=.01)
+m.box((.29,.2,.025),(0,0,.1),'wood_light')
+m.box((.03,.2,.105),(-.08,0,.052),'steel_dark')
+m.box((.03,.2,.105),(.08,0,.052),'steel_dark')
+m.box((.06,.01,.05),(-.11,-.098,.06),'hazard_yellow')
+z=.1125
+m.box((.14,.1,.09),(-.02,0,z+.045),'gunmetal')
+m.box((.15,.11,.012),(-.02,0,z+.096),'steel_dark')
+m.box((.05,.012,.04),(-.02,-.052,z+.04),'orange')
+m.cyl(.015,.14,(.03,0,z+.17),'steel_dark',seg=8)
+m.cyl(.022,.012,(.03,0,z+.245),'steel_dark',seg=8)
+m.cyl(.03,.02,(-.05,0,z+.115),'rust',seg=10)
+finish_icon(m)
