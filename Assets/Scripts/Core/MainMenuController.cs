@@ -51,9 +51,11 @@ namespace SheltreSim.Core
         private void Start()
         {
             Refresh();
-            // Automated probes and screenshot runs must not start behind a modal menu.
+            // New Game reloads the scene; the fresh controller must not open the menu again (otherwise New Game just returns to the menu).
+            if (startNewGameImmediately) { startNewGameImmediately = false; return; }
+            // Automated probes and screenshot runs must not start behind a modal menu (the new-game probe opts back in).
             foreach (string argument in System.Environment.GetCommandLineArgs())
-                if (argument.StartsWith("--") && (argument.Contains("probe") || argument.Contains("smoke") || argument.Contains("shots"))) return;
+                if (argument.StartsWith("--") && !argument.Contains("newgame") && (argument.Contains("probe") || argument.Contains("smoke") || argument.Contains("shots"))) return;
             Show();
         }
 
@@ -114,9 +116,16 @@ namespace SheltreSim.Core
             }
         }
 
+        private static bool startNewGameImmediately;
+
+        /// <summary>Public so the new-game probe can press the button.</summary>
+        public void StartNewGame() => NewGame();
+        public bool IsMenuOpen => isOpen;
+
         private void NewGame()
         {
             Hide();
+            startNewGameImmediately = true;
             Time.timeScale = 1f;
             Scene active = SceneManager.GetActiveScene();
             if (active.buildIndex >= 0)

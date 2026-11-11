@@ -84,6 +84,22 @@ namespace SheltreSim.Player
             if (mounted && crouched) SetCrouched(false);
         }
 
+        // Car controls (buggy, van): the mouse only looks around, W/S drive along the vehicle's heading and A/D steer it (no strafing).
+        private bool carSteering;
+        private float carTurnRate = 65f;
+        private float carLookYaw, carLookIdle;
+        public bool IsCarSteering => carSteering;
+
+        /// <summary>Switches the rider to realistic car controls: A/D steer while moving, mouse = free look (yaw clamped, recentres when idle).</summary>
+        public void SetCarSteering(bool active, float turnRateDegreesPerSecond = 65f)
+        {
+            carSteering = active;
+            carTurnRate = turnRateDegreesPerSecond;
+            carLookYaw = 0f;
+            carLookIdle = 0f;
+            if (cameraPivot != null) cameraPivot.localEulerAngles = new Vector3(pitch, 0f, 0f);
+        }
+
         /// <summary>Temporarily locks look and movement while a vehicle mount animation plays.</summary>
         public void SetVehicleTransition(bool active) => vehicleTransition = active;
 
@@ -194,6 +210,25 @@ namespace SheltreSim.Player
         {
             Vector2 lookDelta = input.Look.ReadValue<Vector2>() * lookSensitivity;
 
+            if (carSteering)
+            {
+                // Mouse looks around the cabin; the body (and with it the vehicle) only turns by steering.
+                carLookYaw = Mathf.Clamp(carLookYaw + lookDelta.x, -120f, 120f);
+                carLookIdle = lookDelta.sqrMagnitude > 0.0001f ? 0f : carLookIdle + Time.deltaTime;
+                if (carLookIdle > 1.5f) carLookYaw = Mathf.MoveTowards(carLookYaw, 0f, 90f * Time.deltaTime);
+                Vector2 drive = Vector2.ClampMagnitude(input.Move.ReadValue<Vector2>(), 1f);
+                if (Mathf.Abs(drive.y) > 0.1f && Mathf.Abs(drive.x) > 0.01f)
+                {
+                    float direction = drive.y > 0f ? 1f : -1f; // reversing flips the steering like a real car
+                    float turn = drive.x * direction * carTurnRate * Time.deltaTime;
+                    transform.Rotate(Vector3.up, turn);
+                    carLookYaw = Mathf.Clamp(carLookYaw - turn * 0.35f, -120f, 120f); // the view lags a little behind the turn
+                }
+                pitch = Mathf.Clamp(pitch - lookDelta.y, cameraPitchMin, cameraPitchMax);
+                if (cameraPivot != null) cameraPivot.localEulerAngles = new Vector3(pitch, carLookYaw, 0f);
+                return;
+            }
+
             transform.Rotate(Vector3.up, lookDelta.x);
 
             pitch = Mathf.Clamp(pitch - lookDelta.y, cameraPitchMin, cameraPitchMax);
@@ -210,7 +245,9 @@ namespace SheltreSim.Player
             float speed = crouched ? Mathf.Min(walkSpeed, crouchSpeed)
                 : sprinting ? Mathf.Max(walkSpeed, sprintSpeed * Mathf.Clamp01(sprintMultiplier)) : walkSpeed;
 
-            Vector3 horizontal = (transform.right * moveInput.x + transform.forward * moveInput.y) * speed;
+            Vector3 horizontal = carSteering
+                ? transform.forward * moveInput.y * speed // cars never slide sideways
+                : (transform.right * moveInput.x + transform.forward * moveInput.y) * speed;
 
             if (controller.isGrounded)
             {

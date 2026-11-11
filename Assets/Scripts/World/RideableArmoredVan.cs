@@ -210,6 +210,7 @@ namespace SheltreSim.World
             rider.walkSpeed = 0f;
             rider.sprintSpeed = 0f;
             rider.SetBicycleMounted(true);
+            rider.SetCarSteering(true, 50f);
             foreach (Collider collider in vehicleColliders) if (collider != null) collider.enabled = false;
             lastBumperPosition = transform.position + transform.forward * 3.2f + Vector3.up * 0.55f;
             GameMessageBus.Post($"Van controls: P cargo, H fuel (+{FuelRangePerCan / 1000f:0.#} km), J energy cell (+{BatteryRangePerCell / 1000f:0.#} km), L lights, K horn, T turret (1 rifle round), Space dismount. Range: {fuelMeters / 1000f:0.#} km. Ram at speed to damage enemies and structures.");
@@ -588,6 +589,7 @@ namespace SheltreSim.World
             if (rider != null)
             {
                 rider.walkSpeed = oldWalk; rider.sprintSpeed = oldSprint;
+                rider.SetCarSteering(false);
                 rider.SetBicycleMounted(false);
                 rider = null;
             }

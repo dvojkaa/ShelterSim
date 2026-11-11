@@ -230,6 +230,7 @@ namespace SheltreSim.World
             currentSpeed = 0f;
             rider.walkSpeed = 0f; rider.sprintSpeed = 0f;
             rider.SetBicycleMounted(true);
+            rider.SetCarSteering(true, 70f);
             foreach (Collider c in vehicleColliders) if (c != null) c.enabled = false;
             ramSweepReady = false;
             ramReadyAt.Clear();
@@ -558,6 +559,7 @@ namespace SheltreSim.World
             if (rider != null)
             {
                 rider.walkSpeed = oldWalk; rider.sprintSpeed = oldSprint;
+                rider.SetCarSteering(false);
                 rider.SetBicycleMounted(false);
                 rider = null;
             }

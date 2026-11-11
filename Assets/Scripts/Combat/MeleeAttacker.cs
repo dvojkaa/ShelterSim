@@ -450,9 +450,11 @@ namespace SheltreSim.Combat
             Vector3 windupPosition = new Vector3(0f, 0f, -0.04f);
             Vector3 strikePosition = new Vector3(-0.06f, 0f, 0.12f);
             Vector3 overshootPosition = new Vector3(-0.08f, -0.02f, 0.14f);
-            Quaternion windupRotation = Quaternion.Euler(12f, 8f, 0f);
-            Quaternion strikeRotation = Quaternion.Euler(-80f, -35f, -20f);
-            Quaternion overshootRotation = Quaternion.Euler(-92f, -42f, -25f);
+            // The held model points up and forward (MeleeViewmodel.HeldRotation): wind up by raising the tip further back, then chop it
+            // FORWARD and down through the target. (Negative X here swung the tip back towards the player.)
+            Quaternion windupRotation = Quaternion.Euler(-22f, -6f, 0f);
+            Quaternion strikeRotation = Quaternion.Euler(80f, 20f, 15f);
+            Quaternion overshootRotation = Quaternion.Euler(92f, 25f, 18f);
             Vector3 position;
             Quaternion rotation;
             if (elapsed < anticipation)

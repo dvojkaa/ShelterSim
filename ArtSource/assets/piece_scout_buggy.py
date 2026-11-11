@@ -34,7 +34,8 @@ for x in (-.74, .74):
 # Slanted windscreen frame, mesh guard, grille and two rough seats.
 tube((-.68, .74, 1.02), (-.62, .98, 1.60), .035, 'steel')
 tube((.68, .74, 1.02), (.62, .98, 1.60), .035, 'steel')
-m.box((1.25, .06, .42), (0, 1.00, 1.37), 'glass')
+# No glass pane: a solid pane sat exactly in the driver's eye line and made the buggy undrivable. Open frame with a top bar only.
+tube((-.62, .98, 1.60), (.62, .98, 1.60), .03, 'steel')
 m.box((1.30, .08, .34), (0, 2.02, .82), 'steel_dark', bevel=.025)
 for x in (-.48, -.24, 0, .24, .48):
     m.box((.035, .08, .30), (x, 2.01, .82), 'steel')
@@ -67,7 +68,7 @@ for k in range(3):
 m.cyl(.04, .05, sc, 'steel', rot=(55 - 90, 0, 0), seg=6)
 m.tube([sc, (-.40, .82, 1.10)], .025, 'steel_dark', seg=6)
 # Anchors read by the game (pivot position only).
-for n, p in (('Seat', (-.40, .20, 1.35)), ('Exit_L', (-.95, .20, 0)), ('Exit_R', (.95, .20, 0))):
+for n, p in (('Seat', (-.40, .08, 1.52)), ('Exit_L', (-.95, .20, 0)), ('Exit_R', (.95, .20, 0))):
     m.part(n, pivot=p).box((.01, .01, .01), (p[0], p[1], p[2] + (.02 if p[2] == 0 else -.02)), 'black')
 
 finish(m, bounds={'x':(-1.9,1.9),'y':(-2.3,2.3),'z':(0,2.1)})
